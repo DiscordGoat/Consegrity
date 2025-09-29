@@ -1,0 +1,67 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  net.minecraft.advancements.AdvancementRequirements
+ *  net.minecraft.advancements.Criterion
+ *  org.jetbrains.annotations.NotNull
+ *  org.jetbrains.annotations.Range
+ */
+package com.fren_gor.ultimateAdvancementAPI.nms.v1_20_R2.advancement;
+
+import com.fren_gor.ultimateAdvancementAPI.nms.v1_20_R2.Util;
+import com.fren_gor.ultimateAdvancementAPI.nms.v1_20_R2.advancement.AdvancementWrapper_v1_20_R2;
+import com.fren_gor.ultimateAdvancementAPI.nms.wrappers.MinecraftKeyWrapper;
+import com.fren_gor.ultimateAdvancementAPI.nms.wrappers.advancement.AdvancementDisplayWrapper;
+import com.fren_gor.ultimateAdvancementAPI.nms.wrappers.advancement.AdvancementWrapper;
+import com.fren_gor.ultimateAdvancementAPI.nms.wrappers.advancement.PreparedAdvancementWrapper;
+import java.util.Map;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.Criterion;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Range;
+
+public class PreparedAdvancementWrapper_v1_20_R2
+extends PreparedAdvancementWrapper {
+    private final MinecraftKeyWrapper key;
+    private final AdvancementDisplayWrapper display;
+    private final Map<String, Criterion<?>> advCriteria;
+    private final AdvancementRequirements advRequirements;
+
+    public PreparedAdvancementWrapper_v1_20_R2(@NotNull MinecraftKeyWrapper key, @NotNull AdvancementDisplayWrapper display, @Range(from=1L, to=0x7FFFFFFFL) int maxProgression) {
+        this.key = key;
+        this.display = display;
+        this.advCriteria = Util.getAdvancementCriteria(maxProgression);
+        this.advRequirements = Util.getAdvancementRequirements(this.advCriteria);
+    }
+
+    @Override
+    @NotNull
+    public MinecraftKeyWrapper getKey() {
+        return this.key;
+    }
+
+    @Override
+    @NotNull
+    public AdvancementDisplayWrapper getDisplay() {
+        return this.display;
+    }
+
+    @Override
+    public @Range(from=1L, to=0x7FFFFFFFL) int getMaxProgression() {
+        return this.advRequirements.a();
+    }
+
+    @Override
+    @NotNull
+    public AdvancementWrapper toRootAdvancementWrapper() {
+        return new AdvancementWrapper_v1_20_R2(this.key, this.display, this.advCriteria, this.advRequirements);
+    }
+
+    @Override
+    @NotNull
+    public AdvancementWrapper toBaseAdvancementWrapper(@NotNull AdvancementWrapper parent) {
+        return new AdvancementWrapper_v1_20_R2(this.key, parent, this.display, this.advCriteria, this.advRequirements);
+    }
+}
+

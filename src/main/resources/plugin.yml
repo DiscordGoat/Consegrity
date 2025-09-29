@@ -1,0 +1,20 @@
+name: Consegrity
+version: '1.0-SNAPSHOT'
+main: goat.projectLinearity.ProjectLinearity
+api-version: '1.21'
+load: STARTUP
+authors: [ DiscordGoat ]
+description: A Frozen Survival Minecraft Project 
+commands:
+  regenerate:
+    description: Regenerate the Consegrity world
+    usage: /regenerate
+    permission: consegrity.dev
+  getallconsegrityadvancements:
+    description: Grants advancements from specified tab(s) or all
+    usage: /getallconsegrityadvancements [all|consegrity|desert|mesa|swamp|cherry|mountain|jungle ...]
+    permission: consegrity.dev
+permissions:
+  consegrity.dev:
+    description: Allows using /regenerate
+    default: op

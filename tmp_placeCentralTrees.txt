@@ -1,0 +1,30 @@
+private void placeCentralTrees(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
+        Random rng = new Random(ConsegrityChunkGenerator.hash(seed, chunkX, 123L, chunkZ, 466661L));
+        for (int lx = 0; lx < 16; ++lx) {
+            for (int lz = 0; lz < 16; ++lz) {
+                boolean isHill;
+                int y;
+                if (centralMaskGrid[lx][lz] < 0.6 || (y = topYGrid[lx][lz]) <= 159) continue;
+                int h = y;
+                int countLower = 0;
+                for (int dx = -1; dx <= 1; ++dx) {
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        if (dx == 0 && dz == 0) continue;
+                        int nx = lx + dx;
+                        int nz = lz + dz;
+                        if (nx < 0 || nx > 15 || nz < 0 || nz > 15 || (h = topYGrid[nx][nz]) >= y) continue;
+                        ++countLower;
+                    }
+                }
+                boolean bl = isHill = countLower >= 4;
+                if (!isHill || rng.nextDouble() > 0.08) continue;
+                Material wood = rng.nextDouble() < 0.9 ? Material.OAK_LOG : Material.BIRCH_LOG;
+                Material leaves = wood == Material.OAK_LOG ? Material.OAK_LEAVES : Material.BIRCH_LEAVES;
+                this.growSimpleTree(data, lx, h + 1, lz, wood, leaves, rng);
+            }
+        }
+    }
+
+    private void growSimpleTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, Random rng) {
+        int height = 4 + rng.nextInt(3);
+   

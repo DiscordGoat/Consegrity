@@ -1,0 +1,26 @@
+.ring1CherrySurfaceY(seed, wx, wz);
+                int mesaTarget = this.ring2MesaSurfaceY(seed, wx, wz);
+                int mountainTarget = this.ring2MountainSurfaceY(seed, wx, wz);
+                int DESERT_BASE = 163;
+                int SAVANNA_BASE = 165;
+                int SWAMP_BASE = 161;
+                int MESA_BASE = 175;
+                int JUNGLE_BASE = 169;
+                int ICE1_BASE = 167;
+                int CHERRY1_BASE = 173;
+                int MTN_BASE = 183;
+                // Swap: put mountains into ring1 (index 2)
+                double r1DeltaA = switch (b1.a) {
+                    case 0 -> desertTarget - 163;
+                    case 1 -> savannahTarget - 165;
+                    case 2 -> mountainTarget - 175; // approximate to ring1 base
+                    case 3 -> cherryTarget - 173;
+                    case 4 -> swampTarget - 161;
+                    default -> 0.0;
+                };
+                double r1DeltaB = switch (b1.b) {
+                    case 0 -> desertTarget - 163;
+                    case 1 -> savannahTarget - 165;
+                    case 2 -> mountainTarget - 175;
+                    case 3 -> cherryTarget - 173;
+       

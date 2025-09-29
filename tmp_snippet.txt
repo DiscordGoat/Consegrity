@@ -1,0 +1,28 @@
+     Material g = this.safeType(data, lx, topY, lz);
+                    if (g != Material.GRASS_BLOCK && g != Material.DIRT && g != Material.MUD) {
+                        data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
+                    }
+                }
+            }
+        }
+
+        // Rare oak trees placed only on land paths
+        for (int i = 0; i < 10; i++) {
+            int lx = rng.nextInt(16);
+            int lz = rng.nextInt(16);
+            if (regionGrid[lx][lz] != ConsegrityRegions.Region.SWAMP) continue;
+            int topY = topYGrid[lx][lz];
+            int wx = baseX + lx;
+            int wz = baseZ + lz;
+            double n = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A4D00A1L, (double)wx / scale, (double)wz / scale);
+            if (n < waterFrac) continue; // avoid water cells
+            if (this.slopeGrid(topYGrid, lx, lz) > 3) continue;
+            Material ground = this.safeType(data, lx, topY, lz);
+            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
+            if (rng.nextDouble() > 0.18) continue;
+            this.growSimpleTree(data, lx, topY + 1, lz, Material.OAK_LOG, Material.OAK_LEAVES, new Random(rng.nextLong()));
+            if (rng.nextBoolean()) addVinesAround(data, lx, topY + 1, lz, rng);
+        }
+    }
+
+    private void addVinesAround(ChunkGenerator.ChunkData data, int x, int y, int z, Spli

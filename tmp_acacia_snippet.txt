@@ -1,0 +1,25 @@
+// Acacia-style trees: a few scattered attempts per chunk
+        for (int i = 0; i < 4; i++) {
+            int lx = rng.nextInt(16);
+            int lz = rng.nextInt(16);
+            if (lx < 1 || lx > 14 || lz < 1 || lz > 14) continue;
+            if (regionGrid[lx][lz] != ConsegrityRegions.Region.SAVANNAH) continue;
+            int topY = topYGrid[lx][lz];
+            if (topY < 155) continue; // slightly above sea level
+            if (this.slopeGrid(topYGrid, lx, lz) > 3) continue;
+            Material ground = this.safeType(data, lx, topY, lz);
+            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
+            if (rng.nextDouble() > 0.35) continue; // gate
+
+            int height = 4 + rng.nextInt(3); // 4..6
+            int dir = rng.nextInt(4);
+            int ox = dir == 0 ? 1 : (dir == 1 ? -1 : 0);
+            int oz = dir == 2 ? 1 : (dir == 3 ? -1 : 0);
+
+            int x = lx;
+            int z = lz;
+            for (int dy = 0; dy < height; dy++) {
+                int yy = topY + 1 + dy;
+                if (dy >= height - 2) { x += ox; z += oz; }
+                if (x < 0 || x > 15 || z < 0 || z > 15) break;
+                data.setBlock(x
