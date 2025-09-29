@@ -507,7 +507,7 @@ private V2 massiveMountainCenter(long seed) {
         SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 3303206417L);
         boolean[][] treeBases = new boolean[16][16];
 
-        int treeAttempts = 9;
+        int treeAttempts = 4; // Reduced from 9 to lower cherry tree spawn rate by roughly 60%
         for (int i = 0; i < treeAttempts; ++i) {
             int lx = rng.nextInt(16);
             int lz = rng.nextInt(16);
