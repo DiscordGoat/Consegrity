@@ -2,14 +2,19 @@ package goat.projectLinearity.world;
 
 import goat.projectLinearity.libs.ArcticChunkGenerator;
 import goat.projectLinearity.world.ConsegrityRegions;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.SplittableRandom;
 import org.bukkit.Bukkit;
+import org.bukkit.Axis;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Orientable;
 import org.bukkit.block.data.type.Snow;
+import org.bukkit.block.data.type.PinkPetals;
 import org.bukkit.block.data.MultipleFacing;
 import org.bukkit.block.BlockFace;
 import org.bukkit.generator.ChunkGenerator;
@@ -499,70 +504,158 @@ private V2 massiveMountainCenter(long seed) {
     }
 
     private void placeCherryFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
         SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 3303206417L);
-        int attempts = 7;
-        for (int i = 0; i < attempts; ++i) {
-            Material top;
-            int y;
+        boolean[][] treeBases = new boolean[16][16];
+
+        int treeAttempts = 9;
+        for (int i = 0; i < treeAttempts; ++i) {
             int lx = rng.nextInt(16);
             int lz = rng.nextInt(16);
-            if (lx < 1 || lx > 14 || lz < 1 || lz > 14 || regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY || (y = topYGrid[lx][lz]) < 160 || y > 200 || this.slopeGrid(topYGrid, lx, lz) > 4 || (top = data.getType(lx, y, lz)) != Material.GRASS_BLOCK && top != Material.DIRT && top != Material.STONE) continue;
-            int h = 4 + rng.nextInt(4);
-            this.placeCherryTree(data, lx, y + 1, lz, h, rng);
-            if (!(rng.nextDouble() < 0.35)) continue;
-            this.scatterPetals(data, lx, y + 1, lz, rng);
+            if (lx < 1 || lx > 14 || lz < 1 || lz > 14) continue;
+            if (regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY) continue;
+            int groundY = topYGrid[lx][lz];
+            if (groundY < 160 || groundY > 205) continue;
+            if (this.slopeGrid(topYGrid, lx, lz) > 4) continue;
+            Material ground = this.safeType(data, lx, groundY, lz);
+            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT && ground != Material.STONE) continue;
+
+            int height = 5 + rng.nextInt(3);
+            this.placeCherryTree(data, lx, groundY + 1, lz, height, rng);
+            treeBases[lx][lz] = true;
+        }
+
+        int petalAttempts = 80;
+        for (int i = 0; i < petalAttempts; ++i) {
+            int lx = rng.nextInt(16);
+            int lz = rng.nextInt(16);
+            if (regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY) continue;
+            int groundY = topYGrid[lx][lz];
+            if (groundY < 158 || groundY > 210) continue;
+            if (treeBases[lx][lz]) continue;
+            if (this.slopeGrid(topYGrid, lx, lz) > 4) continue;
+
+            Material ground = this.safeType(data, lx, groundY, lz);
+            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
+            Material above = this.safeType(data, lx, groundY + 1, lz);
+            if (above != Material.AIR) continue;
+
+            this.placePinkPetals(data, lx, groundY + 1, lz, rng);
+
+            for (int dx = -1; dx <= 1; ++dx) {
+                for (int dz = -1; dz <= 1; ++dz) {
+                    if (dx == 0 && dz == 0) continue;
+                    if (rng.nextDouble() > 0.55) continue;
+                    int xx = lx + dx;
+                    int zz = lz + dz;
+                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
+                    if (treeBases[xx][zz]) continue;
+                    int ny = topYGrid[xx][zz];
+                    if (Math.abs(ny - groundY) > 1) continue;
+                    Material nGround = this.safeType(data, xx, ny, zz);
+                    Material nAbove = this.safeType(data, xx, ny + 1, zz);
+                    if ((nGround == Material.GRASS_BLOCK || nGround == Material.DIRT) && nAbove == Material.AIR) {
+                        this.placePinkPetals(data, xx, ny + 1, zz, rng);
+                    }
+                }
+            }
         }
     }
 
     private void placeCherryTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, int height, SplittableRandom rng) {
-        for (int i = 0; i < height; ++i) {
-            data.setBlock(lx, y + i, lz, Material.CHERRY_LOG);
-        }
-        int top = y + height - 1;
-        int rMax = 2 + rng.nextInt(2);
-        for (int dy = -1; dy <= 2; ++dy) {
-            int ry = rMax - Math.max(0, dy);
-            for (int dx = -ry; dx <= ry; ++dx) {
-                for (int dz = -ry; dz <= ry; ++dz) {
-                    Material cur;
-                    if (Math.abs(dx) + Math.abs(dz) > ry + 1 || rng.nextDouble() < 0.15) continue;
-                    int xx = lx + dx;
-                    int yy = top + dy;
-                    int zz = lz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    try {
-                        cur = data.getType(xx, yy, zz);
-                    }
-                    catch (Throwable t) {
-                        cur = Material.AIR;
-                    }
-                    if (cur != Material.AIR) continue;
-                    data.setBlock(xx, yy, zz, Material.CHERRY_LEAVES);
+        int trunkHeight = height + rng.nextInt(2);
+        int currentX = lx;
+        int currentZ = lz;
+        for (int i = 0; i < trunkHeight; ++i) {
+            int yy = y + i;
+            data.setBlock(currentX, yy, currentZ, Material.CHERRY_LOG);
+            if (i >= trunkHeight - 3 && rng.nextDouble() < 0.35) {
+                int dir = rng.nextInt(4);
+                int offX = dir == 0 ? 1 : dir == 1 ? -1 : 0;
+                int offZ = dir == 2 ? 1 : dir == 3 ? -1 : 0;
+                int nextX = currentX + offX;
+                int nextZ = currentZ + offZ;
+                if (nextX >= 0 && nextX <= 15 && nextZ >= 0 && nextZ <= 15) {
+                    currentX = nextX;
+                    currentZ = nextZ;
                 }
             }
+        }
+
+        int topY = y + trunkHeight - 1;
+        int[][] dirs = new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        List<int[]> canopyAnchors = new ArrayList<>();
+        canopyAnchors.add(new int[]{currentX, topY, currentZ});
+
+        for (int[] dir : dirs) {
+            if (rng.nextDouble() > 0.6) continue;
+            int length = 1 + rng.nextInt(2);
+            int branchY = topY - rng.nextInt(2);
+            int bx = currentX;
+            int bz = currentZ;
+            int placed = 0;
+            for (int step = 0; step < length; ++step) {
+                bx += dir[0];
+                bz += dir[1];
+                if (bx < 0 || bx > 15 || bz < 0 || bz > 15) break;
+                Material existing = this.safeType(data, bx, branchY, bz);
+                if (existing != Material.AIR && existing != Material.CHERRY_LEAVES) break;
+                Orientable branch = (Orientable)Material.CHERRY_LOG.createBlockData();
+                branch.setAxis(dir[0] != 0 ? Axis.X : Axis.Z);
+                data.setBlock(bx, branchY, bz, branch);
+                placed++;
+            }
+            if (placed > 0) {
+                canopyAnchors.add(new int[]{bx, branchY, bz});
+            }
+        }
+
+        for (int[] anchor : canopyAnchors) {
+            this.placeCherryCanopy(data, anchor[0], anchor[1], anchor[2], rng);
         }
     }
 
-    private void scatterPetals(ChunkGenerator.ChunkData data, int lx, int y, int lz, SplittableRandom rng) {
-        for (int dx = -2; dx <= 2; ++dx) {
-            for (int dz = -2; dz <= 2; ++dz) {
-                int yy;
-                Material ground;
-                if (Math.abs(dx) + Math.abs(dz) > 3 || rng.nextDouble() > 0.35) continue;
-                int xx = lx + dx;
-                int zz = lz + dz;
-                if (xx < 0 || xx > 15 || zz < 0 || zz > 15 || (ground = data.getType(xx, yy = y - 1, zz)) != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
-                try {
-                    data.setBlock(xx, yy + 1, zz, Material.PINK_PETALS);
-                    continue;
-                }
-                catch (Throwable throwable) {
-                    // empty catch block
+    private void placeCherryCanopy(ChunkGenerator.ChunkData data, int cx, int cy, int cz, SplittableRandom rng) {
+        int baseRadius = 3 + rng.nextInt(2);
+        for (int dy = -2; dy <= 3; ++dy) {
+            double layerRadius = baseRadius - 0.6 * Math.abs(dy - 1);
+            if (dy <= 0) {
+                layerRadius += 0.5;
+            }
+            int r = (int)Math.ceil(Math.max(1.5, layerRadius));
+            int yy = cy + dy;
+            for (int dx = -r; dx <= r; ++dx) {
+                for (int dz = -r; dz <= r; ++dz) {
+                    int xx = cx + dx;
+                    int zz = cz + dz;
+                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
+                    double dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist > layerRadius + rng.nextDouble() * 0.5) continue;
+                    Material existing = this.safeType(data, xx, yy, zz);
+                    if (existing != Material.AIR) continue;
+                    if (rng.nextDouble() < 0.85) {
+                        data.setBlock(xx, yy, zz, Material.CHERRY_LEAVES);
+                        if (dy <= 0 && rng.nextDouble() < 0.28) {
+                            int hangY = yy - 1;
+                            if (hangY >= 0 && this.safeType(data, xx, hangY, zz) == Material.AIR) {
+                                data.setBlock(xx, hangY, zz, Material.CHERRY_LEAVES);
+                            }
+                        }
+                    }
                 }
             }
         }
+        if (this.safeType(data, cx, cy + 4, cz) == Material.AIR) {
+            data.setBlock(cx, cy + 4, cz, Material.CHERRY_LEAVES);
+        }
+    }
+
+    private void placePinkPetals(ChunkGenerator.ChunkData data, int lx, int y, int lz, SplittableRandom rng) {
+        BlockData petals = Material.PINK_PETALS.createBlockData();
+        if (petals instanceof PinkPetals pink) {
+            pink.setFlowerAmount(2 + rng.nextInt(3));
+            petals = pink;
+        }
+        data.setBlock(lx, y, lz, petals);
     }
 
     private int slopeGrid(int[][] topY, int lx, int lz) {
@@ -796,7 +889,13 @@ private V2 massiveMountainCenter(long seed) {
                 Material ground = this.safeType(data, lx, topY, lz);
                 Material above = this.safeType(data, lx, topY + 1, lz);
                 if ((ground == Material.GRASS_BLOCK || ground == Material.DIRT) && above == Material.AIR) {
-                    if (rng.nextDouble() < 0.08) data.setBlock(lx, topY + 1, lz, grassPlant);
+                    double roll = rng.nextDouble();
+                    if (roll < 0.03) {
+                        Material flower = rng.nextDouble() < 0.55 ? Material.POPPY : Material.DANDELION;
+                        data.setBlock(lx, topY + 1, lz, flower);
+                    } else if (roll < 0.11) {
+                        data.setBlock(lx, topY + 1, lz, grassPlant);
+                    }
                 }
             }
         }
