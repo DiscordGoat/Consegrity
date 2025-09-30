@@ -1,37 +1,30 @@
 package goat.projectLinearity.world;
 
 import goat.projectLinearity.libs.ArcticChunkGenerator;
-import goat.projectLinearity.world.ConsegrityRegions;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.SplittableRandom;
-import org.bukkit.Bukkit;
-import org.bukkit.Axis;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
-import org.bukkit.block.data.BlockData;
-import org.bukkit.block.data.Orientable;
-import org.bukkit.block.data.type.Snow;
-import org.bukkit.block.data.type.PinkPetals;
-import org.bukkit.block.data.MultipleFacing;
-import org.bukkit.block.BlockFace;
 import org.bukkit.generator.ChunkGenerator;
+import goat.projectLinearity.world.sector.CentralSector;
+import goat.projectLinearity.world.sector.DesertBiome;
+import goat.projectLinearity.world.sector.SavannaSector;
+import goat.projectLinearity.world.sector.SwampSector;
+import goat.projectLinearity.world.sector.JungleSector;
+import goat.projectLinearity.world.sector.IceSpikesSector;
+import goat.projectLinearity.world.sector.CherrySector;
+import goat.projectLinearity.world.sector.MesaSector;
+import goat.projectLinearity.world.sector.MountainSector;
 
 public class ConsegrityChunkGenerator
 extends ArcticChunkGenerator {
-    private static final int SEA_LEVEL = 153;
-    private static final int AUDIT_Y_MIN = -192;
-    private static final int AUDIT_Y_MAX = 320;
     private static final int CENTER_X = 0;
     private static final int CENTER_Z = 0;
     // Y level separating overworld and the custom underworld (Nether-like) layer
     private static final int UNDERWORLD_ROOF_Y = -70;
-    private static final double TRANSITION = 10.0;
     private static final double CENTRAL_RADIUS = 100.0;
     private static final double CENTRAL_FEATHER = 90.0;
-    private static final double CENTRAL_JITTER = 20.0;
     private static final double R1_INNER = 120.0;
     private static final double R1_OUTER = 520.0;
     private static final double R1_FEATHER = 20.0;
@@ -42,36 +35,11 @@ extends ArcticChunkGenerator {
     // --- Massive Mountain (MM) spec ---
     private static final int MM_PEAK_Y_CAP = 700;   // hard cap (also clamped by world.getMaxHeight())
     private static final int MM_GROUND_Y  = 160;    // flat valley floor target
-    private static final double MM_EFFECT_R = 420.0;   // how far the “influence” of the big mountain extends
-    private static final double MM_CORE_R    = 26.0;   // flat top (plateau) radius
-    private static final double MM_CROWN_IN  = 36.0;   // crown ring inner radius
-    private static final double MM_CROWN_OUT = 72.0;   // crown ring outer radius
-    private static final double MM_RANGE_CELL = 180.0; // ring of secondary ranges around the massif
-    private static final double MM_VALLEY_R0 = 160.0;  // inner edge of flat valleys
-    private static final double MM_VALLEY_R1 = 300.0;  // outer edge of flat valleys
-    private static final double FEATHER_WIDTH = 30.0;
+    // Halve massif footprint for a tighter central mountain
+    private static final double MM_EFFECT_R = 150.0;   // tighter massif footprint (was 210)
     private static final double[] R1_SPLITS = new double[]{0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
     private static final double[] R2_SPLITS = new double[]{0.0, 0.3333333333333, 0.6666666666666, 1.0};
-    private static final double SECTOR_BLEND_FRAC = -1.28;
-    private static final int R1_BASE = 165;
-    private static final int R2_BASE = 175;
-    private static final double UNION_EPS = 0.03;
-    private static final double COAST_BACK = 80.0;
-    private static final int SHELF_DEPTH = 13;
-    private static final int CAVE_CELL = 64;
-    private static final double CAVE_STEP = 1.1;
-    private static final int CAVE_STEPS_MIN = 120;
-    private static final int CAVE_STEPS_RANGE = 80;
-    private static final double CAVE_RMAX = 2.6;
-    private static final int CAVE_STEPS_MAX = 200;
-    private static final double CAVE_MAX_REACH = 222.60000000000002;
-    private static final int CAVE_REACH = (int)Math.ceil(3.4781250000000004) + 1;
-    private static final long CAVE_SALT = 3237997278L;
     private static final int[] OFFS = new int[]{0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1};
-    private static final double BORDER_WARP_BIG = 18.0;
-    private static final double BORDER_WARP_SMALL = 7.0;
-    private static final double BORDER_WARP_F1 = 340.0;
-    private static final double BORDER_WARP_F2 = 120.0;
 
     @Override
     public ChunkGenerator.ChunkData generateChunkData(World world, Random random, int chunkX, int chunkZ, ChunkGenerator.BiomeGrid biome) {
@@ -91,6 +59,17 @@ extends ArcticChunkGenerator {
         boolean[][] frozenOcean = new boolean[16][16];
         boolean[][] oceanGrid = new boolean[16][16];
         ConsegrityRegions.Region[][] regionGrid = new ConsegrityRegions.Region[16][16];
+
+        // Sector instances
+        CentralSector centralSec = new CentralSector();
+        DesertBiome desertSec = new DesertBiome();
+        SavannaSector savannaSec = new SavannaSector();
+        SwampSector swampSec = new SwampSector();
+        JungleSector jungleSec = new JungleSector();
+        IceSpikesSector iceSec = new IceSpikesSector();
+        CherrySector cherrySec = new CherrySector();
+        MesaSector mesaSec = new MesaSector();
+        MountainSector mountainSec = new MountainSector();
         for (lx = 0; lx < 16; ++lx) {
             for (lz = 0; lz < 16; ++lz) {
                 int idx;
@@ -115,15 +94,15 @@ extends ArcticChunkGenerator {
                 int idxR1 = ConsegrityChunkGenerator.arcIndex(ConsegrityChunkGenerator.wrap01(uWarp + rotR1), R1_SPLITS);
                 int idxR2 = ConsegrityChunkGenerator.arcIndex(ConsegrityChunkGenerator.wrap01(uWarp + rotR2), R2_SPLITS);
                 int oceanFloor = this.oceanFloorY(seed, wx, wz);
-                int centralTarget = this.centralSurfaceY(seed, wx, wz);
-                int desertTarget = this.ring1DesertSurfaceY(seed, wx, wz);
-                int savannahTarget = this.ring1SavannahSurfaceY(seed, wx, wz);
-                int swampTarget = this.ring1SwampSurfaceY(seed, wx, wz);
-                int jungleTarget = this.ring2JungleSurfaceY(seed, wx, wz);
-                int iceTarget = this.ring1IceSpikesSurfaceY(seed, wx, wz);
-                int cherryTarget = this.ring1CherrySurfaceY(seed, wx, wz);
-                int mesaTarget = this.ring2MesaSurfaceY(seed, wx, wz);
-                int mountainTarget = this.ring2MountainSurfaceY(seed, wx, wz, world.getMaxHeight());
+                int centralTarget = centralSec.computeSurfaceY(world, seed, wx, wz);
+                int desertTarget = desertSec.computeSurfaceY(world, seed, wx, wz);
+                int savannahTarget = savannaSec.computeSurfaceY(world, seed, wx, wz);
+                int swampTarget = swampSec.computeSurfaceY(world, seed, wx, wz);
+                int jungleTarget = jungleSec.computeSurfaceY(world, seed, wx, wz);
+                int iceTarget = iceSec.computeSurfaceY(world, seed, wx, wz);
+                int cherryTarget = cherrySec.computeSurfaceY(world, seed, wx, wz);
+                int mesaTarget = mesaSec.computeSurfaceY(world, seed, wx, wz);
+                int mountainTarget = mountainSec.computeSurfaceY(world, seed, wx, wz);
                 int DESERT_BASE = 163;
                 int SAVANNA_BASE = 165;
                 int SWAMP_BASE = 161;
@@ -357,36 +336,15 @@ extends ArcticChunkGenerator {
         this.placeFrozenOceanIcebergs(world, data, seed, chunkX, chunkZ, floorYGrid, frozenOcean);
         // Underworld Nether-like layer beneath the overworld
         this.placeUnderNether(world, data, seed, chunkX, chunkZ, regionGrid, oceanGrid);
-        this.placeCentralTrees(world, data, seed, chunkX, chunkZ, topYGrid, centralMaskGrid);
-        this.placeMountainRivers(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeMountainTaigaEdge(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeIceSpikesFeatures(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeCherryFeatures(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeDesertFeatures(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeSwampFeatures(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeSavannaFeatures(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
-        this.placeCentralGrass(world, data, seed, chunkX, chunkZ, topYGrid, centralMaskGrid);
+        centralSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, centralMaskGrid);
+        mountainSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        iceSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        cherrySec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        desertSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        swampSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        savannaSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
         this.placeBedrockBand(world, data, chunkX, chunkZ);
         return data;
-    }
-
-    private int ring1IceSpikesSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x11CE5EEDL, (double)wx / 240.0, (double)wz / 240.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x22CE5EEDL, (double)wx / 84.0, (double)wz / 84.0);
-        double h = (h1 * 0.65 + h2 * 0.35) * 2.0 - 1.0;
-        int base = 171;
-        int amp = 14;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring1CherrySurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x7C3EE111L, (double)wx / 260.0, (double)wz / 260.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x7C3EE112L, (double)wx / 88.0, (double)wz / 88.0);
-        double h3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x7C3EE113L, (double)wx / 34.0, (double)wz / 34.0);
-        double h = (h1 * 0.52 + h2 * 0.32 + h3 * 0.16) * 2.0 - 1.0;
-        int base = 177;
-        int amp = 26;
-        return base + (int)Math.round(h * (double)amp);
     }
 
     // Angular mid of ring1 mountain wedge (index 2), then place the massif
@@ -445,310 +403,8 @@ private V2 massiveMountainCenter(long seed) {
 
     // use existing V2 class defined earlier in this file
 
-    private void placeIceSpikesFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int topY;
-        int lz;
-        int lx;
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 484811169L);
-        for (int lx2 = 0; lx2 < 16; ++lx2) {
-            for (int lz2 = 0; lz2 < 16; ++lz2) {
-                int topY2;
-                if (regionGrid[lx2][lz2] != ConsegrityRegions.Region.ICE_SPIKES || (topY2 = topYGrid[lx2][lz2]) < world.getMinHeight() + 1) continue;
-                int wx = baseX + lx2;
-                int wz = baseZ + lz2;
-                int ySnow = topY2 + 1;
-                if (ySnow > world.getMaxHeight() - 1) continue;
-                try {
-                    Snow snow = (Snow)Bukkit.createBlockData((Material)Material.SNOW);
-                    int layers = 1 + rng.nextInt(3);
-                    snow.setLayers(layers);
-                    if (data.getType(lx2, ySnow, lz2) != Material.AIR) continue;
-                    data.setBlock(lx2, ySnow, lz2, (BlockData)snow);
-                    continue;
-                }
-                catch (Throwable ignore) {
-                    if (data.getType(lx2, ySnow, lz2) != Material.AIR) continue;
-                    data.setBlock(lx2, ySnow, lz2, Material.SNOW);
-                }
-            }
-        }
-        int spikes = rng.nextDouble() < 0.65 ? 1 + rng.nextInt(3) : 0;
-        for (int i = 0; i < spikes; ++i) {
-            lx = 2 + rng.nextInt(12);
-            if (regionGrid[lx][lz = 2 + rng.nextInt(12)] != ConsegrityRegions.Region.ICE_SPIKES || (topY = topYGrid[lx][lz]) < 151 || this.slopeGrid(topYGrid, lx, lz) > 3) continue;
-            int h = 6 + rng.nextInt(11);
-            int r = rng.nextDouble() < 0.2 ? 2 : 1;
-            this.makeIceSpike(data, lx, topY + 1, lz, h, r, rng);
-        }
-        for (int t = 0; t < 60; ++t) {
-            Material ground;
-            lx = rng.nextInt(16);
-            lz = rng.nextInt(16);
-            if (lx < 1 || lx > 14 || lz < 1 || lz > 14 || regionGrid[lx][lz] != ConsegrityRegions.Region.ICE_SPIKES) continue;
-            topY = topYGrid[lx][lz];
-            int wx = baseX + lx;
-            int wz = baseZ + lz;
-            double dx = (double)wx - 0.0;
-            double dz = (double)wz - 0.0;
-            double r = Math.sqrt(dx * dx + dz * dz);
-            double inner = 60.0;
-            double outer = 260.0;
-            double closeness = ConsegrityChunkGenerator.clamp01(1.0 - (r - inner) / Math.max(1.0, outer - inner));
-            double chance = 0.02 + 0.1 * closeness;
-            if (rng.nextDouble() > chance || this.slopeGrid(topYGrid, lx, lz) > 3 || (ground = data.getType(lx, topY, lz)) != Material.GRASS_BLOCK && ground != Material.DIRT && ground != Material.SNOW_BLOCK && ground != Material.STONE) continue;
-            int height = 5 + rng.nextInt(6);
-            this.placeSpruceSimple(data, lx, topY + 1, lz, height);
-        }
-    }
 
-    private void placeCherryFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 3303206417L);
-        boolean[][] treeBases = new boolean[16][16];
 
-        int treeAttempts = 4; // Reduced from 9 to lower cherry tree spawn rate by roughly 60%
-        for (int i = 0; i < treeAttempts; ++i) {
-            int lx = rng.nextInt(16);
-            int lz = rng.nextInt(16);
-            if (lx < 1 || lx > 14 || lz < 1 || lz > 14) continue;
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY) continue;
-            int groundY = topYGrid[lx][lz];
-            if (groundY < 160 || groundY > 205) continue;
-            if (this.slopeGrid(topYGrid, lx, lz) > 4) continue;
-            Material ground = this.safeType(data, lx, groundY, lz);
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT && ground != Material.STONE) continue;
-
-            int height = 5 + rng.nextInt(3);
-            this.placeCherryTree(data, lx, groundY + 1, lz, height, rng);
-            treeBases[lx][lz] = true;
-        }
-
-        int petalAttempts = 80;
-        for (int i = 0; i < petalAttempts; ++i) {
-            int lx = rng.nextInt(16);
-            int lz = rng.nextInt(16);
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY) continue;
-            int groundY = topYGrid[lx][lz];
-            if (groundY < 158 || groundY > 210) continue;
-            if (treeBases[lx][lz]) continue;
-            if (this.slopeGrid(topYGrid, lx, lz) > 4) continue;
-
-            Material ground = this.safeType(data, lx, groundY, lz);
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
-            Material above = this.safeType(data, lx, groundY + 1, lz);
-            if (above != Material.AIR) continue;
-
-            this.placePinkPetals(data, lx, groundY + 1, lz, rng);
-
-            for (int dx = -1; dx <= 1; ++dx) {
-                for (int dz = -1; dz <= 1; ++dz) {
-                    if (dx == 0 && dz == 0) continue;
-                    if (rng.nextDouble() > 0.55) continue;
-                    int xx = lx + dx;
-                    int zz = lz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (treeBases[xx][zz]) continue;
-                    int ny = topYGrid[xx][zz];
-                    if (Math.abs(ny - groundY) > 1) continue;
-                    Material nGround = this.safeType(data, xx, ny, zz);
-                    Material nAbove = this.safeType(data, xx, ny + 1, zz);
-                    if ((nGround == Material.GRASS_BLOCK || nGround == Material.DIRT) && nAbove == Material.AIR) {
-                        this.placePinkPetals(data, xx, ny + 1, zz, rng);
-                    }
-                }
-            }
-        }
-    }
-
-    private void placeCherryTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, int height, SplittableRandom rng) {
-        int trunkHeight = height + rng.nextInt(2);
-        int currentX = lx;
-        int currentZ = lz;
-        for (int i = 0; i < trunkHeight; ++i) {
-            int yy = y + i;
-            data.setBlock(currentX, yy, currentZ, Material.CHERRY_LOG);
-            if (i >= trunkHeight - 3 && rng.nextDouble() < 0.35) {
-                int dir = rng.nextInt(4);
-                int offX = dir == 0 ? 1 : dir == 1 ? -1 : 0;
-                int offZ = dir == 2 ? 1 : dir == 3 ? -1 : 0;
-                int nextX = currentX + offX;
-                int nextZ = currentZ + offZ;
-                if (nextX >= 0 && nextX <= 15 && nextZ >= 0 && nextZ <= 15) {
-                    currentX = nextX;
-                    currentZ = nextZ;
-                }
-            }
-        }
-
-        int topY = y + trunkHeight - 1;
-        int[][] dirs = new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        List<int[]> canopyAnchors = new ArrayList<>();
-        canopyAnchors.add(new int[]{currentX, topY, currentZ});
-
-        for (int[] dir : dirs) {
-            if (rng.nextDouble() > 0.6) continue;
-            int length = 1 + rng.nextInt(2);
-            int branchY = topY - rng.nextInt(2);
-            int bx = currentX;
-            int bz = currentZ;
-            int placed = 0;
-            for (int step = 0; step < length; ++step) {
-                bx += dir[0];
-                bz += dir[1];
-                if (bx < 0 || bx > 15 || bz < 0 || bz > 15) break;
-                Material existing = this.safeType(data, bx, branchY, bz);
-                if (existing != Material.AIR && existing != Material.CHERRY_LEAVES) break;
-                Orientable branch = (Orientable)Material.CHERRY_LOG.createBlockData();
-                branch.setAxis(dir[0] != 0 ? Axis.X : Axis.Z);
-                data.setBlock(bx, branchY, bz, branch);
-                placed++;
-            }
-            if (placed > 0) {
-                canopyAnchors.add(new int[]{bx, branchY, bz});
-            }
-        }
-
-        for (int[] anchor : canopyAnchors) {
-            this.placeCherryCanopy(data, anchor[0], anchor[1], anchor[2], rng);
-        }
-    }
-
-    private void placeCherryCanopy(ChunkGenerator.ChunkData data, int cx, int cy, int cz, SplittableRandom rng) {
-        int baseRadius = 3 + rng.nextInt(2);
-        for (int dy = -2; dy <= 3; ++dy) {
-            double layerRadius = baseRadius - 0.6 * Math.abs(dy - 1);
-            if (dy <= 0) {
-                layerRadius += 0.5;
-            }
-            int r = (int)Math.ceil(Math.max(1.5, layerRadius));
-            int yy = cy + dy;
-            for (int dx = -r; dx <= r; ++dx) {
-                for (int dz = -r; dz <= r; ++dz) {
-                    int xx = cx + dx;
-                    int zz = cz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    double dist = Math.sqrt(dx * dx + dz * dz);
-                    if (dist > layerRadius + rng.nextDouble() * 0.5) continue;
-                    Material existing = this.safeType(data, xx, yy, zz);
-                    if (existing != Material.AIR) continue;
-                    if (rng.nextDouble() < 0.85) {
-                        data.setBlock(xx, yy, zz, Material.CHERRY_LEAVES);
-                        if (dy <= 0 && rng.nextDouble() < 0.28) {
-                            int hangY = yy - 1;
-                            if (hangY >= 0 && this.safeType(data, xx, hangY, zz) == Material.AIR) {
-                                data.setBlock(xx, hangY, zz, Material.CHERRY_LEAVES);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (this.safeType(data, cx, cy + 4, cz) == Material.AIR) {
-            data.setBlock(cx, cy + 4, cz, Material.CHERRY_LEAVES);
-        }
-    }
-
-    private void placePinkPetals(ChunkGenerator.ChunkData data, int lx, int y, int lz, SplittableRandom rng) {
-        BlockData petals = Material.PINK_PETALS.createBlockData();
-        if (petals instanceof PinkPetals pink) {
-            pink.setFlowerAmount(2 + rng.nextInt(3));
-            petals = pink;
-        }
-        data.setBlock(lx, y, lz, petals);
-    }
-
-    private int slopeGrid(int[][] topY, int lx, int lz) {
-        int y0 = topY[lx][lz];
-        int max = 0;
-        for (int dx = -1; dx <= 1; ++dx) {
-            for (int dz = -1; dz <= 1; ++dz) {
-                if (dx == 0 && dz == 0) continue;
-                int x = lx + dx;
-                int z = lz + dz;
-                if (x < 0 || x > 15 || z < 0 || z > 15) continue;
-                int y1 = topY[x][z];
-                max = Math.max(max, Math.abs(y1 - y0));
-            }
-        }
-        return max;
-    }
-
-    private void placeDesertFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 3546184538L);
-        double pCactus = 0.005;
-        double pDead = 0.005;
-        for (int lx = 0; lx < 16; ++lx) {
-            for (int lz = 0; lz < 16; ++lz) {
-                Material above;
-                boolean sandy;
-                Material ground;
-                int topY;
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.DESERT || (topY = topYGrid[lx][lz]) <= world.getMinHeight() + 1) continue;
-                try {
-                    ground = data.getType(lx, topY, lz);
-                }
-                catch (Throwable t) {
-                    ground = Material.SAND;
-                }
-                boolean bl = sandy = ground == Material.SAND || ground == Material.RED_SAND || ground == Material.SANDSTONE;
-                if (!sandy) continue;
-                double r = rng.nextDouble();
-                if (r < 0.005) {
-                    int dy;
-                    if (lx < 1 || lx > 14 || lz < 1 || lz > 14) continue;
-                    int maxH = Math.min(world.getMaxHeight() - 2, topY + 4);
-                    int height = 1 + rng.nextInt(3);
-                    if (topY + height >= maxH) {
-                        height = Math.max(1, maxH - topY - 1);
-                    }
-                    boolean clear = true;
-                    for (dy = 1; dy <= height; ++dy) {
-                        Material above2;
-                        try {
-                            above2 = data.getType(lx, topY + dy, lz);
-                        }
-                        catch (Throwable t) {
-                            above2 = Material.AIR;
-                        }
-                        if (above2 != Material.AIR) {
-                            clear = false;
-                            break;
-                        }
-                        Material e1 = this.safeType(data, lx + 1, topY + dy, lz);
-                        Material e2 = this.safeType(data, lx - 1, topY + dy, lz);
-                        Material e3 = this.safeType(data, lx, topY + dy, lz + 1);
-                        Material e4 = this.safeType(data, lx, topY + dy, lz - 1);
-                        if (e1 == Material.AIR && e2 == Material.AIR && e3 == Material.AIR && e4 == Material.AIR) continue;
-                        clear = false;
-                        break;
-                    }
-                    if (!clear) continue;
-                    for (dy = 1; dy <= height; ++dy) {
-                        data.setBlock(lx, topY + dy, lz, Material.CACTUS);
-                    }
-                    continue;
-                }
-                if (!(r < 0.01)) continue;
-                try {
-                    above = data.getType(lx, topY + 1, lz);
-                }
-                catch (Throwable t) {
-                    above = Material.AIR;
-                }
-                if (above != Material.AIR) continue;
-                try {
-                    data.setBlock(lx, topY + 1, lz, Material.DEAD_BUSH);
-                    continue;
-                }
-                catch (Throwable throwable) {
-                    // empty catch block
-                }
-            }
-        }
-    }
 
     private Material safeType(ChunkGenerator.ChunkData data, int lx, int y, int lz) {
         if (lx < 0 || lx > 15 || lz < 0 || lz > 15) {
@@ -762,232 +418,6 @@ private V2 massiveMountainCenter(long seed) {
         }
     }
 
-    private void makeIceSpike(ChunkGenerator.ChunkData data, int lx, int y, int lz, int height, int radius, SplittableRandom rng) {
-        // Vertical core with slight bulges at base and mid
-        for (int dy = 0; dy < height; dy++) {
-            int yy = y + dy;
-            if (yy >= y + height) break;
-            Material m = (rng.nextDouble() < 0.15) ? Material.BLUE_ICE : Material.PACKED_ICE;
-            data.setBlock(lx, yy, lz, m);
-
-            int r = (dy < 2) ? (radius + 1)
-                    : (dy < height / 3 ? radius : (dy > height * 2 / 3 ? 0 : (radius - 1)));
-            if (r < 0) r = 0;
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    if (Math.abs(dx) + Math.abs(dz) > r) continue;
-                    int xx = lx + dx, zz = lz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (rng.nextDouble() < 0.75) data.setBlock(xx, yy, zz, Material.PACKED_ICE);
-                }
-            }
-        }
-        // Point tip
-        data.setBlock(lx, y + height, lz, Material.BLUE_ICE);
-    }
-
-    private void placeSpruceSimple(ChunkGenerator.ChunkData data, int lx, int y, int lz, int height) {
-        String gn;
-        Material ground = data.getType(lx, Math.max(0, y - 1), lz);
-        String string = gn = ground != null ? ground.name() : "";
-        if (gn.endsWith("_LEAVES") || gn.endsWith("_LOG") || gn.contains("LEAVES") || gn.contains("LOG")) {
-            return;
-        }
-        for (int i = 0; i < height; ++i) {
-            data.setBlock(lx, y + i, lz, Material.SPRUCE_LOG);
-        }
-        int top = y + height - 1;
-        int radius = Math.max(1, height / 4);
-        for (int ry = 0; ry <= radius; ++ry) {
-            int r = Math.max(1, radius - ry);
-            for (int dx = -r; dx <= r; ++dx) {
-                for (int dz = -r; dz <= r; ++dz) {
-                    if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
-                    int xx = lx + dx;
-                    int zz = lz + dz;
-                    int yy = top - ry;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15 || data.getType(xx, yy, zz) != Material.AIR) continue;
-                    data.setBlock(xx, yy, zz, Material.SPRUCE_LEAVES);
-                }
-            }
-        }
-        if (top + 1 < y + height + 8) {
-            data.setBlock(lx, top + 1, lz, Material.SPRUCE_LEAVES);
-        }
-    }
-
-    private void placeSavannaFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 151587097L);
-        // Acacia-style trees: a few scattered attempts per chunk
-        for (int i = 0; i < 4; i++) {
-            int lx = rng.nextInt(16);
-            int lz = rng.nextInt(16);
-            if (lx < 1 || lx > 14 || lz < 1 || lz > 14) continue;
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.SAVANNAH) continue;
-            int topY = topYGrid[lx][lz];
-            if (topY < 155) continue; // slightly above sea level
-            if (this.slopeGrid(topYGrid, lx, lz) > 3) continue;
-            Material ground = this.safeType(data, lx, topY, lz);
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
-            if (rng.nextDouble() > 0.35) continue; // gate
-
-            int height = 4 + rng.nextInt(3); // 4..6
-            int dir = rng.nextInt(4);
-            int ox = dir == 0 ? 1 : (dir == 1 ? -1 : 0);
-            int oz = dir == 2 ? 1 : (dir == 3 ? -1 : 0);
-
-            int x = lx;
-            int z = lz;
-            for (int dy = 0; dy < height; dy++) {
-                int yy = topY + 1 + dy;
-                if (dy >= height - 2) { x += ox; z += oz; }
-                if (x < 0 || x > 15 || z < 0 || z > 15) break;
-                data.setBlock(x, yy, z, Material.ACACIA_LOG);
-            }
-            int canopyY = topY + height;
-            int cx = x, cz = z;
-            int r = 2 + rng.nextInt(2);
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
-                    int xx = cx + dx, zz = cz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (this.safeType(data, xx, canopyY, zz) == Material.AIR) {
-                        data.setBlock(xx, canopyY, zz, Material.ACACIA_LEAVES);
-                    }
-                    if (rng.nextDouble() < 0.35 && this.safeType(data, xx, canopyY + 1, zz) == Material.AIR) {
-                        data.setBlock(xx, canopyY + 1, zz, Material.ACACIA_LEAVES);
-                    }
-                }
-            }
-        }
-
-        // Heavy grass coverage across savanna
-        Material grassPlant = pickGrassPlant();
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.SAVANNAH) continue;
-                int topY = topYGrid[lx][lz];
-                Material ground = this.safeType(data, lx, topY, lz);
-                Material above = this.safeType(data, lx, topY + 1, lz);
-                if ((ground == Material.GRASS_BLOCK || ground == Material.DIRT) && above == Material.AIR) {
-                    if (rng.nextDouble() < 0.4) data.setBlock(lx, topY + 1, lz, grassPlant);
-                }
-            }
-        }
-    }
-
-    private void placeCentralGrass(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 206158430L);
-        Material grassPlant = pickGrassPlant();
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (centralMaskGrid[lx][lz] < 0.5) continue;
-                int topY = topYGrid[lx][lz];
-                if (topY <= 157) continue;
-                Material ground = this.safeType(data, lx, topY, lz);
-                Material above = this.safeType(data, lx, topY + 1, lz);
-                if ((ground == Material.GRASS_BLOCK || ground == Material.DIRT) && above == Material.AIR) {
-                    double roll = rng.nextDouble();
-                    if (roll < 0.03) {
-                        Material flower = rng.nextDouble() < 0.55 ? Material.POPPY : Material.DANDELION;
-                        data.setBlock(lx, topY + 1, lz, flower);
-                    } else if (roll < 0.11) {
-                        data.setBlock(lx, topY + 1, lz, grassPlant);
-                    }
-                }
-            }
-        }
-    }
-
-    private Material pickGrassPlant() {
-        try { return Material.valueOf("SHORT_GRASS"); } catch (Throwable ignore) {
-            try { return Material.valueOf("TALL_GRASS"); } catch (Throwable ignore2) {
-                try { return Material.valueOf("GRASS"); } catch (Throwable ignore3) {
-                    return Material.FERN;
-                }
-            }
-        }
-    }
-
-    private void placeSwampFeatures(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 271828183L);
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
-
-        // 40% water coverage via smooth noise mask; 60% land paths
-        Material lily;
-        try { lily = Material.valueOf("LILY_PAD"); } catch (Throwable t) { lily = Material.valueOf("WATER_LILY"); }
-        final double waterFrac = 0.40;
-        final double scale = 34.0; // control size of pools/paths
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.SWAMP) continue;
-                int topY = topYGrid[lx][lz];
-                int wx = baseX + lx;
-                int wz = baseZ + lz;
-                double n = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A4D00A1L, (double)wx / scale, (double)wz / scale);
-                boolean water = (n < waterFrac);
-                if (water) {
-                    // carve water at surface and occasionally add lily pads (10%)
-                    data.setBlock(lx, topY, lz, Material.WATER);
-                    if (rng.nextDouble() < 0.10 && this.safeType(data, lx, topY + 1, lz) == Material.AIR) {
-                        try { data.setBlock(lx, topY + 1, lz, lily); } catch (Throwable ignore) {}
-                    }
-                } else {
-                    // Ensure path stays clear (replace odd sand/mud tops with grass)
-                    Material g = this.safeType(data, lx, topY, lz);
-                    if (g != Material.GRASS_BLOCK && g != Material.DIRT && g != Material.MUD) {
-                        data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
-                    }
-                }
-            }
-        }
-
-        // Rare oak trees placed only on land paths
-        for (int i = 0; i < 10; i++) {
-            int lx = rng.nextInt(16);
-            int lz = rng.nextInt(16);
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.SWAMP) continue;
-            int topY = topYGrid[lx][lz];
-            int wx = baseX + lx;
-            int wz = baseZ + lz;
-            double n = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A4D00A1L, (double)wx / scale, (double)wz / scale);
-            if (n < waterFrac) continue; // avoid water cells
-            if (this.slopeGrid(topYGrid, lx, lz) > 3) continue;
-            Material ground = this.safeType(data, lx, topY, lz);
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
-            if (rng.nextDouble() > 0.18) continue;
-            this.growSimpleTree(data, lx, topY + 1, lz, Material.OAK_LOG, Material.OAK_LEAVES, new Random(rng.nextLong()));
-            if (rng.nextBoolean()) addVinesAround(data, lx, topY + 1, lz, rng);
-        }
-    }
-
-    private void addVinesAround(ChunkGenerator.ChunkData data, int x, int y, int z, SplittableRandom rng) {
-        // Try each cardinal side with small downward lengths
-        try {
-            for (int side = 0; side < 4; side++) {
-                if (rng.nextDouble() > 0.6) continue; // not all sides
-                int dx = (side == 0) ? 1 : (side == 1 ? -1 : 0);
-                int dz = (side == 2) ? 1 : (side == 3 ? -1 : 0);
-                BlockFace face = (side == 0) ? BlockFace.WEST : (side == 1 ? BlockFace.EAST : (side == 2 ? BlockFace.NORTH : BlockFace.SOUTH));
-                int len = 1 + rng.nextInt(3);
-                int yy = y + 2;
-                for (int k = 0; k < len; k++) {
-                    int xx = x + dx;
-                    int zz = z + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) break;
-                    if (this.safeType(data, xx, yy - k, zz) != Material.AIR) continue;
-                    BlockData bd = Bukkit.createBlockData(Material.VINE);
-                    try { ((MultipleFacing)bd).setFace(face, true); } catch (Throwable ignore) {}
-                    try { data.setBlock(xx, yy - k, zz, bd); } catch (Throwable t) { data.setBlock(xx, yy - k, zz, Material.VINE); }
-                }
-            }
-        } catch (Throwable ignore) {
-            // Best-effort; ignore if Vine blockdata not supported
-        }
-    }
 
     private int findTopSolidY(ChunkGenerator.ChunkData data, World world, int lx, int lz, int yMin, int seaLevel) {
         int yStart;
@@ -997,189 +427,6 @@ private V2 massiveMountainCenter(long seed) {
             return y;
         }
         return yMin - 1;
-    }
-
-    private double centralMask(long seed, int wx, int wz) {
-        double dx = wx - 0;
-        double dz = wz - 0;
-        double r = Math.sqrt(dx * dx + dz * dz);
-        double jitter = (ConsegrityChunkGenerator.valueNoise2(seed ^ 0xC3A7A11BL, (double)wx / 90.0, (double)wz / 90.0) - 0.5) * 2.0 * 20.0;
-        double edge = r - (50.0 + jitter);
-        double m = 1.0 - ConsegrityChunkGenerator.clamp01((edge + 22.5) / 45.0);
-        return ConsegrityChunkGenerator.clamp01(m);
-    }
-
-    private double ringMask(long seed, int wx, int wz, double innerR, double outerR, double feather) {
-        double dx = wx - 0;
-        double dz = wz - 0;
-        double r = Math.sqrt(dx * dx + dz * dz);
-        double jitter = (ConsegrityChunkGenerator.valueNoise2(seed ^ 0xA1B6A1B6L, (double)wx / 120.0, (double)wz / 120.0) - 0.5) * 2.0 * 18.0;
-        double inner = innerR + jitter;
-        double outer = outerR + jitter;
-        double a = ConsegrityChunkGenerator.clamp01((r - (inner - feather * 0.5)) / feather);
-        double b = 1.0 - ConsegrityChunkGenerator.clamp01((r - (outer - feather * 0.5)) / feather);
-        return ConsegrityChunkGenerator.clamp01(Math.min(a, b));
-    }
-
-    private int centralSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xC3A1A15AL, (double)wx / 180.0, (double)wz / 180.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xC3A1A15BL, (double)wx / 64.0, (double)wz / 64.0);
-        double h = (h1 * 0.7 + h2 * 0.3) * 2.0 - 1.0;
-        int base = 159;
-        int amp = 9;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring1DesertSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xD3512E57L, (double)wx / 240.0, (double)wz / 240.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xD3512E58L, (double)wx / 80.0, (double)wz / 80.0);
-        double h3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xD3512E59L, (double)wx / 34.0, (double)wz / 34.0);
-        double h = (h1 * 0.52 + h2 * 0.32 + h3 * 0.16) * 2.0 - 1.0;
-        int base = 163;
-        int amp = 18;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring1SavannahSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A7A7A11L, (double)wx / 260.0, (double)wz / 260.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A7A7A12L, (double)wx / 90.0, (double)wz / 90.0);
-        double h = (h1 * 0.65 + h2 * 0.35) * 2.0 - 1.0;
-        int base = 165;
-        int amp = 12;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring1SwampSurfaceY(long seed, int wx, int wz) {
-        // Flatter, low-lying swamp terrain just above sea level
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x51A7A11BL, (double)wx / 260.0, (double)wz / 260.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x51A7A11CL, (double)wx / 90.0,  (double)wz / 90.0);
-        double h  = (h1 * 0.75 + h2 * 0.25) * 2.0 - 1.0; // [-1,1]
-        int base = SEA_LEVEL + 1; // ~154
-        int amp  = 2;             // very small relief
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring2JungleSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x1B6C1E11L, (double)wx / 220.0, (double)wz / 220.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x1B6C1E12L, (double)wx / 70.0, (double)wz / 70.0);
-        double h = (h1 * 0.55 + h2 * 0.45) * 2.0 - 1.0;
-        int base = 169;
-        int amp = 16;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring2MesaSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D5L, (double)wx / 300.0, (double)wz / 300.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D6L, (double)wx / 96.0, (double)wz / 96.0);
-        double h3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D7L, (double)wx / 36.0, (double)wz / 36.0);
-        double h = (h1 * 0.5 + h2 * 0.3 + h3 * 0.2) * 2.0 - 1.0;
-        int base = 175;
-        int amp = 28;
-        return base + (int)Math.round(h * (double)amp);
-    }
-
-    private int ring2MountainSurfaceY(long seed, int wx, int wz, int worldMax) {
-        // --- baseline "regular" ranges you already liked (kept, slightly tidied) ---
-        double base = 155.0;
-        double low = ConsegrityChunkGenerator.fbm2(seed ^ 0xA1B2C3D4L, (double)wx * 0.003, (double)wz * 0.003);
-        double mountainBand = (low - 0.5) * 2.0;
-        double t0 = 0.0, t1 = 0.38;
-        double mask = ConsegrityChunkGenerator.clamp01((mountainBand - t0) / (t1 - t0));
-
-        // clustered peaks field (unchanged from your version)
-        double field = 0.0;
-        field += this.peakSum(seed, wx, wz, 176.0, 70.0, 64.0, 2.4, 2576L);
-        field += this.peakSum(seed, wx, wz, 112.0, 46.0, 44.0, 2.1, 2832L);
-        field += this.peakSum(seed, wx, wz, 72.0,  30.0, 28.0, 1.9, 3088L);
-        field += this.peakSum(seed, wx, wz, 48.0,  20.0, 16.0, 1.75,3344L);
-
-        double ridge = ConsegrityChunkGenerator.fbm2(seed ^ 0xB3C4D5E6L, (double)wx * 0.02, (double)wz * 0.02);
-        double plains = (ConsegrityChunkGenerator.fbm2(seed ^ 0x600DD00EL, (double)wx * 0.02, (double)wz * 0.02) - 0.5) * 2.0 * 4.8;
-        double between = (ConsegrityChunkGenerator.fbm2(seed ^ 0x77EEDD11L, (double)wx * 0.01, (double)wz * 0.01) - 0.5) * 2.0;
-        double betweenAmp = 18.0 * (1.0 - mask * 0.85);
-        double micro = (ConsegrityChunkGenerator.fbm2(seed ^ 0x33AA55CCL, (double)wx * 0.06, (double)wz * 0.06) - 0.5) * 2.0 * 2.6;
-
-        double baseH = base + plains + between * betweenAmp + micro + (ridge - 0.5) * 2.0 * 20.0 * mask + field;
-        baseH += ConsegrityChunkGenerator.fbm2(seed ^ 0xE01234L, (double)wx * 0.004, (double)wz * 0.004) * 70.0 * mask;
-
-        // --- Massive Mountain overlay (single peak with crown, valleys, and ring ranges) ---
-        // Nerf: cap mountain to ~Y=300 so the massif doesn't dominate sky height
-        int yCap = Math.min(300, Math.max(256, worldMax - 1));
-        double mmW = this.massiveMask(seed, wx, wz); // 0..1 only inside the mountain wedge
-        if (mmW > 0.0) {
-            V2 c = this.massiveMountainCenter(seed);
-            double dx = (double)wx - c.x, dz = (double)wz - c.z;
-            double d  = Math.hypot(dx, dz);
-
-            // core rise (smooth and wide, takes time to climb)
-            double rise = Math.pow(ConsegrityChunkGenerator.clamp01(1.0 - d / (MM_EFFECT_R)), 1.45);
-            double H = MM_GROUND_Y + rise * (yCap - MM_GROUND_Y);   // theoretical cone to ~700
-
-            // flat top
-            if (d <= MM_CORE_R) {
-                H = Math.max(H, yCap - 6); // give it that weirdly-flat summit
-            }
-
-            // crown spikes ring
-            if (d > MM_CROWN_IN && d < MM_CROWN_OUT) {
-                double t = 1.0 - Math.abs((d - (MM_CROWN_IN + MM_CROWN_OUT) * 0.5) / ((MM_CROWN_OUT - MM_CROWN_IN) * 0.5));
-                double spike = (ConsegrityChunkGenerator.valueNoise2(seed ^ 0x51ABCDL, (double)wx / 6.0, (double)wz / 6.0) - 0.5) * 2.0;
-                H += Math.max(0.0, t) * (10.0 + spike * 14.0);
-            }
-
-            // stepped terraces feel
-            double step = 5.5;
-            H = Math.floor(H / step) * step + (H - Math.floor(H / step) * step) * 0.35;
-
-            // valley ring flattening with rivers later
-            if (d > MM_VALLEY_R0 && d < MM_VALLEY_R1) {
-                double vt = 1.0 - Math.abs((d - (MM_VALLEY_R0 + MM_VALLEY_R1) * 0.5) / ((MM_VALLEY_R1 - MM_VALLEY_R0) * 0.5));
-                H = ConsegrityChunkGenerator.lerp(H, MM_GROUND_Y, ConsegrityChunkGenerator.smooth01(ConsegrityChunkGenerator.clamp01(vt)) * 0.85);
-            }
-
-            // ring of secondary ranges beyond the valley — varied but lower than the massif
-            double ring = ConsegrityChunkGenerator.clamp01(1.0 - Math.abs(d - (MM_VALLEY_R1 + MM_EFFECT_R) * 0.5) / (MM_EFFECT_R * 0.5));
-            if (ring > 0.0) {
-                double rr = (ConsegrityChunkGenerator.fbm2(seed ^ 0xA55A5AL, (double)wx / MM_RANGE_CELL, (double)wz / MM_RANGE_CELL) - 0.5) * 2.0;
-                H += ring * rr * 60.0;
-            }
-
-            baseH = Math.max(baseH, H); // the massif dominates within its wedge
-        }
-
-        // safety and floor
-        if (baseH < 150.0) baseH = 150.0;
-        if (baseH > yCap)  baseH = yCap;
-        return (int)Math.floor(baseH);
-    }
-
-    private double peakSum(long seed, int wx, int wz, double cell, double baseRadius, double baseAmp, double power, long salt) {
-        int ix = (int)Math.floor((double)wx / cell);
-        int iz = (int)Math.floor((double)wz / cell);
-        double sum = 0.0;
-        for (int cx = ix - 1; cx <= ix + 1; ++cx) {
-            for (int cz = iz - 1; cz <= iz + 1; ++cz) {
-                double jx = (ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, cx, 51L, cz, salt ^ 1L)) - 0.5) * (cell * 0.8);
-                double jz = (ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, cx, 87L, cz, salt ^ 2L)) - 0.5) * (cell * 0.8);
-                double px = (double)cx * cell + jx;
-                double pz = (double)cz * cell + jz;
-                double dx = (double)wx - px;
-                double dz = (double)wz - pz;
-                double dist = Math.sqrt(dx * dx + dz * dz);
-                double rScale = 0.7 + ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, cx, 21L, cz, salt ^ 3L)) * 1.0;
-                double radius = baseRadius * rScale;
-                if (radius < 6.0) {
-                    radius = 6.0;
-                }
-                if (dist >= radius) continue;
-                double aScale = 0.6 + ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, cx, 11L, cz, salt ^ 4L)) * 1.2;
-                double amp = baseAmp * aScale;
-                double t = 1.0 - dist / radius;
-                double w = Math.pow(t, power);
-                sum += amp * w;
-            }
-        }
-        return sum;
     }
 
     private int oceanFloorY(long seed, int wx, int wz) {
@@ -1284,125 +531,6 @@ private V2 massiveMountainCenter(long seed) {
         }
         data.setBlock(lx, topY, lz, grassTop ? Material.GRASS_BLOCK : Material.RED_SAND);
     }
-
-    private void placeCentralTrees(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
-        Random rng = new Random(ConsegrityChunkGenerator.hash(seed, chunkX, 123L, chunkZ, 466661L));
-        for (int lx = 0; lx < 16; ++lx) {
-            for (int lz = 0; lz < 16; ++lz) {
-                boolean isHill;
-                int y;
-                if (centralMaskGrid[lx][lz] < 0.6 || (y = topYGrid[lx][lz]) <= 159) continue;
-                int h = y;
-                int countLower = 0;
-                for (int dx = -1; dx <= 1; ++dx) {
-                    for (int dz = -1; dz <= 1; ++dz) {
-                        if (dx == 0 && dz == 0) continue;
-                        int nx = lx + dx;
-                        int nz = lz + dz;
-                        if (nx < 0 || nx > 15 || nz < 0 || nz > 15 || (h = topYGrid[nx][nz]) >= y) continue;
-                        ++countLower;
-                    }
-                }
-                boolean bl = isHill = countLower >= 4;
-                if (!isHill || rng.nextDouble() > 0.25) continue;
-                Material wood = rng.nextDouble() < 0.9 ? Material.OAK_LOG : Material.BIRCH_LOG;
-                Material leaves = wood == Material.OAK_LOG ? Material.OAK_LEAVES : Material.BIRCH_LEAVES;
-                this.growSimpleTree(data, lx, h + 1, lz, wood, leaves, rng);
-            }
-        }
-    }
-
-    // valley mask ~1 on the flat ring
-    private double valleyMask(long seed, int wx, int wz) {
-        if (!inMountainSector(seed, wx, wz)) return 0.0;
-        V2 c = massiveMountainCenter(seed);
-        double d = Math.hypot(wx - c.x, wz - c.z);
-        double mid = (MM_VALLEY_R0 + MM_VALLEY_R1) * 0.5;
-        double half = (MM_VALLEY_R1 - MM_VALLEY_R0) * 0.5;
-        double t = 1.0 - Math.abs((d - mid) / half);
-        return clamp01(smooth01(Math.max(0.0, t)));
-    }
-
-    // Spruce near the wedge boundary (far from the massif center)
-    private double taigaEdgeMask(long seed, int wx, int wz) {
-        if (!inMountainSector(seed, wx, wz)) return 0.0;
-        V2 c = massiveMountainCenter(seed);
-        double d = Math.hypot(wx - c.x, wz - c.z);
-        double t = clamp01((d - (MM_EFFECT_R * 0.70)) / (MM_EFFECT_R * 0.25)); // 0 at 70%, 1 near edge
-        return smooth01(t);
-    }
-
-    private void placeMountainRivers(World world, ChunkGenerator.ChunkData data, long seed,
-                                     int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int baseX = chunkX << 4, baseZ = chunkZ << 4;
-        int riverY = Math.max(MM_GROUND_Y, SEA_LEVEL);
-
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
-                int wx = baseX + lx, wz = baseZ + lz;
-                double vm = valleyMask(seed, wx, wz);
-                if (vm < 0.65) continue;
-
-                int flatY = riverY;
-                data.setRegion(lx, Math.max(world.getMinHeight(), flatY - 2), lz, lx + 1, flatY, lz + 1, Material.STONE);
-                data.setBlock(lx, flatY, lz, Material.WATER);
-                if (safeType(data, lx, flatY + 1, lz) == Material.AIR && vm > 0.85) {
-                    data.setBlock(lx, flatY + 1, lz, Material.WATER);
-                }
-                topYGrid[lx][lz] = flatY;
-            }
-        }
-    }
-
-    private void placeMountainTaigaEdge(World world, ChunkGenerator.ChunkData data, long seed,
-                                        int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        SplittableRandom rng = ConsegrityChunkGenerator.rngFor(seed, chunkX, chunkZ, 0x55AA33L);
-        int baseX = chunkX << 4, baseZ = chunkZ << 4;
-
-        for (int t = 0; t < 12; t++) {
-            int lx = rng.nextInt(16), lz = rng.nextInt(16);
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
-            int wx = baseX + lx, wz = baseZ + lz;
-            double edge = taigaEdgeMask(seed, wx, wz);
-            if (edge < 0.6) continue;
-            if (slopeGrid(topYGrid, lx, lz) > 3) continue;
-
-            int y = topYGrid[lx][lz];
-            Material g = safeType(data, lx, y, lz);
-            if (g != Material.GRASS_BLOCK && g != Material.DIRT && g != Material.SNOW_BLOCK && g != Material.STONE) continue;
-
-            if (rng.nextDouble() < 0.45 && y + 2 < world.getMaxHeight() - 1) {
-                data.setBlock(lx, y + 1, lz, Material.DIRT);
-                data.setBlock(lx, y + 2, lz, Material.GRASS_BLOCK);
-                topYGrid[lx][lz] = y + 2;
-                y += 2;
-            }
-
-            int h = 5 + rng.nextInt(4);
-            placeSpruceSimple(data, lx, y + 1, lz, h);
-        }
-    }
-
-    private void growSimpleTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, Random rng) {
-        int height = 4 + rng.nextInt(3);
-        for (int i = 0; i < height; ++i) {
-            data.setBlock(lx, y + i, lz, log);
-        }
-        int cy = y + height - 1;
-        for (int dx = -2; dx <= 2; ++dx) {
-            for (int dz = -2; dz <= 2; ++dz) {
-                int r2;
-                int x = lx + dx;
-                int z = lz + dz;
-                if (x < 0 || x > 15 || z < 0 || z > 15 || (r2 = dx * dx + dz * dz) > 6) continue;
-                data.setBlock(x, cy, z, leaves);
-                if (r2 > 3) continue;
-                data.setBlock(x, cy + 1, z, leaves);
-            }
-        }
-    }
-
     @Override
     protected void placeOres(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ) {
         ConsegrityRegions.Region[][] tmp = new ConsegrityRegions.Region[16][16];
@@ -1611,26 +739,6 @@ private V2 massiveMountainCenter(long seed) {
         return Math.max(0.05, d);
     }
 
-    private void carveSphere(ChunkGenerator.ChunkData data, int chunkBaseX, int chunkBaseZ, double cx, int cy, double cz, double r, int yMin, int yMax) {
-        int lx0 = (int)Math.floor(cx) - chunkBaseX;
-        int lz0 = (int)Math.floor(cz) - chunkBaseZ;
-        int ir = (int)Math.ceil(r);
-        for (int dx = -ir; dx <= ir; ++dx) {
-            int lx = lx0 + dx;
-            if (lx < 0 || lx > 15) continue;
-            for (int dz = -ir; dz <= ir; ++dz) {
-                int lz = lz0 + dz;
-                if (lz < 0 || lz > 15) continue;
-                for (int dy = -ir; dy <= ir; ++dy) {
-                    double d;
-                    int y = cy + dy;
-                    if (y < yMin || y > yMax || (d = (double)(dx * dx + dy * dy + dz * dz)) > r * r) continue;
-                    data.setBlock(lx, y, lz, Material.AIR);
-                }
-            }
-        }
-    }
-
     private void paintLandCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {
         int y2 = topY;
         int y1 = Math.max(-60, topY - 3);
@@ -1638,14 +746,6 @@ private V2 massiveMountainCenter(long seed) {
             data.setRegion(lx, y1, lz, lx + 1, y2, lz + 1, Material.DIRT);
         }
         data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
-    }
-
-    private void paintBeachCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {
-        int y2 = topY + 1;
-        int y1 = Math.max(-60, topY - 4);
-        if (y2 > y1) {
-            data.setRegion(lx, y1, lz, lx + 1, y2, lz + 1, Material.SAND);
-        }
     }
 
     private void paintSeafloorCap(ChunkGenerator.ChunkData data, int lx, int lz, int floorY, int seaLevel) {
@@ -2091,46 +1191,12 @@ private V2 massiveMountainCenter(long seed) {
         return x * x * (3.0 - 2.0 * x);
     }
 
-    private static double angle01(int wx, int wz) {
-        double ang = Math.atan2(wz - 0, wx - 0);
-        return (ang + Math.PI) / (Math.PI * 2);
-    }
-
     private double angle01Warped(long seed, int wx, int wz) {
         double ang = Math.atan2(wz - 0, wx - 0);
         double n1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xA11C1EEDL, (double)wx / 180.0, (double)wz / 180.0);
         double n2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xB22C2EEDL, (double)wx / 64.0, (double)wz / 64.0);
         double jitter = (n1 * 0.65 + n2 * 0.35 - 0.5) * 2.0 * 0.35;
         return ((ang += jitter * 0.3490658503988659) + Math.PI) / (Math.PI * 2);
-    }
-
-    private static int mod(int a, int m) {
-        int r = a % m;
-        return r < 0 ? r + m : r;
-    }
-
-    private static double[] sectorWeightsEqual(double u, int sectors, double blendFrac) {
-        double b;
-        double[] w = new double[sectors];
-        double v = u * (double)sectors;
-        int k = (int)Math.floor(v);
-        double t = v - (double)k;
-        if (t < (b = Math.max(1.0E-4, blendFrac))) {
-            double s = ConsegrityChunkGenerator.smooth01(t / b);
-            w[ConsegrityChunkGenerator.mod((int)(k - 1), (int)sectors)] = 1.0 - s;
-            w[k] = s;
-        } else if (t > 1.0 - b) {
-            double s = ConsegrityChunkGenerator.smooth01((t - (1.0 - b)) / b);
-            w[k] = 1.0 - s;
-            w[ConsegrityChunkGenerator.mod((int)(k + 1), (int)sectors)] = s;
-        } else {
-            w[k] = 1.0;
-        }
-        return w;
-    }
-
-    private static int argmax3(double a, double b, double c) {
-        return a >= b && a >= c ? 0 : (b >= c ? 1 : 2);
     }
 
     private static Blend arcBlendFromSplits(double u, double[] splits, double ringRadius) {
@@ -2169,78 +1235,6 @@ private V2 massiveMountainCenter(long seed) {
         return n - 1;
     }
 
-    private static Blend angularTwoWay(double u, int sectors, double blendFrac) {
-        double b;
-        double v = u * (double)sectors;
-        int k = (int)Math.floor(v);
-        double t = v - (double)k;
-        if (t < (b = Math.max(1.0E-6, blendFrac))) {
-            double s = ConsegrityChunkGenerator.smooth01(t / b);
-            return new Blend(ConsegrityChunkGenerator.mod(k - 1, sectors), k, s);
-        }
-        if (t > 1.0 - b) {
-            double s = ConsegrityChunkGenerator.smooth01((t - (1.0 - b)) / b);
-            return new Blend(k, ConsegrityChunkGenerator.mod(k + 1, sectors), s);
-        }
-        return new Blend(k, k, 0.0);
-    }
-
-    private static double ringCoreEnable(RingEdges R, double feather) {
-        double start = R.inner + 0.5 * feather;
-        double end = R.outer - 0.5 * feather;
-        double t = ConsegrityChunkGenerator.clamp01((R.r - start) / Math.max(1.0, end - start));
-        return ConsegrityChunkGenerator.smooth01(t);
-    }
-
-    private static void freezeNearEdges(double[] w, double enable) {
-        int i;
-        int k = 0;
-        for (i = 1; i < w.length; ++i) {
-            if (!(w[i] > w[k])) continue;
-            k = i;
-        }
-        for (i = 0; i < w.length; ++i) {
-            double hard = i == k ? 1.0 : 0.0;
-            w[i] = hard + (w[i] - hard) * enable;
-        }
-        double s = 0.0;
-        for (double v : w) {
-            s += v;
-        }
-        if (s <= 1.0E-9) {
-            return;
-        }
-        int i2 = 0;
-        while (i2 < w.length) {
-            int n = i2++;
-            w[n] = w[n] / s;
-        }
-    }
-
-    private static double angularStepPreU(double u, int wx, int wz, double splitFrac, double featherFrac, long seed, double jitterFrac) {
-        double j1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x97E2D14BL, (double)wx / 260.0, (double)wz / 260.0);
-        double j2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x97E2D14CL, (double)wx / 70.0, (double)wz / 70.0);
-        double jitter = (0.7 * j1 + 0.3 * j2 - 0.5) * 2.0 * jitterFrac;
-        double uJ = ConsegrityChunkGenerator.wrap01(u + jitter);
-        double fnoise = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A1F0A3DL, (double)wx / 180.0, (double)wz / 180.0);
-        double f = Math.max(1.0E-4, featherFrac * (0.85 + 0.3 * fnoise));
-        double d = ConsegrityChunkGenerator.wrap01(uJ - splitFrac);
-        double t = (d - 0.5 + f) / (2.0 * f);
-        return ConsegrityChunkGenerator.smooth01(ConsegrityChunkGenerator.clamp01(t));
-    }
-
-    private static double angularStep(int wx, int wz, double splitFrac, double featherFrac, long seed, double jitterFrac) {
-        double u = ConsegrityChunkGenerator.angle01(wx, wz);
-        double j1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x97E2D14BL, (double)wx / 260.0, (double)wz / 260.0);
-        double j2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x97E2D14CL, (double)wx / 70.0, (double)wz / 70.0);
-        double jitter = (0.7 * j1 + 0.3 * j2 - 0.5) * 2.0 * jitterFrac;
-        double uJ = ConsegrityChunkGenerator.wrap01(u + jitter);
-        double fnoise = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5A1F0A3DL, (double)wx / 180.0, (double)wz / 180.0);
-        double f = Math.max(1.0E-4, featherFrac * (0.85 + 0.3 * fnoise));
-        double d = ConsegrityChunkGenerator.wrap01(uJ - splitFrac);
-        double t = (d - 0.5 + f) / (2.0 * f);
-        return ConsegrityChunkGenerator.smooth01(ConsegrityChunkGenerator.clamp01(t));
-    }
 
     private V2 warpXZ(long seed, int wx, int wz) {
         double n1x = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x6CE5C11AL, (double)wx / 340.0, (double)wz / 340.0);
@@ -2273,85 +1267,12 @@ private V2 massiveMountainCenter(long seed) {
         return new RingEdges(r, c, c, c - 0.5 * feather - 2.0, c + 0.5 * feather + 2.0);
     }
 
-    private double warpX(long seed, int wx, int wz, double amp) {
-        double n1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x71EE5EEDL, (double)wx / 160.0, (double)wz / 160.0);
-        double n2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x13579BDFL, (double)wx / 56.0, (double)wz / 56.0);
-        return (n1 - 0.5) * 2.0 * amp + (n2 - 0.5) * 2.0 * (amp * 0.2);
-    }
-
-    private double warpZ(long seed, int wx, int wz, double amp) {
-        double n1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x8BADF00DL, (double)wx / 150.0, (double)wz / 150.0);
-        double n2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x2468ACE0L, (double)wx / 52.0, (double)wz / 52.0);
-        return (n1 - 0.5) * 2.0 * amp + (n2 - 0.5) * 2.0 * (amp * 0.2);
-    }
-
     private static double bandMask(double r, double a, double b, double feather) {
         double aa = ConsegrityChunkGenerator.clamp01((r - (a - feather * 0.5)) / feather);
         double bb = 1.0 - ConsegrityChunkGenerator.clamp01((r - (b - feather * 0.5)) / feather);
         return ConsegrityChunkGenerator.clamp01(Math.min(aa, bb));
     }
 
-    private static int floorDiv(int a, int b) {
-        int q = a / b;
-        int r = a % b;
-        return r < 0 ? q - 1 : q;
-    }
-
-    private boolean cellMayTouchChunk(int cx, int cz, int chunkX, int chunkZ) {
-        int cellMinX = cx * 64;
-        int cellMaxX = cellMinX + 64;
-        int cellMinZ = cz * 64;
-        int cellMaxZ = cellMinZ + 64;
-        int chMinX = chunkX << 4;
-        int chMaxX = chMinX + 16;
-        int chMinZ = chunkZ << 4;
-        int chMaxZ = chMinZ + 16;
-        double dx = (cellMaxX < chMinX) ? (double) (chMinX - cellMaxX)
-                : (cellMinX > chMaxX ? (double) (cellMinX - chMaxX) : 0.0);
-        double dz = (cellMaxZ < chMinZ) ? (double) (chMinZ - cellMaxZ)
-                : (cellMinZ > chMaxZ ? (double) (cellMinZ - chMaxZ) : 0.0);
-        return Math.hypot(dx, dz) <= 222.6;
-    }
-
-    private void carveCavesWorldAnchored(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ) {
-        int baseX = chunkX << 4;
-        int baseZ = chunkZ << 4;
-        int yMin = Math.max(world.getMinHeight(), -192);
-        int yMax = Math.min(world.getMaxHeight() - 1, 193);
-        // Stop carving once we reach the underworld roof to avoid caves below -70
-        int yStop = Math.max(world.getMinHeight(), UNDERWORLD_ROOF_Y);
-        int cellX0 = ConsegrityChunkGenerator.floorDiv(baseX, 64);
-        int cellZ0 = ConsegrityChunkGenerator.floorDiv(baseZ, 64);
-        for (int cx = cellX0 - CAVE_REACH; cx <= cellX0 + CAVE_REACH; ++cx) {
-            for (int cz = cellZ0 - CAVE_REACH; cz <= cellZ0 + CAVE_REACH; ++cz) {
-                if (!this.cellMayTouchChunk(cx, cz, chunkX, chunkZ)) continue;
-                SplittableRandom rr = ConsegrityChunkGenerator.rngFor(seed, cx, cz, 3237997278L);
-                int spawns = rr.nextInt(3) == 0 ? 0 : 1 + (rr.nextInt(4) == 0 ? 1 : 0);
-                block2: for (int i = 0; i < spawns; ++i) {
-                    double x = (double)cx * 64.0 + (double)rr.nextInt(64) + rr.nextDouble();
-                    double z = (double)cz * 64.0 + (double)rr.nextInt(64) + rr.nextDouble();
-                    int y = Math.min(yMax, 153 + rr.nextInt(-8, 12));
-                    int steps = 120 + rr.nextInt(80);
-                    double yaw = rr.nextDouble() * Math.PI * 2.0;
-                    double pitch = -0.2 + (rr.nextDouble() - 0.5) * 0.2;
-                    double radius = 1.6 + rr.nextDouble() * 1.0;
-                    for (int s = 0; s < steps; ++s) {
-                        yaw += (rr.nextDouble() - 0.5) * 0.4;
-                        if ((pitch += (rr.nextDouble() - 0.5) * 0.2 - 0.035) < -0.9) {
-                            pitch = -0.9;
-                        }
-                        if (pitch > 0.9) {
-                            pitch = 0.9;
-                        }
-                        x += Math.cos(yaw) * 1.1;
-                        z += Math.sin(yaw) * 1.1;
-                        if ((y += (int)Math.round(Math.sin(pitch))) <= yStop) continue block2;
-                        this.carveSphere(data, baseX, baseZ, x, y, z, radius, yStop, yMax);
-                    }
-                }
-            }
-        }
-    }
 
     private static final class RingEdges {
         final double r;
@@ -2399,3 +1320,4 @@ private V2 massiveMountainCenter(long seed) {
         }
     }
 }
+
