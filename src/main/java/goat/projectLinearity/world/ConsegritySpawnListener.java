@@ -85,6 +85,35 @@ public class ConsegritySpawnListener implements Listener {
             }
         }
 
+        // Occasionally add a couple cows to the central plains so the farmland feels populated.
+        if (rng.nextInt(140) == 0) {
+            int herd = 1 + rng.nextInt(2);
+            int cows = 0;
+            for (int attempts = 0; attempts < 28 && cows < herd; attempts++) {
+                int lx = rng.nextInt(16);
+                int lz = rng.nextInt(16);
+                int wx = baseX + lx;
+                int wz = baseZ + lz;
+                if (ConsegrityRegions.regionAt(world, wx, wz) != ConsegrityRegions.Region.CENTRAL) continue;
+
+                int yTop = -1;
+                for (int y = world.getMaxHeight() - 1; y >= world.getMinHeight(); y--) {
+                    Material m = chunk.getBlock(lx, y, lz).getType();
+                    if (m == Material.AIR) continue;
+                    yTop = y; break;
+                }
+                if (yTop < world.getMinHeight()) continue;
+
+                Material surface = chunk.getBlock(lx, yTop, lz).getType();
+                Material above = chunk.getBlock(lx, yTop + 1, lz).getType();
+                if (!(surface == Material.GRASS_BLOCK || surface == Material.DIRT || surface == Material.FARMLAND)) continue;
+                if (above != Material.AIR) continue;
+
+                world.spawnEntity(chunk.getBlock(lx, yTop + 1, lz).getLocation().add(0.5, 0.0, 0.5), EntityType.COW);
+                cows++;
+            }
+        }
+
         // Rarely spawn goats on high snow in Mountain sector (Y >= 200)
         int goatCap = 1 + (rng.nextDouble() < 0.20 ? 1 : 0); // 1, sometimes 2 per chunk
         int goats = 0;
