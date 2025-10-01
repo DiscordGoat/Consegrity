@@ -20,6 +20,7 @@ import goat.projectLinearity.advs.jungle.*;
 import goat.projectLinearity.commands.RegenerateCommand;
 import goat.projectLinearity.world.ConsegritySpawnListener;
 import goat.projectLinearity.world.RegionTitleListener;
+import goat.projectLinearity.world.DeferredSpawnManager;
 import goat.projectLinearity.world.ConsegrityRegions;
 import org.bukkit.*;
 import org.bukkit.advancement.Advancement;
@@ -64,6 +65,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         } catch (Throwable ignored) {}
         // Register world population listener (fish/squid near kelp)
         Bukkit.getPluginManager().registerEvents(new ConsegritySpawnListener(), this);
+        // Register deferred spawn manager for sector-based entities
+        DeferredSpawnManager dsm = new DeferredSpawnManager();
+        Bukkit.getPluginManager().registerEvents(dsm, this);
+        try { Bukkit.getScheduler().runTaskTimer(this, dsm, 1L, 5L); } catch (Throwable ignore) {}
         // Register region title listener
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
     }

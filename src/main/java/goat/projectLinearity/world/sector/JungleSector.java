@@ -2,14 +2,12 @@ package goat.projectLinearity.world.sector;
 
 import goat.projectLinearity.world.ConsegrityRegions;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
-import org.bukkit.entity.EntityType;
 import org.bukkit.generator.ChunkGenerator;
 
 import java.util.Random;
@@ -120,19 +118,11 @@ public class JungleSector extends SectorBase {
                         if (rng.nextDouble() < 0.45) data.setBlock(x, yy + 1, z, Material.BAMBOO);
                     }
                 }
-                // Spawn 2 pandas near the center
-                try {
-                    Location p1 = new Location(world, baseX + cx + 0.5, y + 1, baseZ + cz + 0.5);
-                    Location p2 = new Location(world, baseX + cx + 1.5, y + 1, baseZ + cz + 1.5);
-                    world.spawnEntity(p1, org.bukkit.entity.EntityType.PANDA);
-                    world.spawnEntity(p2, org.bukkit.entity.EntityType.PANDA);
-                } catch (Throwable ignore) {}
+                // Entity spawns in Jungle are managed by DeferredSpawnManager
             }
         }
 
-        // 5) Rare ocelots and cows
-        if (rng.nextDouble() < 0.08) spawnPassive(world, data, topYGrid, regionGrid, baseX, baseZ, EntityType.OCELOT, rng);
-        if (rng.nextDouble() < 0.06) spawnPassive(world, data, topYGrid, regionGrid, baseX, baseZ, EntityType.COW, rng);
+        // 5) Entity spawns removed from Jungle sector (handled elsewhere)
 
         // 6) Clearing logic removed per request
     }
@@ -203,21 +193,7 @@ public class JungleSector extends SectorBase {
         }
     }
 
-    private void spawnPassive(World world, ChunkGenerator.ChunkData data, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid,
-                              int baseX, int baseZ, EntityType type, SplittableRandom rng) {
-        for (int tries = 0; tries < 4; tries++) {
-            int lx = rng.nextInt(16), lz = rng.nextInt(16);
-            if (regionGrid[lx][lz] != ConsegrityRegions.Region.JUNGLE) continue;
-            int y = topYGrid[lx][lz];
-            if (safeType(data, lx, y + 1, lz) != Material.AIR) continue;
-            Material ground = safeType(data, lx, y, lz);
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
-            try {
-                world.spawnEntity(new Location(world, baseX + lx + 0.5, y + 1, baseZ + lz + 0.5), type);
-            } catch (Throwable ignore) {}
-            break;
-        }
-    }
+    // Passive mob spawns are handled by DeferredSpawnManager
 
     private void addTopCanopy(ChunkGenerator.ChunkData data, int cx, int cy, int cz, int layers, SplittableRandom rng) {
         int r = 3;
