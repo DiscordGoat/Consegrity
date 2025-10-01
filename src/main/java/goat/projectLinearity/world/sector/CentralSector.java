@@ -5,7 +5,11 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.generator.ChunkGenerator;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 public class CentralSector extends SectorBase {
     private static final int SEA_LEVEL = 153; // keep consistent with generator
@@ -57,6 +61,7 @@ public class CentralSector extends SectorBase {
     private void placeCentralGrass(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
         java.util.SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 206158430L);
         Material grassPlant = pickGrassPlant();
+        List<int[]> validSpots = new ArrayList<>();
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
                 if (centralMaskGrid[lx][lz] < 0.5) continue;
@@ -65,16 +70,59 @@ public class CentralSector extends SectorBase {
                 Material ground = safeType(data, lx, topY, lz);
                 Material above = safeType(data, lx, topY + 1, lz);
                 if ((ground == Material.GRASS_BLOCK || ground == Material.DIRT) && above == Material.AIR) {
-                    double roll = rng.nextDouble();
-                    if (roll < 0.03) {
-                        Material flower = rng.nextDouble() < 0.55 ? Material.POPPY : Material.DANDELION;
-                        data.setBlock(lx, topY + 1, lz, flower);
-                    } else if (roll < 0.11) {
-                        data.setBlock(lx, topY + 1, lz, grassPlant);
-                    }
+                    validSpots.add(new int[]{lx, topY, lz});
                 }
             }
         }
+
+        Set<Long> flowerPatch = new HashSet<>();
+        if (!validSpots.isEmpty() && rng.nextDouble() < 0.02) { // roughly 1 in 50 chunks
+            int patchSize = rng.nextInt(20) + 1;
+            int[] center = validSpots.get(rng.nextInt(validSpots.size()));
+            flowerPatch.add(pack(center[0], center[2]));
+            int attempts = 0;
+            while (flowerPatch.size() < patchSize && attempts < patchSize * 12) {
+                attempts++;
+                int[] candidate = validSpots.get(rng.nextInt(validSpots.size()));
+                long key = pack(candidate[0], candidate[2]);
+                if (flowerPatch.contains(key)) continue;
+                if (isNearPatch(flowerPatch, candidate)) {
+                    flowerPatch.add(key);
+                }
+            }
+        }
+
+        for (int[] spot : validSpots) {
+            int lx = spot[0];
+            int topY = spot[1];
+            int lz = spot[2];
+            long key = pack(lx, lz);
+            if (flowerPatch.contains(key)) {
+                Material flower = rng.nextDouble() < 0.55 ? Material.POPPY : Material.DANDELION;
+                data.setBlock(lx, topY + 1, lz, flower);
+            } else if (rng.nextDouble() < 0.08) {
+                data.setBlock(lx, topY + 1, lz, grassPlant);
+            }
+        }
+    }
+
+    private static long pack(int lx, int lz) {
+        return ((long) lx << 32) | (lz & 0xFFFFFFFFL);
+    }
+
+    private static boolean isNearPatch(Set<Long> flowerPatch, int[] candidate) {
+        int cx = candidate[0];
+        int cz = candidate[2];
+        for (long key : flowerPatch) {
+            int px = (int) (key >> 32);
+            int pz = (int) key;
+            int dx = px - cx;
+            int dz = pz - cz;
+            if (dx * dx + dz * dz <= 9) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
