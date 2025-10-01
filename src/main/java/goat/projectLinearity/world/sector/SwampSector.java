@@ -29,14 +29,33 @@ public class SwampSector extends SectorBase {
         Material lily;
         try { lily = Material.valueOf("LILY_PAD"); } catch (Throwable t) { lily = Material.valueOf("WATER_LILY"); }
         final double waterFrac = 0.40;
-        final double scale = 34.0;
+        final double macroScale = 48.0;
+        final double detailScale = 18.0;
+        final double microScale = 8.0;
+        final double treeScale = 34.0;
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
                 if (regionGrid[lx][lz] != ConsegrityRegions.Region.SWAMP) continue;
                 int topY = topYGrid[lx][lz];
                 int wx = baseX + lx, wz = baseZ + lz;
-                double n = valueNoise2(seed ^ 0x5A4D00A1L, (double) wx / scale, (double) wz / scale);
-                boolean water = (n < waterFrac);
+                double macro = valueNoise2(seed ^ 0x5A4D00A1L, (double) wx / macroScale, (double) wz / macroScale);
+                double detail = valueNoise2(seed ^ 0x5A4D00A2L, (double) wx / detailScale, (double) wz / detailScale);
+                double micro = valueNoise2(seed ^ 0x5A4D00A3L, (double) wx / microScale, (double) wz / microScale);
+                double dryness = valueNoise2(seed ^ 0x6B8B45ADL, (double) wx / 110.0, (double) wz / 110.0);
+
+                // Blend multiple layers so that water breaks up into uneven pools instead of large slabs.
+                double blended = macro * 0.55 + detail * 0.30 + micro * 0.15;
+                double threshold = waterFrac + (dryness - 0.5) * 0.18;
+                double jitter = (micro - 0.5) * 0.08;
+
+                boolean water = blended + jitter < threshold;
+                if (!water) {
+                    double patch = valueNoise2(seed ^ 0x5A4D00A4L, (double) wx / 26.0, (double) wz / 26.0);
+                    // Allow small isolated puddles when local variation dips strongly.
+                    if (patch < threshold - 0.10 && dryness < 0.62) {
+                        water = true;
+                    }
+                }
                 if (water) {
                     data.setBlock(lx, topY, lz, Material.WATER);
                     if (rng.nextDouble() < 0.10 && safeType(data, lx, topY + 1, lz) == Material.AIR) {
@@ -57,7 +76,7 @@ public class SwampSector extends SectorBase {
             if (regionGrid[lx][lz] != ConsegrityRegions.Region.SWAMP) continue;
             int topY = topYGrid[lx][lz];
             int wx = baseX + lx, wz = baseZ + lz;
-            double n = valueNoise2(seed ^ 0x5A4D00A1L, (double) wx / scale, (double) wz / scale);
+            double n = valueNoise2(seed ^ 0x5A4D00A1L, (double) wx / treeScale, (double) wz / treeScale);
             if (n < waterFrac) continue;
             if (slopeGrid(topYGrid, lx, lz) > 3) continue;
             Material ground = safeType(data, lx, topY, lz);

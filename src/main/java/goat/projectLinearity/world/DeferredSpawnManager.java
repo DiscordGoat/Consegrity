@@ -17,6 +17,7 @@ import java.util.Random;
  * - Jungle: PANDA spawns at ~1 per 200 newly generated chunks.
  * - Savanna: For each of COW/SHEEP/PIG/CHICKEN, with 1/50 chance per new chunk,
  *   spawn a small group of 1-4.
+ * - Swamp: WITCH spawns with 1/50 chance per new chunk.
  *
  * Spawns are scheduled on chunk load and processed in small batches every few ticks.
  */
@@ -65,6 +66,11 @@ public final class DeferredSpawnManager implements Listener, Runnable {
         if (region == ConsegrityRegions.Region.SAVANNAH) {
             scheduleSavanna(world, cx, cz, rng);
         }
+
+        // Swamp witches: 1/50 chance per chunk
+        if (region == ConsegrityRegions.Region.SWAMP) {
+            scheduleSwamp(world, cx, cz, rng);
+        }
     }
 
     private void scheduleSavanna(World world, int cx, int cz, Random rng) {
@@ -74,6 +80,12 @@ public final class DeferredSpawnManager implements Listener, Runnable {
         if (rng.nextInt(50) == 0) queue.add(new SpawnRequest(world.getName(), cx, cz, required, EntityType.SHEEP, 1 + rng.nextInt(4)));
         if (rng.nextInt(50) == 0) queue.add(new SpawnRequest(world.getName(), cx, cz, required, EntityType.PIG, 1 + rng.nextInt(4)));
         if (rng.nextInt(50) == 0) queue.add(new SpawnRequest(world.getName(), cx, cz, required, EntityType.CHICKEN, 1 + rng.nextInt(4)));
+    }
+
+    private void scheduleSwamp(World world, int cx, int cz, Random rng) {
+        if (rng.nextInt(50) == 0) {
+            queue.add(new SpawnRequest(world.getName(), cx, cz, ConsegrityRegions.Region.SWAMP, EntityType.WITCH, 1));
+        }
     }
 
     @Override
@@ -117,7 +129,7 @@ public final class DeferredSpawnManager implements Listener, Runnable {
             Material above = world.getBlockAt(wx, yTop + 1, wz).getType();
 
             // Only on natural ground with air above
-            if (!(ground == Material.GRASS_BLOCK || ground == Material.DIRT)) continue;
+            if (!isValidGround(req.type, ground)) continue;
             if (above != Material.AIR) continue;
 
             Location loc = new Location(world, wx + 0.5, yTop + 1, wz + 0.5);
@@ -126,6 +138,14 @@ public final class DeferredSpawnManager implements Listener, Runnable {
             } catch (Throwable ignore) {}
             return;
         }
+    }
+
+    private boolean isValidGround(EntityType type, Material ground) {
+        if (ground == Material.GRASS_BLOCK || ground == Material.DIRT) return true;
+        if (type == EntityType.WITCH) {
+            return ground == Material.MUD || ground == Material.MANGROVE_ROOTS;
+        }
+        return false;
     }
 
     private static final class SpawnRequest {
