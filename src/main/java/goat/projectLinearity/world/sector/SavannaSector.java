@@ -62,15 +62,40 @@ public class SavannaSector extends SectorBase {
             }
             int canopyY = topY + height;
             int cx = x, cz = z;
-            int r = 2 + rng.nextInt(2);
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
+            int canopyRadius = 2 + rng.nextInt(2);
+
+            for (int dy = -1; dy <= 1; dy++) {
+                int yy = canopyY + dy;
+                int layerRadius = Math.max(1, canopyRadius - (dy == 0 ? 0 : 1));
+                for (int dx = -layerRadius; dx <= layerRadius; dx++) {
+                    for (int dz = -layerRadius; dz <= layerRadius; dz++) {
+                        int xx = cx + dx, zz = cz + dz;
+                        if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
+                        double distSq = dx * dx + dz * dz;
+                        double maxDist = layerRadius * layerRadius + (dy == 0 ? 1.5 : 0.5);
+                        if (distSq > maxDist) continue;
+                        if (rng.nextDouble() < 0.15 && distSq > layerRadius * layerRadius - 1) continue;
+                        if (safeType(data, xx, yy, zz) == Material.AIR) data.setBlock(xx, yy, zz, persistentLeaves);
+                        if (dy == -1 && rng.nextDouble() < 0.3) {
+                            int hangY = yy - 1;
+                            if (hangY >= 0 && safeType(data, xx, hangY, zz) == Material.AIR) {
+                                data.setBlock(xx, hangY, zz, persistentLeaves);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Small cap on the top to smooth silhouettes
+            int topCapY = canopyY + 2;
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) > 1) continue;
                     int xx = cx + dx, zz = cz + dz;
                     if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (safeType(data, xx, canopyY, zz) == Material.AIR) data.setBlock(xx, canopyY, zz, persistentLeaves);
-                    if (rng.nextDouble() < 0.35 && safeType(data, xx, canopyY + 1, zz) == Material.AIR)
-                        data.setBlock(xx, canopyY + 1, zz, persistentLeaves);
+                    if (safeType(data, xx, topCapY, zz) == Material.AIR && rng.nextDouble() < 0.6) {
+                        data.setBlock(xx, topCapY, zz, persistentLeaves);
+                    }
                 }
             }
         }
