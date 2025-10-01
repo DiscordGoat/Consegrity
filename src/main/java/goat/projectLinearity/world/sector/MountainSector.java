@@ -133,6 +133,9 @@ public class MountainSector extends SectorBase {
             int y = topYGrid[lx][lz];
             Material g = safeType(data, lx, y, lz);
             if (g != Material.GRASS_BLOCK && g != Material.DIRT && g != Material.SNOW_BLOCK && g != Material.STONE) continue;
+            // avoid reusing spots that already grew a tree (logs or other blocks above ground)
+            Material above = safeType(data, lx, y + 1, lz);
+            if (above != Material.AIR) continue;
             if (rng.nextDouble() < 0.45 && y + 2 < world.getMaxHeight() - 1) {
                 data.setBlock(lx, y + 1, lz, Material.DIRT);
                 data.setBlock(lx, y + 2, lz, Material.GRASS_BLOCK);
