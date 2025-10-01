@@ -342,6 +342,8 @@ extends ArcticChunkGenerator {
         cherrySec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
         desertSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
         swampSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        jungleSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
+        mesaSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
         savannaSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, null);
         this.placeBedrockBand(world, data, chunkX, chunkZ);
         return data;
@@ -499,7 +501,13 @@ private V2 massiveMountainCenter(long seed) {
                 case 5 -> Material.WHITE_TERRACOTTA;
                 default -> Material.LIGHT_GRAY_TERRACOTTA;
             };
-            if (y == topY) m = Material.RED_SAND;
+            // Only place sand on the base; mountain tops remain terracotta
+            if (y == topY) {
+                int MESA_MTN_THRESHOLD = 178; // treat higher columns as mountains
+                if (topY <= MESA_MTN_THRESHOLD) {
+                    m = Material.RED_SAND;
+                }
+            }
             data.setBlock(lx, y, lz, m);
         }
     }
@@ -529,7 +537,27 @@ private V2 massiveMountainCenter(long seed) {
         for (i = 0; i < dirt; ++i) {
             data.setBlock(lx, y++, lz, Material.DIRT);
         }
-        data.setBlock(lx, topY, lz, grassTop ? Material.GRASS_BLOCK : Material.RED_SAND);
+        // Only generate sand on base; on higher columns keep terracotta top
+        if (grassTop) {
+            data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
+        } else {
+            int MESA_MTN_THRESHOLD = 178;
+            if (topY > MESA_MTN_THRESHOLD) {
+                int band = Math.floorMod(topY, 7);
+                Material m = switch (band) {
+                    case 0 -> Material.TERRACOTTA;
+                    case 1 -> Material.RED_TERRACOTTA;
+                    case 2 -> Material.ORANGE_TERRACOTTA;
+                    case 3 -> Material.BROWN_TERRACOTTA;
+                    case 4 -> Material.YELLOW_TERRACOTTA;
+                    case 5 -> Material.WHITE_TERRACOTTA;
+                    default -> Material.LIGHT_GRAY_TERRACOTTA;
+                };
+                data.setBlock(lx, topY, lz, m);
+            } else {
+                data.setBlock(lx, topY, lz, Material.RED_SAND);
+            }
+        }
     }
     @Override
     protected void placeOres(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ) {
@@ -606,7 +634,7 @@ private V2 massiveMountainCenter(long seed) {
                     W_COPPER_R = 0;
                     W_COAL_R = 16;
                     W_IRON_R = 12;
-                    W_GOLD_R = 14;
+                    W_GOLD_R = 28; // doubled gold spawn rate in Mesa
                     W_RED_R = 8;
                     W_LAPIS_R = 6;
                     W_DIAMOND_R = 2;

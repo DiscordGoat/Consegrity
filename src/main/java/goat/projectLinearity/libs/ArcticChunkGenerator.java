@@ -84,6 +84,8 @@ public class ArcticChunkGenerator extends ChunkGenerator {
     public final List<Location> placedBungalows = Collections.synchronizedList(new ArrayList<>());
     public final List<Location> capsuleQueue = Collections.synchronizedList(new ArrayList<>());
     public final List<Location> ctmQueue = Collections.synchronizedList(new ArrayList<>());
+    // Jungle structure reservation sites (e.g., 40x40 grass patches)
+    public final List<Location> jungleStructureSites = Collections.synchronizedList(new ArrayList<>());
     private boolean ctmQueued = false;
     private static ArcticChunkGenerator instance;
 
@@ -98,6 +100,12 @@ public class ArcticChunkGenerator extends ChunkGenerator {
     public void registerBungalow(Location loc) {
         synchronized (placedBungalows) {
             placedBungalows.add(loc);
+        }
+    }
+
+    public void registerJungleStructureSite(Location loc) {
+        synchronized (jungleStructureSites) {
+            jungleStructureSites.add(loc);
         }
     }
 
