@@ -20,6 +20,7 @@ import goat.projectLinearity.advs.jungle.*;
 import goat.projectLinearity.commands.RegenerateCommand;
 import goat.projectLinearity.world.ConsegritySpawnListener;
 import goat.projectLinearity.world.RegionTitleListener;
+import goat.projectLinearity.world.DeferredSpawnManager;
 import goat.projectLinearity.world.ConsegrityRegions;
 import org.bukkit.*;
 import org.bukkit.advancement.Advancement;
@@ -66,6 +67,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new ConsegritySpawnListener(), this);
         // Register region title listener
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
+        // Initialize deferred spawn queue for generator-triggered spawns
+        DeferredSpawnManager.initialize(this);
     }
     public AdvancementTab desert;
     public AdvancementTab mesa;
