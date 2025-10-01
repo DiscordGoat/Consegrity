@@ -62,42 +62,9 @@ public class SavannaSector extends SectorBase {
             }
             int canopyY = topY + height;
             int cx = x, cz = z;
-            int canopyRadius = 2 + rng.nextInt(2);
+            if (cx < 0 || cx > 15 || cz < 0 || cz > 15) continue;
 
-            for (int dy = -1; dy <= 1; dy++) {
-                int yy = canopyY + dy;
-                int layerRadius = Math.max(1, canopyRadius - (dy == 0 ? 0 : 1));
-                for (int dx = -layerRadius; dx <= layerRadius; dx++) {
-                    for (int dz = -layerRadius; dz <= layerRadius; dz++) {
-                        int xx = cx + dx, zz = cz + dz;
-                        if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                        double distSq = dx * dx + dz * dz;
-                        double maxDist = layerRadius * layerRadius + (dy == 0 ? 1.5 : 0.5);
-                        if (distSq > maxDist) continue;
-                        if (rng.nextDouble() < 0.15 && distSq > layerRadius * layerRadius - 1) continue;
-                        if (safeType(data, xx, yy, zz) == Material.AIR) data.setBlock(xx, yy, zz, persistentLeaves);
-                        if (dy == -1 && rng.nextDouble() < 0.3) {
-                            int hangY = yy - 1;
-                            if (hangY >= 0 && safeType(data, xx, hangY, zz) == Material.AIR) {
-                                data.setBlock(xx, hangY, zz, persistentLeaves);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Small cap on the top to smooth silhouettes
-            int topCapY = canopyY + 2;
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (Math.abs(dx) + Math.abs(dz) > 1) continue;
-                    int xx = cx + dx, zz = cz + dz;
-                    if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (safeType(data, xx, topCapY, zz) == Material.AIR && rng.nextDouble() < 0.6) {
-                        data.setBlock(xx, topCapY, zz, persistentLeaves);
-                    }
-                }
-            }
+            placeSavannaCanopy(data, persistentLeaves, rng, cx, canopyY, cz, ox, oz);
         }
 
         // Thick grasses
@@ -114,5 +81,104 @@ public class SavannaSector extends SectorBase {
             }
         }
     }
+
+    private void placeSavannaCanopy(ChunkGenerator.ChunkData data, BlockData leaves, SplittableRandom rng, int cx, int cy, int cz, int dirX, int dirZ) {
+        if (dirX == 0 && dirZ == 0) {
+            dirX = 1;
+            dirZ = 0;
+        }
+        placeLeavesLayer(data, leaves, cx, cy - 1, cz, PRIMARY_CANOPY_BELOW_BASE, dirX, dirZ);
+        placeLeavesLayer(data, leaves, cx, cy, cz, PRIMARY_CANOPY_MAIN_BASE, dirX, dirZ);
+        placeLeavesLayer(data, leaves, cx, cy + 1, cz, PRIMARY_CANOPY_TOP_BASE, dirX, dirZ);
+
+        int backX = cx - dirX;
+        int backZ = cz - dirZ;
+        placeLeavesLayer(data, leaves, backX, cy - 1, backZ, SECONDARY_CANOPY_BELOW, dirX, dirZ);
+        placeLeavesLayer(data, leaves, backX, cy, backZ, SECONDARY_CANOPY_MAIN, dirX, dirZ);
+        placeLeavesLayer(data, leaves, backX, cy + 1, backZ, SECONDARY_CANOPY_TOP, dirX, dirZ);
+
+        // Occasional dangling leaves below the canopy to mimic natural acacia droop.
+        for (int[] offset : PRIMARY_CANOPY_DANGLE_BASE) {
+            int dx = rotateX(offset[0], offset[1], dirX, dirZ);
+            int dz = rotateZ(offset[0], offset[1], dirX, dirZ);
+            if (rng.nextDouble() > 0.35) continue;
+            int xx = cx + dx;
+            int zz = cz + dz;
+            int yy = cy - 2;
+            if (xx < 0 || xx > 15 || zz < 0 || zz > 15 || yy < 0) continue;
+            if (safeType(data, xx, yy, zz) == Material.AIR) {
+                data.setBlock(xx, yy, zz, leaves);
+            }
+        }
+    }
+
+    private void placeLeavesLayer(ChunkGenerator.ChunkData data, BlockData leaves, int cx, int cy, int cz, int[][] pattern, int dirX, int dirZ) {
+        if (cy < 0) return;
+        for (int[] offset : pattern) {
+            int dx = rotateX(offset[0], offset[1], dirX, dirZ);
+            int dz = rotateZ(offset[0], offset[1], dirX, dirZ);
+            int xx = cx + dx;
+            int zz = cz + dz;
+            if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
+            if (safeType(data, xx, cy, zz) == Material.AIR) {
+                data.setBlock(xx, cy, zz, leaves);
+            }
+        }
+    }
+
+    private int rotateX(int x, int z, int dirX, int dirZ) {
+        if (dirX == 1 && dirZ == 0) return x;
+        if (dirX == -1 && dirZ == 0) return -x;
+        if (dirX == 0 && dirZ == 1) return -z;
+        if (dirX == 0 && dirZ == -1) return z;
+        return x;
+    }
+
+    private int rotateZ(int x, int z, int dirX, int dirZ) {
+        if (dirX == 1 && dirZ == 0) return z;
+        if (dirX == -1 && dirZ == 0) return -z;
+        if (dirX == 0 && dirZ == 1) return x;
+        if (dirX == 0 && dirZ == -1) return -x;
+        return z;
+    }
+
+    private static final int[][] PRIMARY_CANOPY_MAIN_BASE = {
+            {0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0},
+            {0, 1}, {0, -1},
+            {1, 1}, {1, -1}, {2, 1}, {2, -1}, {3, 1}, {3, -1}, {4, 1}, {4, -1},
+            {0, 2}, {0, -2}, {1, 2}, {1, -2}, {2, 2}, {2, -2}
+    };
+
+    private static final int[][] PRIMARY_CANOPY_TOP_BASE = {
+            {1, 0}, {2, 0}, {3, 0}, {4, 0},
+            {1, 1}, {1, -1}, {2, 1}, {2, -1}, {3, 1}, {3, -1}
+    };
+
+    private static final int[][] PRIMARY_CANOPY_BELOW_BASE = {
+            {0, 0}, {1, 0}, {2, 0}, {3, 0},
+            {0, 1}, {0, -1},
+            {1, 1}, {1, -1}, {2, 1}, {2, -1}, {3, 1}, {3, -1}
+    };
+
+    private static final int[][] PRIMARY_CANOPY_DANGLE_BASE = {
+            {1, 0}, {2, 0},
+            {1, 1}, {1, -1}
+    };
+
+    private static final int[][] SECONDARY_CANOPY_MAIN = {
+            {0, 0}, {1, 0}, {-1, 0}, {-2, 0},
+            {0, 1}, {0, -1},
+            {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+    };
+
+    private static final int[][] SECONDARY_CANOPY_TOP = {
+            {0, 0}, {1, 0}, {-1, 0},
+            {0, 1}, {0, -1}
+    };
+
+    private static final int[][] SECONDARY_CANOPY_BELOW = {
+            {0, 0}, {-1, 0},
+            {0, 1}, {0, -1}
+    };
 }
 
