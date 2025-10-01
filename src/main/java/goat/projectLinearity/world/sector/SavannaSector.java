@@ -1,8 +1,11 @@
 package goat.projectLinearity.world.sector;
 
 import goat.projectLinearity.world.ConsegrityRegions;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Leaves;
 import org.bukkit.generator.ChunkGenerator;
 
 import java.util.SplittableRandom;
@@ -21,6 +24,17 @@ public class SavannaSector extends SectorBase {
     @Override
     public void decorate(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid, double[][] centralMaskGrid) {
         SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 151587097L);
+        BlockData persistentLeaves;
+        try {
+            persistentLeaves = Material.ACACIA_LEAVES.createBlockData();
+        } catch (Throwable ignore) {
+            persistentLeaves = Bukkit.createBlockData(Material.ACACIA_LEAVES);
+        }
+        if (persistentLeaves instanceof Leaves leavesData) {
+            try { leavesData.setPersistent(true); } catch (Throwable ignore) { }
+            try { leavesData.setDistance(1); } catch (Throwable ignore) { }
+        }
+
         // Acacia-like sparse trees
         for (int i = 0; i < 4; i++) {
             int lx = rng.nextInt(16);
@@ -54,9 +68,9 @@ public class SavannaSector extends SectorBase {
                     if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
                     int xx = cx + dx, zz = cz + dz;
                     if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                    if (safeType(data, xx, canopyY, zz) == Material.AIR) data.setBlock(xx, canopyY, zz, Material.ACACIA_LEAVES);
+                    if (safeType(data, xx, canopyY, zz) == Material.AIR) data.setBlock(xx, canopyY, zz, persistentLeaves);
                     if (rng.nextDouble() < 0.35 && safeType(data, xx, canopyY + 1, zz) == Material.AIR)
-                        data.setBlock(xx, canopyY + 1, zz, Material.ACACIA_LEAVES);
+                        data.setBlock(xx, canopyY + 1, zz, persistentLeaves);
                 }
             }
         }
