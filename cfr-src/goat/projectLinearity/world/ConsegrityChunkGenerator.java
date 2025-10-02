@@ -728,12 +728,21 @@ extends ArcticChunkGenerator {
     }
 
     private int ring2MesaSurfaceY(long seed, int wx, int wz) {
-        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D5L, (double)wx / 300.0, (double)wz / 300.0);
-        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D6L, (double)wx / 96.0, (double)wz / 96.0);
-        double h3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D7L, (double)wx / 36.0, (double)wz / 36.0);
-        double h = (h1 * 0.5 + h2 * 0.3 + h3 * 0.2) * 2.0 - 1.0;
+        // Smoother, flatter mesas with gentle plateaus (savanna-like amplitude)
+        double h1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D5L, (double)wx / 320.0, (double)wz / 320.0);
+        double h2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xBADA11D6L, (double)wx / 120.0, (double)wz / 120.0);
+        double raw = (h1 * 0.7 + h2 * 0.3) * 2.0 - 1.0;
+        // Plateau shaping: compress the upper range to encourage flat tops
+        double u = (raw + 1.0) * 0.5; // [0,1]
+        double tStart = 0.65; // start flattening the upper 35%
+        if (u > tStart) {
+            double t = (u - tStart) / (1.0 - tStart);
+            // Strong compression near the top; map 35% of the range into ~6%
+            u = tStart + t * 0.06;
+        }
+        double h = u * 2.0 - 1.0;
         int base = 175;
-        int amp = 28;
+        int amp = 8; // savanna-level low amplitude
         return base + (int)Math.round(h * (double)amp);
     }
 
@@ -779,6 +788,13 @@ extends ArcticChunkGenerator {
         double cellVar = 0.85 + ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, nx, 99L, nz, -267531522L)) * 0.7;
         if ((h = base + (h - base) * (1.35 * cellVar)) > (double)worldMaxY) {
             h = worldMaxY;
+        }
+        // Plateau shaping for mountain tops: flatten peaks into mesas rather than sharp points
+        double plateauStart = 200.0;
+        if (h > plateauStart) {
+            double excess = h - plateauStart;
+            double compressed = Math.min(24.0, excess * 0.2);
+            h = plateauStart + compressed;
         }
         if (h < 150.0) {
             h = 150.0;
@@ -906,8 +922,9 @@ extends ArcticChunkGenerator {
                     Material material = m = Material.LIGHT_GRAY_TERRACOTTA;
                 }
             }
+            // Avoid red sand caps on flats near mountain bases: use terracotta at lower tops
             if (y == topY) {
-                m = Material.RED_SAND;
+                m = topY <= 180 ? Material.ORANGE_TERRACOTTA : Material.RED_SAND;
             }
             data.setBlock(lx, y, lz, m);
         }
@@ -918,7 +935,8 @@ extends ArcticChunkGenerator {
         double t = ConsegrityChunkGenerator.clamp01(tLand);
         int terr = (int)Math.round(ConsegrityChunkGenerator.lerp(10.0, 0.0, t));
         int dirt = (int)Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
-        boolean grassTop = t > 0.15;
+        // Always favor grass on the blend to avoid patchy sand at mountain bases
+        boolean grassTop = true;
         int total = terr + dirt + 1;
         int y = Math.max(-60, topY - total + 1);
         for (i = 0; i < terr; ++i) {
@@ -1711,4 +1729,3 @@ extends ArcticChunkGenerator {
         }
     }
 }
-

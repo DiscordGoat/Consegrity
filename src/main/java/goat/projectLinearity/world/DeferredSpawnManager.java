@@ -18,6 +18,7 @@ import java.util.Random;
  * - Savanna: For each of COW/SHEEP/PIG/CHICKEN, with 1/50 chance per new chunk,
  *   spawn a small group of 1-4.
  * - Swamp: WITCH spawns with 1/50 chance per new chunk.
+ * - Desert: RABBIT spawns with 1/50 chance per new chunk, group size 1-4.
  *
  * Spawns are scheduled on chunk load and processed in small batches every few ticks.
  */
@@ -71,6 +72,11 @@ public final class DeferredSpawnManager implements Listener, Runnable {
         if (region == ConsegrityRegions.Region.SWAMP) {
             scheduleSwamp(world, cx, cz, rng);
         }
+
+        // Desert rabbits: 1/50 chance, group size 1-4
+        if (region == ConsegrityRegions.Region.DESERT) {
+            scheduleDesert(world, cx, cz, rng);
+        }
     }
 
     private void scheduleSavanna(World world, int cx, int cz, Random rng) {
@@ -85,6 +91,12 @@ public final class DeferredSpawnManager implements Listener, Runnable {
     private void scheduleSwamp(World world, int cx, int cz, Random rng) {
         if (rng.nextInt(50) == 0) {
             queue.add(new SpawnRequest(world.getName(), cx, cz, ConsegrityRegions.Region.SWAMP, EntityType.WITCH, 1));
+        }
+    }
+
+    private void scheduleDesert(World world, int cx, int cz, Random rng) {
+        if (rng.nextInt(50) == 0) {
+            queue.add(new SpawnRequest(world.getName(), cx, cz, ConsegrityRegions.Region.DESERT, EntityType.RABBIT, 1 + rng.nextInt(4)));
         }
     }
 
@@ -141,7 +153,7 @@ public final class DeferredSpawnManager implements Listener, Runnable {
     }
 
     private boolean isValidGround(EntityType type, Material ground) {
-        if (ground == Material.GRASS_BLOCK || ground == Material.DIRT) return true;
+        if (ground == Material.GRASS_BLOCK || ground == Material.DIRT || ground == Material.SAND) return true;
         if (type == EntityType.WITCH) {
             return ground == Material.MUD || ground == Material.MANGROVE_ROOTS;
         }
@@ -165,4 +177,3 @@ public final class DeferredSpawnManager implements Listener, Runnable {
         }
     }
 }
-

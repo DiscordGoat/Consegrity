@@ -64,7 +64,8 @@ public class SavannaSector extends SectorBase {
             int cx = x, cz = z;
             if (cx < 0 || cx > 15 || cz < 0 || cz > 15) continue;
 
-            placeSavannaCanopy(data, persistentLeaves, rng, cx, canopyY, cz, ox, oz);
+            // Use Central-style canopy shape for savanna trees
+            placeCentralStyleCanopy(data, persistentLeaves, cx, canopyY, cz);
         }
 
         // Thick grasses
@@ -78,6 +79,20 @@ public class SavannaSector extends SectorBase {
                 if ((ground == Material.GRASS_BLOCK || ground == Material.DIRT) && above == Material.AIR) {
                     if (rng.nextDouble() < 0.4) data.setBlock(lx, topY + 1, lz, grassPlant);
                 }
+            }
+        }
+    }
+
+    private void placeCentralStyleCanopy(ChunkGenerator.ChunkData data, BlockData leaves, int cx, int cy, int cz) {
+        if (cy < 0) return;
+        for (int dx = -3; dx <= 3; ++dx) {
+            for (int dz = -3; dz <= 3; ++dz) {
+                int r2 = dx * dx + dz * dz;
+                int xx = cx + dx;
+                int zz = cz + dz;
+                if (xx < 0 || xx > 15 || zz < 0 || zz > 15 || r2 > 10) continue;
+                data.setBlock(xx, cy, zz, leaves);
+                if (r2 <= 5) data.setBlock(xx, cy + 1, zz, leaves);
             }
         }
     }
@@ -181,4 +196,3 @@ public class SavannaSector extends SectorBase {
             {0, 1}, {0, -1}
     };
 }
-
