@@ -90,9 +90,23 @@
             </plugin>
         </plugins>
         <resources>
+            <!-- Filtered resources (YAML, text, etc.) but explicitly exclude binary schematics -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <excludes>
+                    <exclude>**/*.schem</exclude>
+                    <exclude>**/*.schematic</exclude>
+                </excludes>
+            </resource>
+            <!-- Copy schematics verbatim without filtering to avoid binary corruption/errors -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>**/*.schem</include>
+                    <include>**/*.schematic</include>
+                </includes>
             </resource>
         </resources>
     </build>

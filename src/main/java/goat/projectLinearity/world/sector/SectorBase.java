@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.MultipleFacing;
+import org.bukkit.block.data.type.Leaves;
 import org.bukkit.generator.ChunkGenerator;
 
 import java.util.Random;
@@ -118,6 +119,7 @@ abstract class SectorBase implements Sector {
         for (int i = 0; i < height; ++i) data.setBlock(lx, y + i, lz, Material.SPRUCE_LOG);
         int top = y + height - 1;
         int radius = Math.max(1, height / 4);
+        BlockData spruceLeaves = persistentLeaves(Material.SPRUCE_LEAVES, 1);
         for (int ry = 0; ry <= radius; ++ry) {
             int r = Math.max(1, radius - ry);
             for (int dx = -r; dx <= r; ++dx) {
@@ -125,24 +127,25 @@ abstract class SectorBase implements Sector {
                     if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
                     int xx = lx + dx, zz = lz + dz, yy = top - ry;
                     if (xx < 0 || xx > 15 || zz < 0 || zz > 15 || data.getType(xx, yy, zz) != Material.AIR) continue;
-                    data.setBlock(xx, yy, zz, Material.SPRUCE_LEAVES);
+                    data.setBlock(xx, yy, zz, spruceLeaves);
                 }
             }
         }
-        if (top + 1 < y + height + 8) data.setBlock(lx, top + 1, lz, Material.SPRUCE_LEAVES);
+        if (top + 1 < y + height + 8) data.setBlock(lx, top + 1, lz, spruceLeaves);
     }
 
     protected void growSimpleTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, Random rng) {
         int height = 4 + rng.nextInt(3);
         for (int i = 0; i < height; ++i) data.setBlock(lx, y + i, lz, log);
         int cy = y + height - 1;
+        BlockData leaveData = persistentLeaves(leaves, 1);
         for (int dx = -2; dx <= 2; ++dx) {
             for (int dz = -2; dz <= 2; ++dz) {
                 int r2 = dx * dx + dz * dz;
                 int x = lx + dx, z = lz + dz;
                 if (x < 0 || x > 15 || z < 0 || z > 15 || r2 > 6) continue;
-                data.setBlock(x, cy, z, leaves);
-                if (r2 <= 3) data.setBlock(x, cy + 1, z, leaves);
+                data.setBlock(x, cy, z, leaveData);
+                if (r2 <= 3) data.setBlock(x, cy + 1, z, leaveData);
             }
         }
     }
@@ -177,5 +180,22 @@ abstract class SectorBase implements Sector {
             }
         } catch (Throwable ignore) { }
     }
-}
 
+    protected BlockData persistentLeaves(Material m, int distance) {
+        try {
+            BlockData bd = m.createBlockData();
+            if (bd instanceof Leaves l) {
+                try { l.setPersistent(true); } catch (Throwable ignore) {}
+                try { l.setDistance(Math.max(1, Math.min(7, distance))); } catch (Throwable ignore) {}
+            }
+            return bd;
+        } catch (Throwable t) {
+            BlockData bd = Bukkit.createBlockData(m);
+            if (bd instanceof Leaves l) {
+                try { l.setPersistent(true); } catch (Throwable ignore) {}
+                try { l.setDistance(Math.max(1, Math.min(7, distance))); } catch (Throwable ignore) {}
+            }
+            return bd;
+        }
+    }
+}

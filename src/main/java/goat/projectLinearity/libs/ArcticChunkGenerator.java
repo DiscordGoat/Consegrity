@@ -505,6 +505,20 @@ public class ArcticChunkGenerator extends ChunkGenerator {
         for (int i = 0; i < height; i++) data.setBlock(lx, y + i, lz, Material.SPRUCE_LOG);
         int top = y + height - 1;
         int radius = Math.max(1, height / 4);
+        org.bukkit.block.data.BlockData spruceLeaves;
+        try {
+            spruceLeaves = Material.SPRUCE_LEAVES.createBlockData();
+            if (spruceLeaves instanceof org.bukkit.block.data.type.Leaves l) {
+                try { l.setPersistent(true); } catch (Throwable ignore) {}
+                try { l.setDistance(1); } catch (Throwable ignore) {}
+            }
+        } catch (Throwable t) {
+            spruceLeaves = Bukkit.createBlockData(Material.SPRUCE_LEAVES);
+            if (spruceLeaves instanceof org.bukkit.block.data.type.Leaves l) {
+                try { l.setPersistent(true); } catch (Throwable ignore) {}
+                try { l.setDistance(1); } catch (Throwable ignore) {}
+            }
+        }
         for (int ry = 0; ry <= radius; ry++) {
             int r = Math.max(1, radius - ry);
             for (int dx = -r; dx <= r; dx++) {
@@ -513,13 +527,13 @@ public class ArcticChunkGenerator extends ChunkGenerator {
                     int xx = lx + dx, zz = lz + dz, yy = top - ry;
                     if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
                     if (yy >= y && yy <= AUDIT_Y_MAX) {
-                        if (data.getType(xx, yy, zz) == Material.AIR) data.setBlock(xx, yy, zz, Material.SPRUCE_LEAVES);
+                        if (data.getType(xx, yy, zz) == Material.AIR) data.setBlock(xx, yy, zz, spruceLeaves);
                     }
                 }
             }
         }
         // top spike
-        if (top + 1 <= AUDIT_Y_MAX) data.setBlock(lx, top + 1, lz, Material.SPRUCE_LEAVES);
+        if (top + 1 <= AUDIT_Y_MAX) data.setBlock(lx, top + 1, lz, spruceLeaves);
     }
 
     private boolean isLeavesOrLog(Material m) {

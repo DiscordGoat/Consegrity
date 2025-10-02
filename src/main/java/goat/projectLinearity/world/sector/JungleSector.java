@@ -156,13 +156,14 @@ public class JungleSector extends SectorBase {
         }
         int top = y + height - 2;
         int r = 4;
+        org.bukkit.block.data.BlockData jungleLeaves = persistentLeaves(Material.JUNGLE_LEAVES, 1);
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
                 if (dx * dx + dz * dz > r * r + 2) continue;
                 int xx = x + dx, zz = z + dz;
                 if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
-                if (rng.nextDouble() < 0.8) data.setBlock(xx, top, zz, Material.JUNGLE_LEAVES);
-                if (rng.nextDouble() < 0.35) data.setBlock(xx, top + 1, zz, Material.JUNGLE_LEAVES);
+                if (rng.nextDouble() < 0.8) data.setBlock(xx, top, zz, jungleLeaves);
+                if (rng.nextDouble() < 0.35) data.setBlock(xx, top + 1, zz, jungleLeaves);
             }
         }
         // denser layered canopy at the top
@@ -197,6 +198,7 @@ public class JungleSector extends SectorBase {
 
     private void addTopCanopy(ChunkGenerator.ChunkData data, int cx, int cy, int cz, int layers, SplittableRandom rng) {
         int r = 3;
+        org.bukkit.block.data.BlockData jungleLeaves = persistentLeaves(Material.JUNGLE_LEAVES, 1);
         for (int ly = 0; ly < layers; ly++) {
             int rr = Math.max(1, r - ly);
             int y = cy + ly;
@@ -206,7 +208,7 @@ public class JungleSector extends SectorBase {
                     int x = cx + dx, z = cz + dz;
                     if (x < 0 || x > 15 || z < 0 || z > 15) continue;
                     if (safeType(data, x, y, z) == Material.AIR && rng.nextDouble() < 0.9)
-                        data.setBlock(x, y, z, Material.JUNGLE_LEAVES);
+                        data.setBlock(x, y, z, jungleLeaves);
                 }
             }
         }

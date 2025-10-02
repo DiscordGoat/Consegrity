@@ -22,6 +22,11 @@ import goat.projectLinearity.world.ConsegritySpawnListener;
 import goat.projectLinearity.world.RegionTitleListener;
 import goat.projectLinearity.world.DeferredSpawnManager;
 import goat.projectLinearity.world.ConsegrityRegions;
+import goat.projectLinearity.structure.StructureManager;
+import goat.projectLinearity.structure.DeferredStructureSpawner;
+import goat.projectLinearity.structure.GenCheckType;
+import goat.projectLinearity.structure.StructureListener;
+import goat.projectLinearity.world.sector.JungleSector;
 import org.bukkit.*;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.event.EventHandler;
@@ -69,8 +74,23 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         DeferredSpawnManager dsm = new DeferredSpawnManager();
         Bukkit.getPluginManager().registerEvents(dsm, this);
         try { Bukkit.getScheduler().runTaskTimer(this, dsm, 1L, 5L); } catch (Throwable ignore) {}
+        // Register structure manager and deferred structure spawner (post-generation)
+        StructureManager structMgr = new StructureManager(this);
+        this.structureManager = structMgr;
+        DeferredStructureSpawner structSpawner = new DeferredStructureSpawner(structMgr);
+        Bukkit.getPluginManager().registerEvents(structSpawner, this);
+        Bukkit.getPluginManager().registerEvents(new StructureListener(structMgr), this);
+        try { Bukkit.getScheduler().runTaskTimer(this, structSpawner, 1L, 10L); } catch (Throwable ignore) {}
         // Register region title listener
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
+
+        // Register initial structures
+        try {
+            // Spawn 10 jungle temples on jungle surface, modest footprint and spacing
+            structMgr.registerStruct("jungletemple", 24, 10, 100, new JungleSector(), GenCheckType.SURFACE, true);
+        } catch (Throwable t) {
+            getLogger().warning("Failed to register default structures: " + t.getMessage());
+        }
     }
     public AdvancementTab desert;
     public AdvancementTab mesa;
@@ -78,6 +98,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public AdvancementTab cherry;
     public AdvancementTab mountain;
     public AdvancementTab jungle;
+    private StructureManager structureManager;
 
     public void initializeTabs() {
         api = UltimateAdvancementAPI.getInstance(this);

@@ -73,6 +73,7 @@ public class CherrySector extends SectorBase {
         int top = y + height - 1;
         // simple irregular canopy with petals
         int r = 3;
+        org.bukkit.block.data.BlockData cherryLeaves = persistentLeaves(Material.CHERRY_LEAVES, 1);
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
                 if (Math.abs(dx) + Math.abs(dz) > r + 1) continue;
@@ -80,7 +81,7 @@ public class CherrySector extends SectorBase {
                 int yy = top + (rng.nextDouble() < 0.2 ? 1 : 0);
                 if (xx < 0 || xx > 15 || zz < 0 || zz > 15) continue;
                 Material existing = safeType(data, xx, yy, zz);
-                if (existing == Material.AIR) data.setBlock(xx, yy, zz, Material.CHERRY_LEAVES);
+                if (existing == Material.AIR) data.setBlock(xx, yy, zz, cherryLeaves);
                 if (rng.nextDouble() < 0.15 && yy - 1 >= 0 && safeType(data, xx, yy - 1, zz) == Material.AIR) {
                     try {
                         BlockData petals = Bukkit.createBlockData(Material.PINK_PETALS);
@@ -105,4 +106,3 @@ public class CherrySector extends SectorBase {
         }
     }
 }
-

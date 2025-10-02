@@ -11,6 +11,17 @@
       <resource>
         <filtering>true</filtering>
         <directory>src/main/resources</directory>
+        <excludes>
+          <exclude>**/*.schem</exclude>
+          <exclude>**/*.schematic</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <includes>
+          <include>**/*.schem</include>
+          <include>**/*.schematic</include>
+        </includes>
       </resource>
     </resources>
     <plugins>
