@@ -14,7 +14,14 @@ commands:
     description: Grants advancements from specified tab(s) or all
     usage: /getallconsegrityadvancements [all|consegrity|desert|mesa|swamp|cherry|mountain|jungle ...]
     permission: consegrity.dev
+  warpto:
+    description: Teleport to the spawn of a world
+    usage: /warpto <worldName>
+    permission: consegrity.warpto
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
+    default: op
+  consegrity.warpto:
+    description: Allows using /warpto
     default: op

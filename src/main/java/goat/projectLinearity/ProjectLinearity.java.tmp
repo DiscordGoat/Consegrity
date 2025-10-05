@@ -42,13 +42,12 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // TPS monitor
         startTpsMonitor();
 
-        // Default structure registrations (tunable from here)
+        // Register default structures (same tuning as before)
         try {
-            structureManager.registerStruct("jungletemple", 24, 10, 200, new JungleSector(), GenCheckType.SURFACE, true, 300);
-            structureManager.registerStruct("deserttemple", 30, 4, 200, new DesertBiome(), GenCheckType.SURFACE, true, 200);
-            structureManager.registerStruct("witchhut", 10, 10, 200, new SwampSector(), GenCheckType.SURFACE, true, 200);
-            structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 450);
-            structureManager.registerStruct("hotspring", 10, 10, 200, new CherrySector(), GenCheckType.SURFACE, true, 120);
+            structureManager.registerStruct("jungletemple", 24, 10, 100, new JungleSector(), GenCheckType.SURFACE, true, 300);
+            structureManager.registerStruct("deserttemple", 30, 4, 200, new DesertBiome(), GenCheckType.SURFACE, true, 300);
+            structureManager.registerStruct("witchhut", 10, 10, 100, new SwampSector(), GenCheckType.SURFACE, true, 300);
+            structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 300);
         } catch (Throwable ignored) {}
     }
 
@@ -84,3 +83,4 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         } catch (Throwable ignored) {}
     }
 }
+

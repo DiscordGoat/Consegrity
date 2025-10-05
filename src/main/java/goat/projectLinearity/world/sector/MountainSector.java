@@ -63,7 +63,6 @@ public class MountainSector extends SectorBase {
     @Override
     public void decorate(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid, double[][] centralMaskGrid) {
         // Place exclusion zone first so other features respect it
-        placeMountainExclusion(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
         placeMountainRivers(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
         placeMountainTaigaEdge(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
         placeGrass(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);

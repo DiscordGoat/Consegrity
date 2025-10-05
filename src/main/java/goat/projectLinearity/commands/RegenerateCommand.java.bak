@@ -71,19 +71,16 @@ public class RegenerateCommand implements CommandExecutor {
         wc.generator(new ConsegrityChunkGenerator());
         World newWorld = Bukkit.createWorld(wc);
         if (newWorld == null) {
-            sender.sendMessage("World creation failed.");
+            player.sendMessage("World creation failed.");
             return true;
         }
         try { newWorld.setKeepSpawnInMemory(false); } catch (Throwable ignored) {}
-
-        // 3) Set spawn and teleport immediately
-        int sx = 0, sz = 0;
-        int sy = newWorld.getHighestBlockYAt(sx, sz) + 1;
-        newWorld.setSpawnLocation(sx, sy, sz);
-        player.teleport(newWorld.getSpawnLocation());
-        try { player.sendTitle("Central", "", 5, 40, 5); } catch (Throwable ignored) { player.sendMessage("Central"); }
-
-        return true;
+// Set spawn and teleport; structures will populate as you explore
+int sx = 0, sz = 0;
+int sy = newWorld.getHighestBlockYAt(sx, sz) + 1;
+newWorld.setSpawnLocation(sx, sy, sz);
+player.teleport(newWorld.getSpawnLocation());
+try { player.sendTitle("Central", "", 5, 40, 5); } catch (Throwable ignored) { player.sendMessage("Central"); }return true;
     }
 
     private void deleteWorldFolder(Path worldPath) throws IOException {
@@ -145,3 +142,4 @@ public class RegenerateCommand implements CommandExecutor {
         } catch (Throwable ignored) {}
     }
 }
+

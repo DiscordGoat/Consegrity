@@ -23,14 +23,14 @@ public final class StructureListener implements Listener {
         int z = event.getTo().getBlockZ();
 
         StructureStore store = StructureStore.get(manager.getPlugin());
-        var opt = store.findUndiscoveredNear(worldKey, x, z);
+        var opt = store.findUndiscoveredNearForPlayer(worldKey, p.getUniqueId(), x, z);
         if (opt.isEmpty()) return;
 
         StructureStore.StructEntry e = opt.get();
-        store.markDiscovered(worldKey, e.id);
+        store.markDiscoveredForPlayer(worldKey, e.id, p.getUniqueId());
 
-        int discovered = store.getDiscoveredCount(worldKey);
-        int total = store.getPlacedCount(worldKey);
-        p.sendMessage("Discovered Structure. " + discovered + "/" + Math.max(total, discovered));
+        int foundOfType = store.getPlayerDiscoveredCountForName(worldKey, p.getUniqueId(), e.name);
+        int totalOfType = store.getPlacedCountForName(worldKey, e.name);
+        p.sendMessage("Discovered " + e.name + ": " + foundOfType + "/" + Math.max(totalOfType, foundOfType));
     }
 }

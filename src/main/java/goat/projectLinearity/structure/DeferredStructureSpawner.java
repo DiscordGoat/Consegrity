@@ -1,5 +1,6 @@
 package goat.projectLinearity.structure;
 
+import goat.projectLinearity.ProjectLinearity;
 import goat.projectLinearity.world.ConsegrityRegions;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -17,12 +18,14 @@ import java.util.Random;
  */
 public final class DeferredStructureSpawner implements Listener, Runnable {
     private static final String WORLD_NAME = "Consegrity";
-    private static final int BATCH_BUDGET = 8;
+    private static final int MAX_BUDGET = 64;
 
+    private final ProjectLinearity plugin;
     private final StructureManager manager;
     private final Queue<ChunkKey> queue = new ArrayDeque<>();
 
-    public DeferredStructureSpawner(StructureManager manager) {
+    public DeferredStructureSpawner(ProjectLinearity plugin, StructureManager manager) {
+        this.plugin = plugin;
         this.manager = manager;
     }
 
@@ -30,6 +33,7 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
     public void onChunkLoad(ChunkLoadEvent event) {
         World world = event.getWorld();
         if (!WORLD_NAME.equals(world.getName())) return;
+        if (plugin != null && plugin.isRegenInProgress()) return; // skip queuing during regen
 
         boolean isNew;
         try {
@@ -46,7 +50,25 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
 
     @Override
     public void run() {
-        int budget = BATCH_BUDGET;
+        // TPS gate: only place structures when server is healthy
+        try {
+            if (plugin != null && plugin.isRegenInProgress()) {
+                return; // do not place during regen
+            }
+            if (plugin != null && plugin.getTpsMonitor() != null && !plugin.getTpsMonitor().isHealthy()) {
+                return;
+            }
+        } catch (Throwable ignored) {}
+        int budget = 16;
+        try {
+            double tps = (plugin != null && plugin.getTpsMonitor() != null) ? plugin.getTpsMonitor().getTps() : 20.0;
+            if (tps >= 19.5) budget = 64;
+            else if (tps >= 18.5) budget = 48;
+            else if (tps >= 17.0) budget = 32;
+            else if (tps >= 15.0) budget = 24;
+            else budget = 16;
+            if (budget > MAX_BUDGET) budget = MAX_BUDGET;
+        } catch (Throwable ignored) {}
         while (budget-- > 0 && !queue.isEmpty()) {
             ChunkKey key = queue.poll();
             if (key == null) break;
@@ -68,4 +90,3 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
         ChunkKey(String worldName, int cx, int cz) { this.worldName = worldName; this.cx = cx; this.cz = cz; }
     }
 }
-

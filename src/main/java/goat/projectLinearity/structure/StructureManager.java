@@ -33,6 +33,84 @@ public final class StructureManager {
     public List<Registration> getRegistrations() { return registrations; }
 
     /**
+     * Enforce configured counts for all registered structures by preplanning and placing immediately.
+     * If spacing prevents reaching the target, gradually relax spacing until the target is satisfied.
+     */
+    public void enforceCountsInstant(World world) {
+        if (world == null) return;
+        String worldKey = world.getUID().toString();
+        Random rng = new Random(world.getSeed() ^ 0xCAFEBABECAFEL);
+
+        for (Registration reg : registrations) {
+            int have = reg.placedCount(worldKey);
+            int need = Math.max(0, reg.count - have);
+            if (need <= 0) continue;
+
+            int initialSpacing = Math.max(reg.bounds + 2, reg.spacing);
+            int minSpacing = Math.max(reg.bounds + 2, 8);
+            // progressively relax spacing factors
+            double[] factors = new double[]{1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3};
+
+            for (double f : factors) {
+                if (need <= 0) break;
+                int useSpacing = Math.max(minSpacing, (int) Math.round(initialSpacing * f));
+
+                // attempt many candidates spread across a large radius around origin
+                int attempts = Math.min(4000, Math.max(need * 300, 1000));
+                int radius = 1100; // covers all ringed regions defined by the generator
+
+                for (int a = 0; a < attempts && need > 0; a++) {
+                    int wx = rng.nextInt(radius * 2 + 1) - radius;
+                    int wz = rng.nextInt(radius * 2 + 1) - radius;
+                    if (!reg.allowsAt(world, wx, wz)) continue;
+                    if (tryPlaceAtCandidate(world, reg, wx, wz, useSpacing, rng)) {
+                        need--;
+                    }
+                }
+            }
+
+            if (need > 0) {
+                plugin.getLogger().warning("Could not fully satisfy count for '" + reg.schemName + "'. Missing: " + need + ". Consider reducing spacing or expanding region.");
+            }
+        }
+    }
+
+    private boolean tryPlaceAtCandidate(World world, Registration reg, int wx, int wz, int spacingOverride, Random rng) {
+        String worldKey = world.getUID().toString();
+        if (!reg.isSpaced(worldKey, wx, wz, spacingOverride)) return false;
+
+        // Enforce minimum radial distance from origin if configured
+        if (reg.minimumDistance > 0) {
+            long r2 = (long) wx * (long) wx + (long) wz * (long) wz;
+            long min2 = (long) reg.minimumDistance * (long) reg.minimumDistance;
+            if (r2 < min2) return false;
+        }
+
+        Location paste = pickPlacement(world, wx, wz, reg, rng);
+        if (paste == null) return false;
+
+        // Ensure target chunk is loaded before paste
+        try {
+            int cx = paste.getBlockX() >> 4;
+            int cz = paste.getBlockZ() >> 4;
+            world.getChunkAt(cx, cz).load(true);
+        } catch (Throwable ignore) {}
+
+        boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
+        try {
+            schemManager.placeStructure(reg.schemName, paste, ignoreAir);
+            reg.recordPlacement(worldKey, wx, wz);
+            if (reg.triggerListener) {
+                StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, true);
+            }
+            return true;
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Register a schematic to spawn with constraints.
      *
      * @param schem    The schematic filename or base name ("foo" or "foo.schem").
@@ -43,13 +121,20 @@ public final class StructureManager {
      * @param type     Placement type (surface, underwater, etc.).
      */
     public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type) {
-        registerStruct(schem, bounds, count, spacing, sector, type, false);
+        registerStruct(schem, bounds, count, spacing, sector, type, false, 0);
     }
 
-    public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener) {
+
+    // Overload: include listener trigger and minimum distance from origin (blocks)
+    public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance) {
         String base = normalizeName(schem);
-        registrations.add(new Registration(base, bounds, count, spacing, sector, type, triggerListener));
-        plugin.getLogger().info("Registered structure '" + base + "' (count=" + count + ", spacing=" + spacing + ", bounds=" + bounds + ", type=" + type + ", trigger=" + triggerListener + ")");
+        registrations.add(new Registration(base, bounds, count, spacing, sector, type, triggerListener, Math.max(0, minimumDistance)));
+        plugin.getLogger().info("Registered structure '" + base + "' (count=" + count + ", spacing=" + spacing + ", bounds=" + bounds + ", type=" + type + ", trigger=" + triggerListener + ", minDist=" + minimumDistance + ")");
+    }
+
+    // Convenience overload for minimumDistance without triggerListener
+    public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, int minimumDistance) {
+        registerStruct(schem, bounds, count, spacing, sector, type, false, minimumDistance);
     }
 
     private static String normalizeName(String name) {
@@ -67,12 +152,18 @@ public final class StructureManager {
         for (Registration reg : registrations) {
             if (reg.placedCount(worldKey) >= reg.count) continue;
             // try a few attempts in this chunk
-            for (int a = 0; a < 3; a++) {
+            for (int a = 0; a < 5; a++) {
                 int lx = rng.nextInt(16);
                 int lz = rng.nextInt(16);
                 int wx = (chunkX << 4) + lx;
                 int wz = (chunkZ << 4) + lz;
                 if (!reg.allowsAt(world, wx, wz)) continue;
+
+                if (reg.minimumDistance > 0) {
+                    long r2 = (long) wx * (long) wx + (long) wz * (long) wz;
+                    long min2 = (long) reg.minimumDistance * (long) reg.minimumDistance;
+                    if (r2 < min2) continue;
+                }
 
                 Location paste = pickPlacement(world, wx, wz, reg, rng);
                 if (paste == null) continue;
@@ -267,12 +358,13 @@ public final class StructureManager {
         public final Sector sector;
         public final GenCheckType type;
         public final boolean triggerListener;
+        public final int minimumDistance;
         private final ConsegrityRegions.Region region;
 
         // worldName -> placed XY (encoded as long)
         private final Map<String, Set<Long>> placements = new ConcurrentHashMap<>();
 
-        Registration(String schemName, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener) {
+        Registration(String schemName, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance) {
             this.schemName = schemName;
             this.bounds = Math.max(1, bounds);
             this.count = Math.max(0, count);
@@ -280,6 +372,7 @@ public final class StructureManager {
             this.sector = sector;
             this.type = type;
             this.triggerListener = triggerListener;
+            this.minimumDistance = Math.max(0, minimumDistance);
             this.region = mapRegion(sector, type);
         }
 
@@ -327,6 +420,20 @@ public final class StructureManager {
             return true;
         }
 
+        boolean isSpaced(String worldKey, int wx, int wz, int spacingOverride) {
+            Set<Long> set = placements.getOrDefault(worldKey, Collections.emptySet());
+            int s = Math.max(1, spacingOverride);
+            int s2 = s * s;
+            for (long other : set) {
+                int ox = (int) (other >> 32);
+                int oz = (int) (other & 0xFFFFFFFFL);
+                int dx = ox - wx;
+                int dz = oz - wz;
+                if (dx * dx + dz * dz < s2) return false;
+            }
+            return true;
+        }
+
         void recordPlacement(String worldKey, int wx, int wz) {
             placements.computeIfAbsent(worldKey, k -> new HashSet<>()).add(encode(wx, wz));
         }
@@ -339,3 +446,4 @@ public final class StructureManager {
         private static long encode(int x, int z) { return (((long) x) << 32) ^ (z & 0xFFFFFFFFL); }
     }
 }
+

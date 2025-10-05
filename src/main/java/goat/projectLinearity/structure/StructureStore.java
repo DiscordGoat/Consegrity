@@ -55,12 +55,39 @@ public final class StructureStore {
         return Optional.empty();
     }
 
+    // Per-player aware discovery search
+    public synchronized Optional<StructEntry> findUndiscoveredNearForPlayer(String worldKey, java.util.UUID playerId, int x, int z) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        for (StructEntry e : map.values()) {
+            if (!e.trigger) continue;
+            if (e.discoveredBy != null && e.discoveredBy.contains(playerId.toString())) continue;
+            int half = Math.max(1, e.bounds / 2);
+            if (Math.abs(x - e.x) <= half && Math.abs(z - e.z) <= half) {
+                return Optional.of(e);
+            }
+        }
+        return Optional.empty();
+    }
+
     public synchronized void markDiscovered(String worldKey, String id) {
         Map<String, StructEntry> map = loadWorld(worldKey);
         StructEntry e = map.get(id);
         if (e != null && !e.discovered) {
             e.discovered = true;
             saveWorld(worldKey, map);
+        }
+    }
+
+    public synchronized void markDiscoveredForPlayer(String worldKey, String id, java.util.UUID playerId) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        StructEntry e = map.get(id);
+        if (e != null) {
+            if (e.discoveredBy == null) e.discoveredBy = new HashSet<>();
+            if (e.discoveredBy.add(playerId.toString())) {
+                // Keep legacy discovered true if anyone discovered it
+                e.discovered = true;
+                saveWorld(worldKey, map);
+            }
         }
     }
 
@@ -76,6 +103,32 @@ public final class StructureStore {
         int c = 0;
         for (StructEntry e : map.values()) if (e.trigger) c++;
         return c;
+    }
+
+    public synchronized int getPlacedCountForName(String worldKey, String name) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        int c = 0;
+        for (StructEntry e : map.values()) if (e.trigger && e.name.equalsIgnoreCase(name)) c++;
+        return c;
+    }
+
+    public synchronized int getPlayerDiscoveredCountForName(String worldKey, java.util.UUID playerId, String name) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        int c = 0;
+        String pid = playerId.toString();
+        for (StructEntry e : map.values()) {
+            if (!e.trigger) continue;
+            if (!e.name.equalsIgnoreCase(name)) continue;
+            if (e.discoveredBy != null && e.discoveredBy.contains(pid)) c++;
+        }
+        return c;
+    }
+
+    public synchronized boolean hasWorldData(String worldKey) {
+        File f = fileFor(worldKey);
+        if (f.exists() && f.isFile()) return true;
+        Map<String, StructEntry> map = cache.get(worldKey);
+        return map != null && !map.isEmpty();
     }
 
     private String makeId(String name, int x, int z) {
@@ -106,7 +159,9 @@ public final class StructureStore {
                         int bounds = s.getInt("bounds", 16);
                         boolean trigger = s.getBoolean("trigger", false);
                         boolean discovered = s.getBoolean("discovered", false);
+                        java.util.List<String> discoveredBy = s.getStringList("discoveredBy");
                         StructEntry e = new StructEntry(key, name, x, y, z, bounds, trigger, discovered);
+                        if (discoveredBy != null && !discoveredBy.isEmpty()) e.discoveredBy = new HashSet<>(discoveredBy);
                         map.put(key, e);
                     }
                 }
@@ -131,6 +186,9 @@ public final class StructureStore {
             s.set("bounds", e.bounds);
             s.set("trigger", e.trigger);
             s.set("discovered", e.discovered);
+            if (e.discoveredBy != null && !e.discoveredBy.isEmpty()) {
+                s.set("discoveredBy", new ArrayList<>(e.discoveredBy));
+            }
         }
         try { yml.save(f); }
         catch (IOException e) { plugin.getLogger().warning("Failed to save structures for '" + worldKey + "': " + e.getMessage()); }
@@ -143,6 +201,7 @@ public final class StructureStore {
         public final int bounds;
         public final boolean trigger;
         public boolean discovered;
+        public Set<String> discoveredBy;
 
         public StructEntry(String id, String name, int x, int y, int z, int bounds, boolean trigger, boolean discovered) {
             this.id = id; this.name = name; this.x = x; this.y = y; this.z = z; this.bounds = bounds; this.trigger = trigger; this.discovered = discovered;
