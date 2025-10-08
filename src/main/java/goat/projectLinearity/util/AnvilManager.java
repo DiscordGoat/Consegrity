@@ -1,4 +1,4 @@
-package goat.projectLinearity.libs;
+package goat.projectLinearity.util;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -150,8 +150,8 @@ public final class AnvilManager implements Listener {
                     || attemptDurabilityRepair(player, material, base, top, SLOT_BASE)
                     || attemptGildIncrease(player, base, material, top, SLOT_MATERIAL)
                     || attemptGildIncrease(player, material, base, top, SLOT_BASE)
-                    || attemptGoldenDurability(player, base, material)
-                    || attemptGoldenDurability(player, material, base);
+                    || attemptGoldenDurability(player, base, material, top, SLOT_BASE, SLOT_MATERIAL)
+                    || attemptGoldenDurability(player, material, base, top, SLOT_MATERIAL, SLOT_BASE);
         }
 
         if (!success) {
@@ -210,7 +210,7 @@ public final class AnvilManager implements Listener {
         return true;
     }
 
-    private boolean attemptGoldenDurability(Player player, ItemStack heirloom, ItemStack tool) {
+    private boolean attemptGoldenDurability(Player player, ItemStack heirloom, ItemStack tool, Inventory top, int heirloomSlot, int toolSlot) {
         if (heirloom == null || tool == null) return false;
         HeirloomManager manager = HeirloomManager.getInstance();
         CustomDurabilityManager durabilityManager = CustomDurabilityManager.getInstance();
@@ -228,7 +228,7 @@ public final class AnvilManager implements Listener {
 
         int existingGolden = durabilityManager.getGoldenDurability(tool);
         durabilityManager.setGoldenDurability(tool, existingGolden + gild);
-        manager.setGild(heirloom, 0, manager.getMaxGild(heirloom));
+        consumeItem(top, heirloomSlot, 1);
         player.sendMessage(ChatColor.GOLD + "Applied " + gild + " golden durability.");
         playAnvilSound(player);
         return true;

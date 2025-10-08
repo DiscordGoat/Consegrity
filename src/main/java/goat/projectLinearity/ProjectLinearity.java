@@ -8,10 +8,18 @@ import goat.projectLinearity.commands.SetCustomDurabilityCommand;
 import goat.projectLinearity.commands.SetGildCommand;
 import goat.projectLinearity.commands.SetGoldenDurabilityCommand;
 import goat.projectLinearity.commands.SetMaxDurabilityCommand;
+import goat.projectLinearity.commands.SetStatCommand;
+import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.WarptoCommand;
-import goat.projectLinearity.libs.AnvilManager;
-import goat.projectLinearity.libs.CustomDurabilityManager;
-import goat.projectLinearity.libs.HeirloomManager;
+import goat.projectLinearity.util.AnvilManager;
+import goat.projectLinearity.util.CustomDurabilityManager;
+import goat.projectLinearity.util.HeirloomManager;
+import goat.projectLinearity.util.MiningOxygenManager;
+import goat.projectLinearity.util.SidebarManager;
+import goat.projectLinearity.util.SpaceBlockListener;
+import goat.projectLinearity.util.SpaceEventListener;
+import goat.projectLinearity.util.SpaceManager;
+import goat.projectLinearity.util.SpacePresenceListener;
 import goat.projectLinearity.world.structure.StructureListener;
 import goat.projectLinearity.world.structure.StructureManager;
 import goat.projectLinearity.world.structure.GenCheckType;
@@ -27,6 +35,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private StructureManager structureManager;
     private volatile boolean regenInProgress = false;
     private AnvilManager anvilManager;
+    private SpaceManager spaceManager;
+    private MiningOxygenManager miningOxygenManager;
+    private SidebarManager sidebarManager;
+    private double statRate = 1.0;
 
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
@@ -36,6 +48,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         CustomDurabilityManager.init(this);
         HeirloomManager.init(this);
         anvilManager = new AnvilManager(this);
+        spaceManager = new SpaceManager(this);
+        spaceManager.load();
+        Bukkit.getPluginManager().registerEvents(new SpacePresenceListener(spaceManager), this);
+        Bukkit.getPluginManager().registerEvents(new SpaceEventListener(spaceManager, this), this);
+        Bukkit.getPluginManager().registerEvents(new SpaceBlockListener(spaceManager), this);
+        miningOxygenManager = new MiningOxygenManager(this, spaceManager);
+        sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
+        Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
 
         // Commands
         try { getCommand("regenerate").setExecutor(new RegenerateCommand(this)); } catch (Throwable ignored) {}
@@ -46,6 +66,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { SetMaxDurabilityCommand cmd = new SetMaxDurabilityCommand(); getCommand("setmaxdurability").setExecutor(cmd); getCommand("setmaxdurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetGildCommand cmd = new SetGildCommand(); getCommand("setgild").setExecutor(cmd); getCommand("setgild").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { ItemCommand cmd = new ItemCommand(); getCommand("i").setExecutor(cmd); getCommand("i").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { SetStatCommand cmd = new SetStatCommand(this); getCommand("setstat").setExecutor(cmd); getCommand("setstat").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { SetStatRateCommand cmd = new SetStatRateCommand(this); getCommand("setstatrate").setExecutor(cmd); getCommand("setstatrate").setTabCompleter(cmd);} catch (Throwable ignored) {}
 
         // Managers
         structureManager = new StructureManager(this);
@@ -70,9 +92,27 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
 
     // Default world generator remains the server default; Consegrity world is created via command
 
+    @Override
+    public void onDisable() {
+        if (miningOxygenManager != null) {
+            miningOxygenManager.shutdown();
+        }
+        if (sidebarManager != null) {
+            sidebarManager.shutdown();
+        }
+        if (spaceManager != null) {
+            spaceManager.save();
+        }
+    }
+
     public StructureManager getStructureManager() { return structureManager; }
     public boolean isRegenInProgress() { return regenInProgress; }
     public void setRegenInProgress(boolean inProgress) { this.regenInProgress = inProgress; }
+    public SpaceManager getSpaceManager() { return spaceManager; }
+    public SidebarManager getSidebarManager() { return sidebarManager; }
+    public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
+    public double getStatRate() { return statRate; }
+    public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
 
     // Optional hook used by RegionTitleListener; safe no-op if tabs not initialized
     public void showRegionTab(Player p, ConsegrityRegions.Region r) {

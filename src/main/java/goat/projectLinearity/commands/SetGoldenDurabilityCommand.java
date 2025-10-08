@@ -1,6 +1,6 @@
 package goat.projectLinearity.commands;
 
-import goat.projectLinearity.libs.CustomDurabilityManager;
+import goat.projectLinearity.util.CustomDurabilityManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

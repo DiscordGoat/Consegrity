@@ -38,6 +38,14 @@ commands:
     description: Gives yourself a custom registry item or vanilla alternative
     usage: /i <name> [vanilla]
     permission: consegrity.items
+  setstat:
+    description: Adjusts a player stat for testing
+    usage: /setstat <oxygen|temperature> <value> [player]
+    permission: consegrity.dev
+  setstatrate:
+    description: Sets the stat ticking multiplier
+    usage: /setstatrate <multiplier>
+    permission: consegrity.dev
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
