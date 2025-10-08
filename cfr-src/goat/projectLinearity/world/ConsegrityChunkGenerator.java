@@ -13,6 +13,7 @@
  */
 package goat.projectLinearity.world;
 
+import goat.projectLinearity.libs.ArcticChunkGenerator;
 import goat.projectLinearity.world.ConsegrityRegions;
 import java.util.Random;
 import java.util.SplittableRandom;

@@ -1,5 +1,6 @@
 package goat.projectLinearity.world;
 
+import goat.projectLinearity.libs.ArcticChunkGenerator;
 import java.util.Random;
 import java.util.SplittableRandom;
 import org.bukkit.Material;
