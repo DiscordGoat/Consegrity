@@ -9,6 +9,7 @@ import goat.projectLinearity.commands.SetGildCommand;
 import goat.projectLinearity.commands.SetGoldenDurabilityCommand;
 import goat.projectLinearity.commands.SetMaxDurabilityCommand;
 import goat.projectLinearity.commands.SetStatCommand;
+import goat.projectLinearity.commands.DebugOxygenCommand;
 import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.WarptoCommand;
 import goat.projectLinearity.util.AnvilManager;
@@ -20,6 +21,7 @@ import goat.projectLinearity.util.SpaceBlockListener;
 import goat.projectLinearity.util.SpaceEventListener;
 import goat.projectLinearity.util.SpaceManager;
 import goat.projectLinearity.util.SpacePresenceListener;
+import goat.projectLinearity.world.RegionTitleListener;
 import goat.projectLinearity.world.structure.StructureListener;
 import goat.projectLinearity.world.structure.StructureManager;
 import goat.projectLinearity.world.structure.GenCheckType;
@@ -39,6 +41,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private MiningOxygenManager miningOxygenManager;
     private SidebarManager sidebarManager;
     private double statRate = 1.0;
+    private boolean debugOxygen = false;
 
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
@@ -53,6 +56,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new SpacePresenceListener(spaceManager), this);
         Bukkit.getPluginManager().registerEvents(new SpaceEventListener(spaceManager, this), this);
         Bukkit.getPluginManager().registerEvents(new SpaceBlockListener(spaceManager), this);
+        Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
         Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
@@ -68,6 +72,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { ItemCommand cmd = new ItemCommand(); getCommand("i").setExecutor(cmd); getCommand("i").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetStatCommand cmd = new SetStatCommand(this); getCommand("setstat").setExecutor(cmd); getCommand("setstat").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetStatRateCommand cmd = new SetStatRateCommand(this); getCommand("setstatrate").setExecutor(cmd); getCommand("setstatrate").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { DebugOxygenCommand cmd = new DebugOxygenCommand(this); getCommand("debugoxygen").setExecutor(cmd); getCommand("debugoxygen").setTabCompleter(cmd);} catch (Throwable ignored) {}
 
         // Managers
         structureManager = new StructureManager(this);
@@ -113,6 +118,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public double getStatRate() { return statRate; }
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
+    public boolean isDebugOxygen() { return debugOxygen; }
+    public void setDebugOxygen(boolean debug) { this.debugOxygen = debug; }
 
     // Optional hook used by RegionTitleListener; safe no-op if tabs not initialized
     public void showRegionTab(Player p, ConsegrityRegions.Region r) {

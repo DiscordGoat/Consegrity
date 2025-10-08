@@ -6,7 +6,7 @@ import goat.projectLinearity.world.ConsegrityRegions.Region;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.Sound;
+import org.bukkit.Material;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,6 +20,8 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.ScoreboardManager;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.text.DecimalFormat;
 import java.util.EnumMap;
@@ -56,6 +58,7 @@ public final class SidebarManager implements Listener {
     private final MiningOxygenManager oxygenManager;
     private final Map<UUID, PlayerSidebarData> players = new HashMap<>();
     private BukkitTask updateTask;
+    private BukkitTask thermalTask;
 
     public SidebarManager(ProjectLinearity plugin, SpaceManager spaceManager, MiningOxygenManager oxygenManager) {
         this.plugin = plugin;
@@ -71,12 +74,27 @@ public final class SidebarManager implements Listener {
                 updatePlayer(player);
             }
         }, 20L, 20L);
+        thermalTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            double rate = Math.max(0.01, plugin.getStatRate());
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                PlayerSidebarData data = players.computeIfAbsent(player.getUniqueId(), uuid -> new PlayerSidebarData(player.getUniqueId()));
+                if (data.scoreboard == null) {
+                    createSidebar(player, data);
+                }
+                applyHeatTick(player, data);
+                applyColdTick(player, data, rate);
+            }
+        }, 1L, 1L);
     }
 
     public void shutdown() {
         if (updateTask != null) {
             updateTask.cancel();
             updateTask = null;
+        }
+        if (thermalTask != null) {
+            thermalTask.cancel();
+            thermalTask = null;
         }
         for (PlayerSidebarData data : players.values()) {
             Player player = Bukkit.getPlayer(data.playerId);
@@ -108,6 +126,7 @@ public final class SidebarManager implements Listener {
     private void setup(Player player) {
         PlayerSidebarData data = players.computeIfAbsent(player.getUniqueId(), uuid -> new PlayerSidebarData(player.getUniqueId()));
         createSidebar(player, data);
+        updateSidebarLines(player, data);
     }
 
     public void setTemperature(Player player, double value) {
@@ -130,12 +149,11 @@ public final class SidebarManager implements Listener {
         PlayerSidebarData data = players.computeIfAbsent(player.getUniqueId(), uuid -> new PlayerSidebarData(player.getUniqueId()));
         if (data.scoreboard == null) {
             createSidebar(player, data);
+            updateSidebarLines(player, data);
         }
         double rate = plugin.getStatRate();
         evaluateTemperatureTarget(player, data);
         adjustTemperature(data, rate);
-        applyHeatEffects(player, data, rate);
-        applyColdEffects(player, data, rate);
         updateSidebarLines(player, data);
     }
 
@@ -216,62 +234,54 @@ public final class SidebarManager implements Listener {
             data.temperature = data.targetTemperature;
             return;
         }
-        double step = Math.min(abs, Math.max(0.1, abs * 0.08)) * rate;
+        double step = delta > 0
+                ? Math.min(abs, 0.15 * rate)
+                : Math.min(abs, 0.1 * rate);
         data.temperature += Math.copySign(step, delta);
     }
 
-    private void applyHeatEffects(Player player, PlayerSidebarData data, double rate) {
+    private void applyHeatTick(Player player, PlayerSidebarData data) {
         double temperature = data.temperature;
-        if (temperature > 120.0) {
-            data.heatTimer += rate;
-            double interval = 30.0;
-            if (data.heatTimer >= interval) {
-                data.heatTimer -= interval;
-                drainHunger(player, 1);
-            }
+        if (temperature > 130.0) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, 40, 1, true, false, false));
         } else if (temperature > 100.0) {
-            data.heatTimer += rate;
-            double interval = 60.0;
-            if (data.heatTimer >= interval) {
-                data.heatTimer -= interval;
-                drainHunger(player, 1);
-            }
+            player.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, 40, 0, true, false, false));
         } else {
-            data.heatTimer = 0.0;
+            player.removePotionEffect(PotionEffectType.HUNGER);
         }
     }
 
-    private void drainHunger(Player player, int amount) {
-        if (player.getFoodLevel() > 0) {
-            player.setFoodLevel(Math.max(0, player.getFoodLevel() - amount));
-            player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_BURN, 0.5f, 0.9f);
-        }
-    }
-
-    private void applyColdEffects(Player player, PlayerSidebarData data, double rate) {
+    private void applyColdTick(Player player, PlayerSidebarData data, double rate) {
         double temperature = data.temperature;
         Location loc = player.getLocation();
-        boolean moving = data.lastLocation == null || data.lastLocation.distanceSquared(loc) > 0.04;
-        data.lastLocation = loc.clone();
+        boolean moving = true;
+        if (data.lastTickLocation != null) {
+            moving = data.lastTickLocation.distanceSquared(loc) > 0.0001;
+        }
+        data.lastTickLocation = loc.clone();
 
-        int currentFreeze = player.getFreezeTicks();
+        Material blockType = loc.getBlock().getType();
+        boolean inPowderSnow = blockType == Material.POWDER_SNOW;
+
+        int freeze = player.getFreezeTicks();
         int maxFreeze = player.getMaxFreezeTicks();
 
-        if (temperature <= -30.0) {
-            player.setFreezeTicks(maxFreeze);
-            return;
+        if (temperature <= -40.0) {
+            freeze = maxFreeze;
+        } else {
+            if (!inPowderSnow && freeze > 0) {
+                int thaw = (int) Math.max(1, Math.round(2 * rate));
+                freeze = Math.max(0, freeze - thaw);
+            }
+            if (temperature < 0.0 && !moving) {
+                int baseIncrease = 10;
+                int increase = (int) Math.max(1, Math.round(baseIncrease * rate));
+                freeze = Math.min(maxFreeze, freeze + increase);
+            }
         }
 
-        if (temperature < 0.0) {
-            int increment = (int) Math.ceil(12 * rate);
-            player.setFreezeTicks(Math.min(maxFreeze, currentFreeze + increment));
-        } else if (temperature < 20.0 && !moving) {
-            int increment = (int) Math.ceil(6 * rate);
-            player.setFreezeTicks(Math.min(maxFreeze, currentFreeze + increment));
-        } else {
-            int thaw = (int) Math.ceil(8 * rate);
-            player.setFreezeTicks(Math.max(0, currentFreeze - thaw));
-        }
+        freeze = Math.min(maxFreeze, Math.max(0, freeze));
+        player.setFreezeTicks(freeze);
     }
 
     private void updateSidebarLines(Player player, PlayerSidebarData data) {
@@ -306,8 +316,7 @@ public final class SidebarManager implements Listener {
         Team oxygenValueTeam;
         double temperature = 72.0;
         double targetTemperature = 72.0;
-        double heatTimer = 0.0;
-        Location lastLocation;
+        Location lastTickLocation;
         UUID currentSpaceId;
         long manualOverrideUntil = 0L;
 

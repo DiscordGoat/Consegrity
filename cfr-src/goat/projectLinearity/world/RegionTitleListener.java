@@ -44,6 +44,7 @@ implements Listener {
             return;
         }
         Player p = event.getPlayer();
+
         World w = p.getWorld();
         if (!WORLD_NAME.equals(w.getName())) {
             return;

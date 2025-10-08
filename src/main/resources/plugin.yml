@@ -46,6 +46,10 @@ commands:
     description: Sets the stat ticking multiplier
     usage: /setstatrate <multiplier>
     permission: consegrity.dev
+  debugoxygen:
+    description: Toggles periodic oxygen debug logging
+    usage: /debugoxygen [on|off]
+    permission: consegrity.dev
 permissions:
   consegrity.dev:
     description: Allows using /regenerate

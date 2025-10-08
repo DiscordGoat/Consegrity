@@ -83,6 +83,7 @@ implements CommandExecutor {
         player.teleport(newWorld.getSpawnLocation());
         try {
             player.sendTitle("Central", "", 5, 40, 5);
+
         }
         catch (Throwable ignored) {
             player.sendMessage("Central");

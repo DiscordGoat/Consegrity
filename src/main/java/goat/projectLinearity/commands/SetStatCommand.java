@@ -46,18 +46,20 @@ public final class SetStatCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        int value;
+        double parsedValue;
         try {
-            value = Integer.parseInt(valueArg);
+            parsedValue = Double.parseDouble(valueArg);
         } catch (NumberFormatException ex) {
-            sender.sendMessage(ChatColor.RED + "Value must be a whole number.");
+            sender.sendMessage(ChatColor.RED + "Value must be numeric.");
             return true;
         }
 
+        int oxygenValue = (int) Math.round(parsedValue);
+
         switch (type) {
             case "oxygen", "o2" -> {
-                plugin.getMiningOxygenManager().setOxygen(target, value, true);
-                sender.sendMessage(ChatColor.GREEN + "Set oxygen for " + target.getName() + " to " + value + ".");
+                plugin.getMiningOxygenManager().setOxygen(target, oxygenValue, true);
+                sender.sendMessage(ChatColor.GREEN + "Set oxygen for " + target.getName() + " to " + oxygenValue + ".");
             }
             case "temperature", "temp" -> {
                 SidebarManager sidebar = plugin.getSidebarManager();
@@ -65,8 +67,8 @@ public final class SetStatCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(ChatColor.RED + "Sidebar manager is not initialised.");
                     return true;
                 }
-                sidebar.setTemperature(target, value);
-                sender.sendMessage(ChatColor.GREEN + "Set temperature for " + target.getName() + " to " + value + "°F.");
+                sidebar.setTemperature(target, parsedValue);
+                sender.sendMessage(ChatColor.GREEN + "Set temperature for " + target.getName() + " to " + parsedValue + "°F.");
             }
             default -> {
                 sender.sendMessage(ChatColor.RED + "Unknown stat '" + type + "'.");
@@ -91,4 +93,3 @@ public final class SetStatCommand implements CommandExecutor, TabCompleter {
         return List.of();
     }
 }
-
