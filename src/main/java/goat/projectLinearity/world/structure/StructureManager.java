@@ -1,9 +1,7 @@
-package goat.projectLinearity.structure;
+package goat.projectLinearity.world.structure;
 
-import goat.projectLinearity.libs.SchemManager;
 import goat.projectLinearity.world.ConsegrityRegions;
 import goat.projectLinearity.world.sector.*;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -22,6 +20,9 @@ public final class StructureManager {
     private final SchemManager schemManager;
 
     private final List<Registration> registrations = new ArrayList<>();
+    // Debugging counters (opt-in)
+    private volatile boolean debugEnabled = false;
+    private final Map<String, DebugCounters> debug = new ConcurrentHashMap<>();
 
     public StructureManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -32,6 +33,37 @@ public final class StructureManager {
 
     public List<Registration> getRegistrations() { return registrations; }
 
+    public void setDebug(boolean on) { this.debugEnabled = on; }
+    public boolean isDebug() { return debugEnabled; }
+    public void clearDebug() { debug.clear(); }
+    private DebugCounters dbg(String regName) { return debug.computeIfAbsent(regName, k -> new DebugCounters()); }
+    public String debugSummary(String worldKey) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[Consegrity] Structure debug summary\n");
+        for (Registration r : registrations) {
+            DebugCounters c = debug.get(r.schemName);
+            int have = 0;
+            try { have = r.placedCount(worldKey); } catch (Throwable ignored) {}
+            if (c == null) {
+                sb.append("- ").append(r.schemName).append(" (have ").append(have).append("/ ").append(r.count).append(") no attempts recorded\n");
+                continue;
+            }
+            sb.append("- ").append(r.schemName).append(" have ").append(have).append("/").append(r.count)
+              .append(", attempts=").append(c.attempts).append(", successes=").append(c.successes)
+              .append(", spacingFail=").append(c.get("SPACING"))
+              .append(", regionFail=").append(c.get("REGION_FILTER"))
+              .append(", minDistFail=").append(c.get("MIN_DISTANCE"))
+              .append(", pickFail=").append(c.get("PICK_FAILED"))
+              .append("\n");
+            for (Map.Entry<String, Long> e : c.reasons.entrySet()) {
+                String k = e.getKey();
+                if (k.equals("SPACING") || k.equals("REGION_FILTER") || k.equals("MIN_DISTANCE") || k.equals("PICK_FAILED")) continue;
+                sb.append("    ").append(k).append("=").append(e.getValue()).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
     /**
      * Enforce configured counts for all registered structures by preplanning and placing immediately.
      * If spacing prevents reaching the target, gradually relax spacing until the target is satisfied.
@@ -41,8 +73,15 @@ public final class StructureManager {
         String worldKey = world.getUID().toString();
         Random rng = new Random(world.getSeed() ^ 0xCAFEBABECAFEL);
 
+        StructureStore store = StructureStore.get(plugin);
         for (Registration reg : registrations) {
-            int have = reg.placedCount(worldKey);
+            int have;
+            if (reg.triggerListener) {
+                try { have = store.getPlacedCountForName(worldKey, reg.schemName); }
+                catch (Throwable t) { have = reg.placedCount(worldKey); }
+            } else {
+                have = reg.placedCount(worldKey);
+            }
             int need = Math.max(0, reg.count - have);
             if (need <= 0) continue;
 
@@ -75,19 +114,33 @@ public final class StructureManager {
         }
     }
 
+
     private boolean tryPlaceAtCandidate(World world, Registration reg, int wx, int wz, int spacingOverride, Random rng) {
         String worldKey = world.getUID().toString();
-        if (!reg.isSpaced(worldKey, wx, wz, spacingOverride)) return false;
+        if (debugEnabled) dbg(reg.schemName).attempts++;
+        if (!reg.isSpaced(worldKey, wx, wz, spacingOverride)) {
+            if (debugEnabled) dbg(reg.schemName).inc("SPACING");
+            return false;
+        }
 
         // Enforce minimum radial distance from origin if configured
         if (reg.minimumDistance > 0) {
             long r2 = (long) wx * (long) wx + (long) wz * (long) wz;
             long min2 = (long) reg.minimumDistance * (long) reg.minimumDistance;
-            if (r2 < min2) return false;
+            if (r2 < min2) {
+                if (debugEnabled) dbg(reg.schemName).inc("MIN_DISTANCE");
+                return false;
+            }
         }
 
         Location paste = pickPlacement(world, wx, wz, reg, rng);
-        if (paste == null) return false;
+        if (paste == null) {
+            if (debugEnabled) {
+                String reason = detailPickFail(world, reg, wx, wz, rng);
+                dbg(reg.schemName).inc(reason == null ? "PICK_FAILED" : reason);
+            }
+            return false;
+        }
 
         // Ensure target chunk is loaded before paste
         try {
@@ -99,6 +152,12 @@ public final class StructureManager {
         boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
         try {
             schemManager.placeStructure(reg.schemName, paste, ignoreAir);
+            // Surface-only: convert top layer of stone/dirt under the structure bounds to grass
+            if (reg.type == GenCheckType.SURFACE) {
+                try {
+                    grassifyTopLayerUnderBounds(world, paste.getBlockX(), paste.getBlockZ(), paste.getBlockY() - 1, reg.bounds);
+                } catch (Throwable ignored) {}
+            }
             reg.recordPlacement(worldKey, wx, wz);
             if (reg.triggerListener) {
                 StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, true);
@@ -106,6 +165,7 @@ public final class StructureManager {
             return true;
         } catch (Throwable t) {
             plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
+            if (debugEnabled) dbg(reg.schemName).inc("PLACE_ERROR:" + t.getClass().getSimpleName());
             return false;
         }
     }
@@ -157,22 +217,44 @@ public final class StructureManager {
                 int lz = rng.nextInt(16);
                 int wx = (chunkX << 4) + lx;
                 int wz = (chunkZ << 4) + lz;
-                if (!reg.allowsAt(world, wx, wz)) continue;
+                if (debugEnabled) dbg(reg.schemName).attempts++;
+                if (!reg.allowsAt(world, wx, wz)) {
+                    if (debugEnabled) dbg(reg.schemName).inc(detailRegionFail(world, reg, wx, wz));
+                    continue;
+                }
 
                 if (reg.minimumDistance > 0) {
                     long r2 = (long) wx * (long) wx + (long) wz * (long) wz;
                     long min2 = (long) reg.minimumDistance * (long) reg.minimumDistance;
-                    if (r2 < min2) continue;
+                    if (r2 < min2) {
+                        if (debugEnabled) dbg(reg.schemName).inc("MIN_DISTANCE");
+                        continue;
+                    }
                 }
 
                 Location paste = pickPlacement(world, wx, wz, reg, rng);
-                if (paste == null) continue;
+                if (paste == null) {
+                    if (debugEnabled) {
+                        String reason = detailPickFail(world, reg, wx, wz, rng);
+                        dbg(reg.schemName).inc(reason == null ? "PICK_FAILED" : reason);
+                    }
+                    continue;
+                }
 
-                if (!reg.isSpaced(worldKey, wx, wz)) continue;
+                if (!reg.isSpaced(worldKey, wx, wz)) {
+                    if (debugEnabled) dbg(reg.schemName).inc("SPACING");
+                    continue;
+                }
 
                 boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
                 try {
                     schemManager.placeStructure(reg.schemName, paste, ignoreAir);
+                    if (debugEnabled) dbg(reg.schemName).successes++;
+                    if (reg.type == GenCheckType.SURFACE) {
+                        try {
+                            grassifyTopLayerUnderBounds(world, paste.getBlockX(), paste.getBlockZ(), paste.getBlockY() - 1, reg.bounds);
+                        } catch (Throwable ignored) {}
+                    }
                     reg.recordPlacement(worldKey, wx, wz);
                     // Persist structure instance for listener tracking
                     if (reg.triggerListener) {
@@ -182,10 +264,127 @@ public final class StructureManager {
                     break; // one per registration per chunk attempt
                 } catch (Throwable t) {
                     plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
+                    if (debugEnabled) dbg(reg.schemName).inc("PLACE_ERROR:" + t.getClass().getSimpleName());
                 }
             }
         }
         return placedAny;
+    }
+
+    private String detailRegionFail(World world, Registration reg, int wx, int wz) {
+        try {
+            ConsegrityRegions.Region here = (reg.type == GenCheckType.HELL) ? ConsegrityRegions.regionAt(world, wx, -80, wz) : ConsegrityRegions.regionAt(world, wx, wz);
+            if (reg.region != null && here != reg.region) return "REGION_MISMATCH:" + here;
+            if (reg.type == GenCheckType.SURFACE && reg.region == null && here == ConsegrityRegions.Region.MOUNTAIN) return "SURFACE_AVOID_MOUNTAIN";
+        } catch (Throwable ignored) {}
+        return "REGION_FILTER";
+    }
+
+    private String detailPickFail(World world, Registration reg, int wx, int wz, Random rng) {
+        try {
+            switch (reg.type) {
+                case SURFACE:
+                    return debugReasonSurface(world, wx, wz, reg.bounds, false);
+                case UNDERWATER:
+                    return debugReasonUnderwater(world, wx, wz, reg.bounds);
+                case UNDERGROUND:
+                    return debugReasonUnderground(world, wx, wz, reg.bounds, rng);
+                case SKYISLAND:
+                    return debugReasonSkyIsland(world, wx, wz, reg.bounds, rng);
+                case HELL:
+                    return debugReasonNether(world, wx, wz, reg.bounds, rng);
+                default:
+                    return "PICK_FAILED";
+            }
+        } catch (Throwable ignored) {
+            return "PICK_FAILED";
+        }
+    }
+
+    private String debugReasonSurface(World world, int wx, int wz, int bounds, boolean allowWater) {
+        int half = Math.max(1, bounds / 2);
+        int[] xs = new int[] { wx - half, wx + half, wx - half, wx + half, wx };
+        int[] zs = new int[] { wz - half, wz - half, wz + half, wz + half, wz };
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+        for (int i = 0; i < xs.length; i++) {
+            int x = xs[i];
+            int z = zs[i];
+            int y = world.getHighestBlockYAt(x, z);
+            Material ground = world.getBlockAt(x, y, z).getType();
+            if (!allowWater && isWater(ground)) return "WATER";
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+        }
+        if (maxY - minY > 2) return "SLOPE";
+        int yCenter = world.getHighestBlockYAt(wx, wz);
+        Material above = world.getBlockAt(wx, yCenter + 1, wz).getType();
+        if (above != Material.AIR) return "OCCUPIED";
+        return null;
+    }
+
+    private String debugReasonUnderwater(World world, int wx, int wz, int bounds) {
+        int half = Math.max(1, bounds / 2);
+        int[] xs = new int[] { wx - half, wx + half, wx - half, wx + half, wx };
+        int[] zs = new int[] { wz - half, wz - half, wz + half, wz + half, wz };
+        int minFloor = Integer.MAX_VALUE, maxFloor = Integer.MIN_VALUE;
+        for (int i = 0; i < xs.length; i++) {
+            int x = xs[i];
+            int z = zs[i];
+            int sea = Math.max(60, ConsegrityRegions.SEA_LEVEL);
+            int floorY = -1;
+            for (int y = sea; y >= world.getMinHeight(); y--) {
+                Material m = world.getBlockAt(x, y, z).getType();
+                if (!isWater(m) && m != Material.AIR) { floorY = y; break; }
+            }
+            if (floorY < world.getMinHeight()) return "NO_SEAFLOOR";
+            minFloor = Math.min(minFloor, floorY);
+            maxFloor = Math.max(maxFloor, floorY);
+        }
+        if (maxFloor - minFloor > 3) return "SEAFLOOR_UNEVEN";
+        int centerFloor = -1;
+        int sea = Math.max(60, ConsegrityRegions.SEA_LEVEL);
+        for (int y = sea; y >= world.getMinHeight(); y--) {
+            Material m = world.getBlockAt(wx, y, wz).getType();
+            if (!isWater(m) && m != Material.AIR) { centerFloor = y; break; }
+        }
+        if (centerFloor < world.getMinHeight()) return "CENTER_NO_FLOOR";
+        return null;
+    }
+
+    private String debugReasonUnderground(World world, int wx, int wz, int bounds, Random rng) {
+        int top = world.getMaxHeight() - 1;
+        int bottom = Math.max(world.getMinHeight(), -40);
+        int startY = Math.max(bottom + 8, Math.min(top - 16, ConsegrityRegions.SEA_LEVEL - 12 - rng.nextInt(30)));
+        for (int y = startY; y >= bottom; y--) {
+            Material m = world.getBlockAt(wx, y, wz).getType();
+            Material up = world.getBlockAt(wx, y + 1, wz).getType();
+            Material down = world.getBlockAt(wx, y - 1, wz).getType();
+            if (m == Material.AIR && up == Material.AIR && isStoneLike(down)) {
+                if (hasCaveConnectivity(world, wx, y, wz)) {
+                    return null; // would succeed
+                }
+            }
+        }
+        return "NO_CAVE_POCKET";
+    }
+
+    private String debugReasonSkyIsland(World world, int wx, int wz, int bounds, Random rng) {
+        if (ConsegrityRegions.regionAt(world, wx, wz) == ConsegrityRegions.Region.MOUNTAIN) return "SKY_MOUNTAIN_BLOCK";
+        int highest = world.getHighestBlockYAt(wx, wz);
+        if (highest > 200) return "SKY_TERRAIN_TOO_HIGH";
+        return null; // would build island and succeed
+    }
+
+    private String debugReasonNether(World world, int wx, int wz, int bounds, Random rng) {
+        int top = -10;
+        int bottom = Math.max(world.getMinHeight(), -120);
+        for (int y = top; y >= bottom; y--) {
+            if (ConsegrityRegions.regionAt(world, wx, y, wz) != ConsegrityRegions.Region.NETHER) continue;
+            Material here = world.getBlockAt(wx, y, wz).getType();
+            Material above = world.getBlockAt(wx, y + 1, wz).getType();
+            if ((here.isSolid()) && (above == Material.AIR)) return null;
+        }
+        return "NO_NETHER_SURFACE";
     }
 
     public int getWorldTargetCount(String worldKey) {
@@ -445,5 +644,42 @@ public final class StructureManager {
 
         private static long encode(int x, int z) { return (((long) x) << 32) ^ (z & 0xFFFFFFFFL); }
     }
+
+    // --- Utilities ---
+    private void grassifyTopLayerUnderBounds(World world, int centerX, int centerZ, int startY, int bounds) {
+        if (world == null || bounds <= 0) return;
+        int half = bounds / 2;
+        int minX = centerX - half;
+        int minZ = centerZ - half;
+        int maxX = minX + Math.max(1, bounds) - 1;
+        int maxZ = minZ + Math.max(1, bounds) - 1;
+        int bottomY = Math.max(world.getMinHeight(), startY - 24); // small search band
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                for (int y = startY; y >= bottomY; y--) {
+                    Material m = world.getBlockAt(x, y, z).getType();
+                    if (m == Material.AIR || m == Material.CAVE_AIR || m == Material.VOID_AIR || m == Material.WATER || m == Material.LAVA) continue;
+                    if (m == Material.DIRT || m == Material.STONE) {
+                        try {
+                            world.getBlockAt(x, y, z).setType(Material.GRASS_BLOCK, false);
+                        } catch (Throwable t) {
+                            world.getBlockAt(x, y, z).setType(Material.GRASS_BLOCK);
+                        }
+                    }
+                    break; // only top-most solid
+                }
+            }
+        }
+    }
+
+    private static final class DebugCounters {
+        long attempts = 0;
+        long successes = 0;
+        java.util.Map<String, Long> reasons = new java.util.HashMap<>();
+        void inc(String k) { if (k == null) k = "UNKNOWN"; reasons.put(k, reasons.getOrDefault(k, 0L) + 1L); }
+        long get(String k) { return reasons.getOrDefault(k, 0L); }
+    }
+    
 }
 

@@ -2,7 +2,6 @@ package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
 import goat.projectLinearity.world.ConsegrityChunkGenerator;
-import goat.projectLinearity.world.ChunkPreGenerator;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -21,13 +20,7 @@ public class RegenerateCommand implements CommandExecutor {
     public static final String WORLD_NAME = "Consegrity";
     private final ProjectLinearity plugin;
 
-    private static final class PreGenState {
-        Boolean oldMobSpawning;
-        Integer oldRandomTickSpeed;
-        Integer oldViewDistance;
-        Integer oldSimulationDistance;
-        Boolean oldAutoSave;
-    }
+    // Legacy pregen settings removed; sector-level enforcement is used instead
 
     public RegenerateCommand(ProjectLinearity plugin) {
         this.plugin = plugin;
@@ -40,18 +33,28 @@ public class RegenerateCommand implements CommandExecutor {
             return true;
         }
         Player player = (Player) sender;
+        boolean debug = args != null && args.length > 0 && "debug".equalsIgnoreCase(args[0]);
         if (!player.hasPermission("consegrity.dev")) {
             player.sendMessage("You lack permission: consegrity.dev");
             return true;
         }
 
         player.sendMessage("Regenerating world '" + WORLD_NAME + "'...");
+        try { plugin.setRegenInProgress(true); } catch (Throwable ignored) {}
 
         // 1) Unload and delete existing world if present
         World existing = Bukkit.getWorld(WORLD_NAME);
         if (existing != null) {
             // Move any players out
-            existing.getPlayers().forEach(p -> p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation()));
+            // find or create a safe temporary world to move players during regen
+            World fallback = Bukkit.getWorlds().stream().filter(w -> !w.getName().equals(WORLD_NAME)).findFirst().orElse(null);
+            if (fallback == null) {
+                try {
+                    fallback = Bukkit.createWorld(new WorldCreator("consegrity_safe_temp"));
+                } catch (Throwable ignored) {}
+            }
+            World finalFallback = fallback != null ? fallback : existing;
+            existing.getPlayers().forEach(p -> p.teleport(finalFallback.getSpawnLocation()));
             boolean ok = Bukkit.unloadWorld(existing, false);
             if (!ok) {
                 player.sendMessage("Failed to unload existing world. Try again.");
@@ -72,6 +75,7 @@ public class RegenerateCommand implements CommandExecutor {
         World newWorld = Bukkit.createWorld(wc);
         if (newWorld == null) {
             sender.sendMessage("World creation failed.");
+            try { plugin.setRegenInProgress(false); } catch (Throwable ignored) {}
             return true;
         }
         try { newWorld.setKeepSpawnInMemory(false); } catch (Throwable ignored) {}
@@ -83,6 +87,24 @@ public class RegenerateCommand implements CommandExecutor {
         player.teleport(newWorld.getSpawnLocation());
         try { player.sendTitle("Central", "", 5, 40, 5); } catch (Throwable ignored) { player.sendMessage("Central"); }
 
+        if (debug) {
+            try {
+                var sm = plugin.getStructureManager();
+                if (sm != null) {
+                    sm.clearDebug();
+                    sm.setDebug(true);
+                    plugin.getLogger().info("[Consegrity] Debug audit: beginning enforcement sweep to collect placement reasons...");
+                    sm.enforceCountsInstant(newWorld);
+                    String report = sm.debugSummary(newWorld.getUID().toString());
+                    for (String line : report.split("\n")) plugin.getLogger().info(line);
+                    sm.setDebug(false);
+                }
+            } catch (Throwable t) {
+                plugin.getLogger().warning("Debug audit encountered an issue: " + t.getMessage());
+            }
+        }
+
+        try { plugin.setRegenInProgress(false); } catch (Throwable ignored) {}
         return true;
     }
 
@@ -104,44 +126,5 @@ public class RegenerateCommand implements CommandExecutor {
         });
     }
 
-    private void applyPreGenSettings(World w, PreGenState s) {
-        if (w == null) return;
-        try { s.oldAutoSave = w.isAutoSave(); } catch (Throwable ignored) {}
-        try { s.oldMobSpawning = w.getGameRuleValue(GameRule.DO_MOB_SPAWNING); } catch (Throwable ignored) {}
-        try { s.oldRandomTickSpeed = w.getGameRuleValue(GameRule.RANDOM_TICK_SPEED); } catch (Throwable ignored) {}
-        try { s.oldViewDistance = reflectGetInt(Bukkit.getServer(), "getViewDistance"); } catch (Throwable ignored) {}
-        try { s.oldSimulationDistance = reflectGetInt(Bukkit.getServer(), "getSimulationDistance"); } catch (Throwable ignored) {}
-
-        try { w.setAutoSave(false); } catch (Throwable ignored) {}
-        try { w.setGameRule(GameRule.DO_MOB_SPAWNING, false); } catch (Throwable ignored) {}
-        try { w.setGameRule(GameRule.RANDOM_TICK_SPEED, 0); } catch (Throwable ignored) {}
-        try { if (s.oldViewDistance == null || s.oldViewDistance > 4) reflectSetInt(Bukkit.getServer(), "setViewDistance", 4); } catch (Throwable ignored) {}
-        try { if (s.oldSimulationDistance == null || s.oldSimulationDistance > 4) reflectSetInt(Bukkit.getServer(), "setSimulationDistance", 4); } catch (Throwable ignored) {}
-    }
-
-    private void restorePreGenSettings(World w, PreGenState s) {
-        if (w == null || s == null) return;
-        try { if (s.oldMobSpawning != null) w.setGameRule(GameRule.DO_MOB_SPAWNING, s.oldMobSpawning); } catch (Throwable ignored) {}
-        try { if (s.oldRandomTickSpeed != null) w.setGameRule(GameRule.RANDOM_TICK_SPEED, s.oldRandomTickSpeed); } catch (Throwable ignored) {}
-        try { if (s.oldViewDistance != null) reflectSetInt(Bukkit.getServer(), "setViewDistance", s.oldViewDistance); } catch (Throwable ignored) {}
-        try { if (s.oldSimulationDistance != null) reflectSetInt(Bukkit.getServer(), "setSimulationDistance", s.oldSimulationDistance); } catch (Throwable ignored) {}
-        try { if (s.oldAutoSave != null) w.setAutoSave(s.oldAutoSave); } catch (Throwable ignored) {}
-        try { w.save(); } catch (Throwable ignored) {}
-    }
-
-    private static Integer reflectGetInt(Object target, String method) {
-        try {
-            java.lang.reflect.Method m = target.getClass().getMethod(method);
-            Object v = m.invoke(target);
-            if (v instanceof Integer) return (Integer) v;
-        } catch (Throwable ignored) {}
-        return null;
-    }
-
-    private static void reflectSetInt(Object target, String method, int value) {
-        try {
-            java.lang.reflect.Method m = target.getClass().getMethod(method, int.class);
-            m.invoke(target, value);
-        } catch (Throwable ignored) {}
-    }
+    // Legacy pregen helper methods removed
 }

@@ -18,10 +18,39 @@ commands:
     description: Teleport to the spawn of a world
     usage: /warpto <worldName>
     permission: consegrity.warpto
+  setcustomdurability:
+    description: Sets the current durability of the held item
+    usage: /setcustomdurability <amount>
+    permission: consegrity.durability
+  setgoldendurability:
+    description: Sets the golden durability of the held item
+    usage: /setgoldendurability <amount>
+    permission: consegrity.durability
+  setmaxdurability:
+    description: Sets the max durability of the held item
+    usage: /setmaxdurability <amount>
+    permission: consegrity.durability
+  setgild:
+    description: Sets the gild value on the held heirloom
+    usage: /setgild <amount> [max]
+    permission: consegrity.heirloom
+  i:
+    description: Gives yourself a custom registry item or vanilla alternative
+    usage: /i <name> [vanilla]
+    permission: consegrity.items
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
     default: op
   consegrity.warpto:
     description: Allows using /warpto
+    default: op
+  consegrity.durability:
+    description: Allows using durability testing commands
+    default: op
+  consegrity.heirloom:
+    description: Allows modifying heirloom gild values
+    default: op
+  consegrity.items:
+    description: Allows using /i to spawn custom or vanilla items
     default: op

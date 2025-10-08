@@ -1,4 +1,4 @@
-package goat.projectLinearity.structure;
+package goat.projectLinearity.world.structure;
 
 public enum GenCheckType {
     UNDERGROUND,

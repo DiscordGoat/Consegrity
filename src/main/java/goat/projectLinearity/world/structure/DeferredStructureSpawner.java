@@ -1,7 +1,6 @@
-package goat.projectLinearity.structure;
+package goat.projectLinearity.world.structure;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.world.ConsegrityRegions;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;

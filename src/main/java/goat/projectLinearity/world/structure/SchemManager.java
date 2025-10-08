@@ -1,4 +1,4 @@
-package goat.projectLinearity.libs;
+package goat.projectLinearity.world.structure;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
@@ -148,4 +148,6 @@ public class SchemManager {
             return null;
         }
     }
+
+    // No ground normalization here; StructureManager handles SURFACE-only grassification
 }

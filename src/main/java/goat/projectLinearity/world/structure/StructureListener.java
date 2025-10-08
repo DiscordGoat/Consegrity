@@ -1,4 +1,4 @@
-package goat.projectLinearity.structure;
+package goat.projectLinearity.world.structure;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
