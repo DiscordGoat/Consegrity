@@ -49,25 +49,13 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
 
     @Override
     public void run() {
-        // TPS gate: only place structures when server is healthy
+        // Skip placement while regeneration is in progress.
         try {
             if (plugin != null && plugin.isRegenInProgress()) {
-                return; // do not place during regen
-            }
-            if (plugin != null && plugin.getTpsMonitor() != null && !plugin.getTpsMonitor().isHealthy()) {
                 return;
             }
         } catch (Throwable ignored) {}
-        int budget = 16;
-        try {
-            double tps = (plugin != null && plugin.getTpsMonitor() != null) ? plugin.getTpsMonitor().getTps() : 20.0;
-            if (tps >= 19.5) budget = 64;
-            else if (tps >= 18.5) budget = 48;
-            else if (tps >= 17.0) budget = 32;
-            else if (tps >= 15.0) budget = 24;
-            else budget = 16;
-            if (budget > MAX_BUDGET) budget = MAX_BUDGET;
-        } catch (Throwable ignored) {}
+        int budget = MAX_BUDGET;
         while (budget-- > 0 && !queue.isEmpty()) {
             ChunkKey key = queue.poll();
             if (key == null) break;

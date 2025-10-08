@@ -1,6 +1,6 @@
 package goat.projectLinearity.commands;
 
-import goat.projectLinearity.util.HeirloomManager;
+import goat.projectLinearity.libs.HeirloomManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

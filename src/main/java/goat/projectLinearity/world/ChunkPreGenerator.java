@@ -11,7 +11,7 @@ import java.util.Deque;
 
 /**
  * Pre-generates a square area centered at (0,0) efficiently with progress broadcasts.
- * Processes chunks in outward rings and adapts per-tick budget based on TPS.
+ * Processes chunks in outward rings at a steady per-tick budget.
  */
 public final class ChunkPreGenerator extends BukkitRunnable {
     private final ProjectLinearity plugin;
@@ -22,13 +22,9 @@ public final class ChunkPreGenerator extends BukkitRunnable {
     private final Deque<long[]> recent = new ArrayDeque<>();
     private final int total;
     private int processed = 0;
-    private long lastBroadcastMs = 0L; // retained for reference; no longer used to throttle
     private long lastStatsMs = 0L;
-    private long lastAdaptMs = 0L;
     private int processedAtLastStats = 0;
     private double cpsMeasured = 0.0;   // chunks per second (measured)
-    private double cpsTarget = 10.0;    // desired CPS, 1..1000, adaptive
-    private double budgetAcc = 0.0;     // fractional chunks-per-tick accumulator
     private int keepWindow = 512;       // max recently kept chunks before unloading older
 
     public interface Completion {
@@ -85,24 +81,9 @@ public final class ChunkPreGenerator extends BukkitRunnable {
         }
     }
 
-    private static int clamp(int min, int max, int v) { return Math.max(min, Math.min(max, v)); }
-
     @Override
     public void run() {
-        // Derive per-tick chunk budget from target CPS and current TPS
-        int toProcess = 1;
-        try {
-            double tps = (plugin.getTpsMonitor() != null) ? plugin.getTpsMonitor().getTps() : 20.0;
-            if (tps < 1e-3) tps = 1.0;
-            // accumulate fractional budget so CPS target is met across ticks
-            double perTick = cpsTarget / tps;
-            if (!Double.isFinite(perTick) || perTick < 0) perTick = 1.0;
-            budgetAcc += perTick;
-            toProcess = (int) Math.floor(budgetAcc);
-            if (toProcess < 0) toProcess = 0;
-            // Keep a reasonable per-tick upper bound to avoid long single-tick stalls
-            if (toProcess > 1024) toProcess = 1024;
-        } catch (Throwable ignored) {}
+        int toProcess = 16;
 
         int processedNow = 0;
         while (processedNow < toProcess && !queue.isEmpty()) {
@@ -126,8 +107,6 @@ public final class ChunkPreGenerator extends BukkitRunnable {
                 }
             }
         }
-        // remove what we actually processed from the accumulator
-        budgetAcc -= processedNow;
 
         // Measure CPS each tick over real time, with smoothing
         long now = System.currentTimeMillis();
@@ -144,23 +123,6 @@ public final class ChunkPreGenerator extends BukkitRunnable {
         try {
             Bukkit.broadcastMessage("[Consegrity] Pre-generating: " + pct + "% (" + processed + "/" + total + ") Efficiency: " + (int)Math.round(cpsMeasured) + " CPS");
         } catch (Throwable ignored) {}
-
-        // Adaptive control once per second to target ~18 TPS
-        if (lastAdaptMs == 0L) lastAdaptMs = now;
-        if (now - lastAdaptMs >= 1000L) {
-            try {
-                double tps = (plugin.getTpsMonitor() != null) ? plugin.getTpsMonitor().getTps() : 20.0;
-                // target band: 17.5 .. 18.5 TPS
-                if (tps > 18.5) {
-                    double step = (tps > 19.5) ? 1.25 : 1.10;
-                    cpsTarget = Math.min(1000.0, Math.max(1.0, cpsTarget * step));
-                } else if (tps < 17.5) {
-                    double step = (tps < 15.0) ? 0.75 : 0.9;
-                    cpsTarget = Math.max(1.0, cpsTarget * step);
-                } // else within band: hold steady
-            } catch (Throwable ignored) {}
-            lastAdaptMs = now;
-        }
 
         if (queue.isEmpty()) {
             try { Bukkit.broadcastMessage("[Consegrity] Pre-generation complete."); } catch (Throwable ignored) {}

@@ -1,4 +1,4 @@
-package goat.projectLinearity.world.structure;
+package goat.projectLinearity.libs;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;

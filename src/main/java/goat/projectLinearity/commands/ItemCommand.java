@@ -1,6 +1,6 @@
 package goat.projectLinearity.commands;
 
-import goat.projectLinearity.util.ItemRegistry;
+import goat.projectLinearity.libs.ItemRegistry;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;

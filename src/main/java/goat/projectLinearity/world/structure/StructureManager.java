@@ -1,5 +1,6 @@
 package goat.projectLinearity.world.structure;
 
+import goat.projectLinearity.libs.SchemManager;
 import goat.projectLinearity.world.ConsegrityRegions;
 import goat.projectLinearity.world.sector.*;
 import org.bukkit.Location;

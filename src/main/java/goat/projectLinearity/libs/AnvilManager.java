@@ -1,4 +1,4 @@
-package goat.projectLinearity.util;
+package goat.projectLinearity.libs;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
