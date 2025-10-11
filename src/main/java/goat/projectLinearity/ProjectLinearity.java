@@ -13,6 +13,9 @@ import goat.projectLinearity.commands.SetStatCommand;
 import goat.projectLinearity.commands.DebugOxygenCommand;
 import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.WarptoCommand;
+import goat.projectLinearity.util.CulinaryCauldron;
+import goat.projectLinearity.util.CulinarySubsystem;
+import goat.projectLinearity.util.ShelfManager;
 import goat.projectLinearity.util.AnvilManager;
 import goat.projectLinearity.util.CustomDurabilityManager;
 import goat.projectLinearity.util.EnchantedManager;
@@ -37,6 +40,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.RecipeChoice;
+import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -50,6 +54,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private SidebarManager sidebarManager;
     private EnchantedManager enchantedManager;
     private EnchantingManager enchantingManager;
+    private ShelfManager shelfManager;
+    private CulinarySubsystem culinarySubsystem;
+    private CulinaryCauldron culinaryCauldron;
     private double statRate = 1.0;
     private boolean debugOxygen = false;
 
@@ -72,6 +79,11 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
         Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
+
+        shelfManager = new ShelfManager(this);
+        culinarySubsystem = CulinarySubsystem.getInstance(this);
+        culinaryCauldron = new CulinaryCauldron(this);
+        registerShelfRecipe();
 
         // Commands
         try { getCommand("regenerate").setExecutor(new RegenerateCommand(this)); } catch (Throwable ignored) {}
@@ -132,10 +144,31 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         }
     }
 
+    private void registerShelfRecipe() {
+        NamespacedKey key = new NamespacedKey(this, "culinary_shelf");
+        try {
+            Bukkit.removeRecipe(key);
+        } catch (Throwable ignored) {}
+        try {
+            ShapedRecipe recipe = new ShapedRecipe(key, ItemRegistry.getShelfItem());
+            recipe.shape("PPP", "PPP", "PPP");
+            recipe.setIngredient('P', Material.OAK_PLANKS);
+            Bukkit.addRecipe(recipe);
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
     // Default world generator remains the server default; Consegrity world is created via command
 
     @Override
     public void onDisable() {
+        if (culinarySubsystem != null) {
+            culinarySubsystem.finalizeAllSessionsOnShutdown();
+            culinarySubsystem.onDisable();
+        }
+        if (shelfManager != null) {
+            shelfManager.onDisable();
+        }
         if (miningOxygenManager != null) {
             miningOxygenManager.shutdown();
         }
