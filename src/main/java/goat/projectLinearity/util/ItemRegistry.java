@@ -25,9 +25,25 @@ import java.util.Set;
 public final class ItemRegistry {
 
     private static final Map<String, Method> ITEM_METHODS = new HashMap<>();
+    private static final Method SET_GLINT_OVERRIDE_METHOD;
+    private static final boolean GLINT_OVERRIDE_PRIMITIVE;
 
     static {
         cacheItemMethods();
+        Method method = null;
+        boolean primitive = false;
+        try {
+            method = ItemMeta.class.getMethod("setEnchantmentGlintOverride", Boolean.class);
+        } catch (NoSuchMethodException ex) {
+            try {
+                method = ItemMeta.class.getMethod("setEnchantmentGlintOverride", boolean.class);
+                primitive = true;
+            } catch (NoSuchMethodException ignored) {
+                method = null;
+            }
+        }
+        SET_GLINT_OVERRIDE_METHOD = method;
+        GLINT_OVERRIDE_PRIMITIVE = primitive;
     }
 
     private ItemRegistry() {
@@ -150,6 +166,156 @@ public final class ItemRegistry {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    // ===== Rosegold Materials =====
+
+    public static ItemStack getRosegoldChunk() {
+        return createCustomItem(
+                Material.RAW_GOLD,
+                ChatColor.LIGHT_PURPLE + "Rosegold Chunk",
+                List.of(ChatColor.DARK_PURPLE + "Smithing Material"),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getRosegoldIngot() {
+        return createCustomItem(
+                Material.GOLD_INGOT,
+                ChatColor.LIGHT_PURPLE + "Rosegold Ingot",
+                List.of(ChatColor.DARK_PURPLE + "Smithing Material"),
+                1,
+                false,
+                true
+        );
+    }
+
+    private static ItemStack createRosegoldItem(Material material, String displayName, Material referenceMaterial) {
+        ItemStack item = createCustomItem(
+                material,
+                ChatColor.LIGHT_PURPLE + displayName,
+                null,
+                1,
+                false,
+                false
+        );
+        applyCustomDurability(item, referenceMaterial != null ? referenceMaterial.getMaxDurability() : 0);
+        if (material == Material.GOLDEN_SWORD) {
+            applyRosegoldSwordBonus(item);
+        }
+        return item;
+    }
+
+    public static void applyRosegoldSwordBonus(ItemStack item) {
+        if (item == null || item.getType() != Material.GOLDEN_SWORD) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        int currentLevel = meta.getEnchantLevel(Enchantment.SHARPNESS);
+        if (currentLevel < 2) {
+            meta.addEnchant(Enchantment.SHARPNESS, 2, true);
+        }
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
+        setGlintOverride(meta, false);
+        item.setItemMeta(meta);
+    }
+
+    public static boolean isRosegoldSword(ItemStack item) {
+        if (item == null || item.getType() != Material.GOLDEN_SWORD) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) {
+            return false;
+        }
+        String stripped = ChatColor.stripColor(meta.getDisplayName());
+        return stripped != null && stripped.equalsIgnoreCase("Rosegold Sword");
+    }
+
+    private static void setGlintOverride(ItemMeta meta, Boolean override) {
+        if (meta == null) {
+            return;
+        }
+        if (SET_GLINT_OVERRIDE_METHOD == null) {
+            return;
+        }
+        try {
+            if (GLINT_OVERRIDE_PRIMITIVE && override == null) {
+                SET_GLINT_OVERRIDE_METHOD.invoke(meta, false);
+            } else {
+                SET_GLINT_OVERRIDE_METHOD.invoke(meta, override);
+            }
+        } catch (IllegalAccessException | InvocationTargetException ignored) {
+        }
+    }
+
+    private static void applyCustomDurability(ItemStack item, int maxDurability) {
+        if (item == null || maxDurability <= 0) {
+            return;
+        }
+        CustomDurabilityManager durabilityManager;
+        try {
+            durabilityManager = CustomDurabilityManager.getInstance();
+        } catch (RuntimeException ex) {
+            return;
+        }
+        durabilityManager.ensureTracking(item);
+        durabilityManager.setMaxDurability(item, maxDurability);
+        durabilityManager.setCustomDurability(item, maxDurability, maxDurability);
+    }
+
+    public static ItemStack getEnchantedBook() {
+        return createCustomItem(
+                Material.ENCHANTED_BOOK,
+                ChatColor.LIGHT_PURPLE + "Enchanted Book",
+                Arrays.asList(ChatColor.DARK_PURPLE + "Smithing Item"),
+                1,
+                false,
+                false
+        );
+    }
+
+    // ===== Rosegold Gear =====
+
+    public static ItemStack getRosegoldSword() {
+        return createRosegoldItem(Material.GOLDEN_SWORD, "Rosegold Sword", Material.IRON_SWORD);
+    }
+
+    public static ItemStack getRosegoldPickaxe() {
+        return createRosegoldItem(Material.GOLDEN_PICKAXE, "Rosegold Pickaxe", Material.IRON_PICKAXE);
+    }
+
+    public static ItemStack getRosegoldAxe() {
+        return createRosegoldItem(Material.GOLDEN_AXE, "Rosegold Axe", Material.IRON_AXE);
+    }
+
+    public static ItemStack getRosegoldShovel() {
+        return createRosegoldItem(Material.GOLDEN_SHOVEL, "Rosegold Shovel", Material.IRON_SHOVEL);
+    }
+
+    public static ItemStack getRosegoldHoe() {
+        return createRosegoldItem(Material.GOLDEN_HOE, "Rosegold Hoe", Material.IRON_HOE);
+    }
+
+    public static ItemStack getRosegoldHelmet() {
+        return createRosegoldItem(Material.GOLDEN_HELMET, "Rosegold Helmet", Material.IRON_HELMET);
+    }
+
+    public static ItemStack getRosegoldChestplate() {
+        return createRosegoldItem(Material.GOLDEN_CHESTPLATE, "Rosegold Chestplate", Material.IRON_CHESTPLATE);
+    }
+
+    public static ItemStack getRosegoldLeggings() {
+        return createRosegoldItem(Material.GOLDEN_LEGGINGS, "Rosegold Leggings", Material.IRON_LEGGINGS);
+    }
+
+    public static ItemStack getRosegoldBoots() {
+        return createRosegoldItem(Material.GOLDEN_BOOTS, "Rosegold Boots", Material.IRON_BOOTS);
     }
 
     // ===== Heirlooms =====

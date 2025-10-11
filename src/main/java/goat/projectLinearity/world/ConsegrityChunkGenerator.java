@@ -364,14 +364,8 @@ extends ArcticChunkGenerator {
     // ===== Colossal Cave Nether (Stage 1) =====
 
     /**
-     * Square-bounded Nether underworld for "Colossal Cave".
-     * - Square walls of BEDROCK confine the Nether to |x|,|z| <= R1_OUTER (Central + Ring1), regardless of ring masks.
-     * - BEDROCK roof band around UNDERWORLD_ROOF_Y.
-     * - Huge vaulted caverns above a lava ocean (lavaY), carved from NETHERRACK with multi-scale pseudo-3D noise.
-     * - Ceiling glowstone clusters, occasional lava drips, and NETHER_QUARTZ_ORE veins.
-     * - Exactly 5 global ominous passages that drill through the roof and down to near the lava, only over open lava.
-     *
-     * No structures/mobs here; terrain only.
+     * Legacy hook now only builds the mirrored bedrock roof that seals the underworld.
+     * The space beneath the ceiling remains untouched, removing the old Nether terrain.
      */
     private void generateColossalCaveNether(World world,
                                             ChunkGenerator.ChunkData data,
@@ -380,312 +374,53 @@ extends ArcticChunkGenerator {
                                             int chunkZ) {
         final int minY = world.getMinHeight();
         final int maxY = world.getMaxHeight() - 1;
-
-        // Clamp roof/lava to world limits, preserving your constants
-        final int unclampedRoof = UNDERWORLD_ROOF_Y;     // requested roof pivot
+        final int unclampedRoof = UNDERWORLD_ROOF_Y;
         final int roofY = Math.max(minY + 8, Math.min(unclampedRoof, maxY - 16));
-
-        // Place lava sea far below; clamp if world bottom is higher
-        int targetLavaY = -180;                          // desired lava level
-        if (targetLavaY < minY + 3) targetLavaY = minY + 3;
-        if (targetLavaY > roofY - 40) targetLavaY = roofY - 40;
-        final int lavaY = targetLavaY;
-
-        // Square boundary: Central + Ring1 extent, made square
-        final int HALF = (int)Math.ceil(R1_OUTER);       // 520 by your constants
+        final int half = (int) Math.ceil(R1_OUTER);
         final int baseX = chunkX << 4;
         final int baseZ = chunkZ << 4;
 
-        // Quick column masks: inside vs outside the square
-        final boolean[][] inside = new boolean[16][16];
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
                 int wx = baseX + lx - CENTER_X;
                 int wz = baseZ + lz - CENTER_Z;
-                inside[lx][lz] = (Math.abs(wx) <= HALF) && (Math.abs(wz) <= HALF);
-            }
-        }
-
-        // 0) Outside the square -> solid vertical BEDROCK wall from bottom to just below roof
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (!inside[lx][lz]) {
-                    data.setRegion(lx, minY, lz, lx + 1, Math.min(roofY + 6, maxY + 1), lz + 1, Material.BEDROCK);
+                if (Math.abs(wx) > half || Math.abs(wz) > half) {
+                    continue;
                 }
-            }
-        }
-
-        // 1) Roof band (BEDROCK) around roofY for all columns (inside only)
-        //    Small randomized thickness for texture, but deterministic per column.
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (!inside[lx][lz]) continue;
-                int t = 1 + (int)(rand01(hash(seed, baseX + lx, roofY, baseZ + lz, 0xB0A7L)) * 4.0); // 1..4
-                int y0 = Math.max(minY, roofY - t + 1);
+                int thickness = 1 + (int) (rand01(hash(seed, baseX + lx, roofY, baseZ + lz, 0xB0A7L)) * 4.0);
+                int y0 = Math.max(minY, roofY - thickness + 1);
                 int y1 = Math.min(maxY, roofY);
-                if (y1 >= y0) data.setRegion(lx, y0, lz, lx + 1, y1 + 1, lz + 1, Material.BEDROCK);
-            }
-        }
-
-        // 2) Prefill interior volume (lavaY+1 .. roofY-1) with NETHERRACK for inside columns
-        final int fillBottom = lavaY + 1;
-        final int fillTop = Math.max(fillBottom, roofY - 1);
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (!inside[lx][lz]) continue;
-                if (fillTop >= fillBottom) {
-                    data.setRegion(lx, fillBottom, lz, lx + 1, fillTop + 1, lz + 1, Material.NETHERRACK);
+                if (y1 >= y0) {
+                    data.setRegion(lx, y0, lz, lx + 1, y1 + 1, lz + 1, Material.BEDROCK);
                 }
             }
         }
-
-        carveNetherCavesLikeV2(world, data, seed, chunkX, chunkZ, inside, lavaY, roofY, fillBottom, fillTop);
-
-
-        // 4) Lava ocean: fill any AIR below/at lavaY with LAVA
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (!inside[lx][lz]) continue;
-                for (int y = minY; y <= Math.min(lavaY, maxY); y++) {
-                    if (data.getType(lx, y, lz) == Material.AIR) {
-                        data.setBlock(lx, y, lz, Material.LAVA);
-                    }
-                }
-            }
-        }
-
-        // 5) Clean up tiny floaters (remove isolated 1-block netherrack nuggets)
-        for (int lx = 1; lx < 15; lx++) {
-            for (int lz = 1; lz < 15; lz++) {
-                if (!inside[lx][lz]) continue;
-                for (int y = Math.min(fillTop - 1, roofY - 2); y >= fillBottom + 1; y--) {
-                    if (data.getType(lx, y, lz) != Material.NETHERRACK) continue;
-                    int airSides = 0;
-                    if (data.getType(lx + 1, y, lz) == Material.AIR) airSides++;
-                    if (data.getType(lx - 1, y, lz) == Material.AIR) airSides++;
-                    if (data.getType(lx, y, lz + 1) == Material.AIR) airSides++;
-                    if (data.getType(lx, y, lz - 1) == Material.AIR) airSides++;
-                    if (data.getType(lx, y + 1, lz) == Material.AIR) airSides++;
-                    if (data.getType(lx, y - 1, lz) == Material.AIR) airSides++;
-                    if (airSides >= 5) data.setBlock(lx, y, lz, Material.AIR);
-                }
-            }
-        }
-
-        // 6) Ceiling glowstone clusters (1–2 per chunk), anchored under solid roof/ceiling
-        {
-            java.util.SplittableRandom rng = rngFor(seed, chunkX, chunkZ, SALT_GLOWSTONE);
-            int starts = 1 + (rng.nextInt(3) == 0 ? 1 : 0);
-            for (int s = 0; s < starts; s++) {
-                for (int tries = 0; tries < 10; tries++) {
-                    int lx = rng.nextInt(16), lz = rng.nextInt(16);
-                    if (!inside[lx][lz]) continue;
-                    int y = Math.max(minY, roofY - (2 + rng.nextInt(4)));
-                    // Need: solid above, air at the anchor
-                    if (y + 1 <= maxY && data.getType(lx, y + 1, lz) != Material.AIR && data.getType(lx, y, lz) == Material.AIR) {                        int size = 10 + rng.nextInt(12);
-                        int placed = 0;
-                        java.util.ArrayDeque<int[]> q = new java.util.ArrayDeque<>();
-                        q.add(new int[]{lx, y, lz});
-                        while (!q.isEmpty() && placed < size) {
-                            int[] p = q.removeFirst();
-                            int x = p[0], yy = p[1], z = p[2];
-                            if (x < 1 || x > 14 || z < 1 || z > 14 || yy < fillBottom || yy > roofY - 1) continue;
-                            if (data.getType(x, yy, z) == Material.AIR && data.getType(x, yy + 1, z).isSolid()) {
-                                data.setBlock(x, yy, z, Material.GLOWSTONE);
-                                placed++;
-                                // small tendrils downward
-                                if (placed < size && yy - 1 >= fillBottom && data.getType(x, yy - 1, z) == Material.AIR) {
-                                    data.setBlock(x, yy - 1, z, Material.GLOWSTONE);
-                                    placed++;
-                                }
-                                // random walk
-                                if (rng.nextBoolean()) q.add(new int[]{x + (rng.nextBoolean() ? 1 : -1), yy + (rng.nextInt(3) - 1), z});
-                                if (rng.nextBoolean()) q.add(new int[]{x, yy + (rng.nextInt(3) - 1), z + (rng.nextBoolean() ? 1 : -1)});
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 7) Sparse lava drips (thin falls) from high ceiling
-        {
-            java.util.SplittableRandom rng = rngFor(seed, chunkX, chunkZ, SALT_LAVA_DRIPS);
-            if (rng.nextInt(3) == 0) {
-                int lx = 1 + rng.nextInt(14), lz = 1 + rng.nextInt(14);
-                if (inside[lx][lz]) {
-                    int startY = roofY - 1 - rng.nextInt(3);
-                    for (int y = startY; y >= lavaY; y--) {
-                        if (data.getType(lx, y, lz) == Material.BEDROCK) break;
-                        data.setBlock(lx, y, lz, Material.LAVA);
-                    }
-                }
-            }
-        }
-
-        // 8) Quartz ore veins in NETHERRACK
-        {
-            java.util.SplittableRandom rng = rngFor(seed, chunkX, chunkZ, SALT_QUARTZ);
-            int tries = 8 + rng.nextInt(5);
-            for (int t = 0; t < tries; t++) {
-                int lx = rng.nextInt(16), lz = rng.nextInt(16);
-                if (!inside[lx][lz]) continue;
-                int y = lavaY + 8 + rng.nextInt(Math.max(1, (roofY - lavaY - 24)));
-                if (y < fillBottom || y > fillTop) continue;
-                if (data.getType(lx, y, lz) != Material.NETHERRACK) continue;
-
-                int size = 6 + rng.nextInt(8);
-                java.util.ArrayDeque<int[]> q = new java.util.ArrayDeque<>();
-                q.add(new int[]{lx, y, lz});
-                int placed = 0;
-                while (!q.isEmpty() && placed < size) {
-                    int[] p = q.removeFirst();
-                    int x = p[0], yy = p[1], z = p[2];
-                    if (x < 1 || x > 14 || z < 1 || z > 14 || yy <= lavaY + 1 || yy >= roofY - 2) continue;
-                    if (data.getType(x, yy, z) == Material.NETHERRACK) {
-                        data.setBlock(x, yy, z, Material.NETHER_QUARTZ_ORE);
-                        placed++;
-                        if (rng.nextBoolean()) q.add(new int[]{x + (rng.nextBoolean() ? 1 : -1), yy + (rng.nextInt(3) - 1), z});
-                        if (rng.nextBoolean()) q.add(new int[]{x, yy + (rng.nextInt(3) - 1), z + (rng.nextBoolean() ? 1 : -1)});
-                    }
-                }
-            }
-        }
-
-        // 9) Five ominous global passages: carve vertical shafts through roof + cavern down toward lava.
-        //    They only exist where the column is over open lava (predicted by the same density/threshold at lavaY).
-        {
-            P2i[] centers = computeGlobalPassageCenters(seed, HALF);
-            for (P2i c : centers) {
-                // Does this chunk contain the passage center?
-                if (c.x >= baseX && c.x <= baseX + 15 && c.z >= baseZ && c.z <= baseZ + 15) {
-                    int lx = c.x - baseX, lz = c.z - baseZ;
-                    if (!inside[lx][lz]) continue;
-
-                    // Validate "over lava ocean": check predicted air at lavaY
-                    if (!isLavaOpenAt(seed, c.x, c.z, lavaY, roofY)) continue;
-
-                    // Carve a 3x3 ominous bore (cross-shaped) from above the roof down to just above lava
-                    int top = Math.min(roofY + 4, maxY - 1);
-                    int bottom = Math.max(lavaY + 2, minY + 2);
-                    for (int y = top; y >= bottom; y--) {
-                        // Cross shape (plus) gives a menacing vertical drill
-                        carveAirIfInside(data, lx, y, lz);
-                        carveAirIfInside(data, lx + 1, y, lz);
-                        carveAirIfInside(data, lx - 1, y, lz);
-                        carveAirIfInside(data, lx, y, lz + 1);
-                        carveAirIfInside(data, lx, y, lz - 1);
-                        // Also remove any bedrock encountered to truly "drill through"
-                        data.setBlock(lx, y, lz, Material.AIR);
-                    }
-                }
-            }
-        }
-
-        // 10) Bedrock wall thickening exactly on the square border inside the square (1-block face)
-        //     This makes the boundary read clearly when you approach it from the inside.
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                int wx = baseX + lx - CENTER_X;
-                int wz = baseZ + lz - CENTER_Z;
-                boolean onBorder = inside[lx][lz] && (Math.abs(wx) == HALF || Math.abs(wz) == HALF);
-                if (!onBorder) continue;
-                data.setRegion(lx, Math.max(minY, lavaY), lz,
-                        lx + 1, Math.min(roofY + 6, maxY + 1), lz + 1,
-                        Material.BEDROCK);
-            }
-        }
-    }
-
-// --- Small helpers for the Nether ---
-
-    // Predict whether the cavern logic would be "open" (air) at lavaY for this column.
-// We reuse the same density + threshold model used in carving to keep behavior consistent.
-    private boolean isLavaOpenAt(long seed, int wx, int wz, int lavaY, int roofY) {
-        double warp = fbm2(seed ^ 0x51D2A1L, wx / 96.0, wz / 96.0) * 24.0;
-        int y = lavaY;
-
-        double d1 = fbm2(seed ^ 0xC0FEF1L, (wx + y * 0.80) / 64.0, (wz + y * 0.80) / 64.0);
-        double d2 = fbm2(seed ^ 0xC0FEF2L, (wx - y * 1.20) / 24.0, (wz + y * 1.20) / 24.0) * 0.6;
-        double d3 = fbm2(seed ^ 0xC0FEF3L, (wx + warp + y * 0.60) / 96.0, (wz + warp - y * 0.60) / 96.0) * 0.2;
-
-        double density = (d1 + d2 + d3) * 2.0 - 1.0;
-        double roofBias = Math.max(0.0, (roofY - y) / 28.0);
-        double threshold = 0.22 - roofBias * 0.10;
-        return density > threshold; // would be carved to air -> lava ocean occupies it
-    }
-
-    // Exactly five global passage centers, deterministically from seed.
-// We sample within the square (HALF margin), keep them fairly separated, and require "over lava".
-    private P2i[] computeGlobalPassageCenters(long seed, int HALF) {
-        java.util.ArrayList<P2i> picks = new java.util.ArrayList<>(5);
-        java.util.SplittableRandom rng = new java.util.SplittableRandom(hash(seed, 777, 0, 0, SALT_PASSAGES));
-        final int margin = 96;                   // keep away from walls
-        final int spread2 = 160 * 160;          // min separation^2
-
-        // We don't know lavaY/roofY here, but we will re-check validity at carve time.
-        // Use a loose position pre-filter (noise band) to bias toward ocean-y places.
-        int tries = 0;
-        while (picks.size() < 5 && tries < 2000) {
-            tries++;
-            int wx = (rng.nextInt(HALF - margin) + margin) * (rng.nextBoolean() ? 1 : -1);
-            int wz = (rng.nextInt(HALF - margin) + margin) * (rng.nextBoolean() ? 1 : -1);
-
-            // Bias toward lower-frequency basins
-            double basin = fbm2(seed ^ SALT_BASIN_PREF, wx / 480.0, wz / 480.0);
-            if (basin < 0.45) continue;
-
-            boolean ok = true;
-            for (P2i p : picks) {
-                int dx = wx - p.x, dz = wz - p.z;
-                if (dx * dx + dz * dz < spread2) { ok = false; break; }
-            }
-            if (!ok) continue;
-            picks.add(new P2i(wx + CENTER_X, wz + CENTER_Z));
-        }
-
-        // Fallback fill if something went wrong
-        while (picks.size() < 5) {
-            picks.add(new P2i(CENTER_X, CENTER_Z));
-        }
-        return picks.toArray(new P2i[0]);
-    }
-
-    private void carveAirIfInside(ChunkGenerator.ChunkData data, int lx, int y, int lz) {
-        if (lx >= 0 && lx < 16 && lz >= 0 && lz < 16) {
-            data.setBlock(lx, y, lz, Material.AIR);
-        }
-    }
-
-    // Simple int pair (world-space)
-    private static final class P2i {
-        final int x, z;
-        P2i(int x, int z) { this.x = x; this.z = z; }
     }
 
     private int findTopSolidY(ChunkGenerator.ChunkData data, World world, int lx, int lz, int yMin, int seaLevel) {
-        int yStart;
-        for (int y = yStart = Math.min(seaLevel, Math.min(world.getMaxHeight() - 1, 320)); y >= yMin; --y) {
+        int yStart = Math.min(seaLevel, Math.min(world.getMaxHeight() - 1, 320));
+        for (int y = yStart; y >= yMin; --y) {
             Material m = data.getType(lx, y, lz);
-            if (m == Material.AIR || m == Material.WATER || m == Material.KELP || m == Material.KELP_PLANT || m == Material.SEAGRASS) continue;
+            if (m == Material.AIR || m == Material.WATER || m == Material.KELP || m == Material.KELP_PLANT || m == Material.SEAGRASS) {
+                continue;
+            }
             return y;
         }
         return yMin - 1;
     }
 
     private int oceanFloorY(long seed, int wx, int wz) {
-        double n1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xA1B2C3D4L, (double)wx / 260.0, (double)wz / 260.0);
-        double n2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5EEDBEEFL, (double)wx / 110.0, (double)wz / 110.0);
-        double n3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x13579BDFL, (double)wx / 40.0, (double)wz / 40.0);
+        double n1 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xA1B2C3D4L, (double) wx / 260.0, (double) wz / 260.0);
+        double n2 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x5EEDBEEFL, (double) wx / 110.0, (double) wz / 110.0);
+        double n3 = ConsegrityChunkGenerator.valueNoise2(seed ^ 0x13579BDFL, (double) wx / 40.0, (double) wz / 40.0);
         double h = n1 * 0.55 + n2 * 0.3 + n3 * 0.15;
         h = h * 2.0 - 1.0;
         int base = 116;
         int amplitude = 26;
-        int floor = base + (int)Math.round(h * (double)amplitude);
-        double trench = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xDEADC0DEL, (double)wx / 600.0, (double)wz / 600.0);
+        int floor = base + (int) Math.round(h * (double) amplitude);
+        double trench = ConsegrityChunkGenerator.valueNoise2(seed ^ 0xDEADC0DEL, (double) wx / 600.0, (double) wz / 600.0);
         if (trench > 0.75) {
-            floor -= 8 + (int)Math.round((trench - 0.75) * 16.0);
+            floor -= 8 + (int) Math.round((trench - 0.75) * 16.0);
         }
         if (floor < 80) {
             floor = 80;
@@ -697,35 +432,33 @@ extends ArcticChunkGenerator {
     }
 
     private void paintDesertCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {
-        int y3;
-        int y4;
         int y2 = topY - 1;
         int y1 = Math.max(-60, topY - 5);
         if (y2 > y1) {
             data.setRegion(lx, y1, lz, lx + 1, y2, lz + 1, Material.SANDSTONE);
         }
-        if ((y4 = topY + 1) > (y3 = Math.max(-60, topY - 1))) {
+        int y4 = topY + 1;
+        int y3 = Math.max(-60, topY - 1);
+        if (y4 > y3) {
             data.setRegion(lx, y3, lz, lx + 1, y4, lz + 1, Material.SAND);
         }
     }
 
     private void paintDesertLandBlendCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY, double tLand) {
-        int i;
         double t = ConsegrityChunkGenerator.clamp01(tLand);
-        int sandTop = (int)Math.round(ConsegrityChunkGenerator.lerp(2.0, 0.0, t));
-        int sandstone = (int)Math.round(ConsegrityChunkGenerator.lerp(4.0, 0.0, t));
-        int dirt = (int)Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
+        int sandTop = (int) Math.round(ConsegrityChunkGenerator.lerp(2.0, 0.0, t));
+        int sandstone = (int) Math.round(ConsegrityChunkGenerator.lerp(4.0, 0.0, t));
+        int dirt = (int) Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
         boolean grassTop = t > 0.15;
         int total = sandTop + sandstone + dirt + 1;
-        int y = topY - total + 1;
-        y = Math.max(-60, y);
-        for (i = 0; i < sandstone; ++i) {
+        int y = Math.max(-60, topY - total + 1);
+        for (int i = 0; i < sandstone; ++i) {
             data.setBlock(lx, y++, lz, Material.SANDSTONE);
         }
-        for (i = 0; i < dirt; ++i) {
+        for (int i = 0; i < dirt; ++i) {
             data.setBlock(lx, y++, lz, Material.DIRT);
         }
-        for (i = 0; i < sandTop; ++i) {
+        for (int i = 0; i < sandTop; ++i) {
             data.setBlock(lx, y++, lz, Material.SAND);
         }
         data.setBlock(lx, topY, lz, grassTop ? Material.GRASS_BLOCK : Material.SAND);
@@ -744,9 +477,8 @@ extends ArcticChunkGenerator {
                 case 5 -> Material.WHITE_TERRACOTTA;
                 default -> Material.LIGHT_GRAY_TERRACOTTA;
             };
-            // Only place sand on the base; mountain tops remain terracotta
             if (y == topY) {
-                int MESA_MTN_THRESHOLD = 178; // treat higher columns as mountains
+                int MESA_MTN_THRESHOLD = 178;
                 if (topY <= MESA_MTN_THRESHOLD) {
                     m = Material.RED_SAND;
                 }
@@ -756,14 +488,13 @@ extends ArcticChunkGenerator {
     }
 
     private void paintMesaLandBlendCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY, double tLand) {
-        int i;
         double t = ConsegrityChunkGenerator.clamp01(tLand);
-        int terr = (int)Math.round(ConsegrityChunkGenerator.lerp(10.0, 0.0, t));
-        int dirt = (int)Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
+        int terr = (int) Math.round(ConsegrityChunkGenerator.lerp(10.0, 0.0, t));
+        int dirt = (int) Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
         boolean grassTop = t > 0.15;
         int total = terr + dirt + 1;
         int y = Math.max(-60, topY - total + 1);
-        for (i = 0; i < terr; ++i) {
+        for (int i = 0; i < terr; ++i) {
             int band = Math.floorMod(y + i, 7);
             Material m = switch (band) {
                 case 0 -> Material.TERRACOTTA;
@@ -777,10 +508,9 @@ extends ArcticChunkGenerator {
             data.setBlock(lx, y + i, lz, m);
         }
         y += terr;
-        for (i = 0; i < dirt; ++i) {
+        for (int i = 0; i < dirt; ++i) {
             data.setBlock(lx, y++, lz, Material.DIRT);
         }
-        // Only generate sand on base; on higher columns keep terracotta top
         if (grassTop) {
             data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
         } else {
@@ -802,6 +532,7 @@ extends ArcticChunkGenerator {
             }
         }
     }
+
     @Override
     protected void placeOres(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ) {
         ConsegrityRegions.Region[][] tmp = new ConsegrityRegions.Region[16][16];

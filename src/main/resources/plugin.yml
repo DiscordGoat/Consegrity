@@ -10,6 +10,10 @@ commands:
     description: Regenerate the Consegrity world
     usage: /regenerate
     permission: consegrity.dev
+  regeneratenether:
+    description: Regenerate the Consegrity Nether world
+    usage: /regeneratenether
+    permission: consegrity.dev
   getallconsegrityadvancements:
     description: Grants advancements from specified tab(s) or all
     usage: /getallconsegrityadvancements [all|consegrity|desert|mesa|swamp|cherry|mountain|jungle ...]

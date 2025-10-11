@@ -1,5 +1,6 @@
 package goat.projectLinearity.world.structure;
 
+import goat.projectLinearity.commands.RegenerateNetherCommand;
 import goat.projectLinearity.util.SchemManager;
 import goat.projectLinearity.world.ConsegrityRegions;
 import goat.projectLinearity.world.sector.*;
@@ -310,16 +311,19 @@ public final class StructureManager {
         for (int i = 0; i < xs.length; i++) {
             int x = xs[i];
             int z = zs[i];
-            int y = world.getHighestBlockYAt(x, z);
+            int y = findTopSolidY(world, x, z);
             Material ground = world.getBlockAt(x, y, z).getType();
             if (!allowWater && isWater(ground)) return "WATER";
+            if (ground == Material.LAVA) return "LAVA";
             minY = Math.min(minY, y);
             maxY = Math.max(maxY, y);
         }
         if (maxY - minY > 2) return "SLOPE";
-        int yCenter = world.getHighestBlockYAt(wx, wz);
+        int yCenter = findTopSolidY(world, wx, wz);
         Material above = world.getBlockAt(wx, yCenter + 1, wz).getType();
         if (above != Material.AIR) return "OCCUPIED";
+        Material base = world.getBlockAt(wx, yCenter, wz).getType();
+        if (base == Material.LAVA) return "LAVA";
         return null;
     }
 
@@ -419,18 +423,35 @@ public final class StructureManager {
         for (int i = 0; i < xs.length; i++) {
             int x = xs[i];
             int z = zs[i];
-            int y = world.getHighestBlockYAt(x, z);
+            int y = findTopSolidY(world, x, z);
             Material ground = world.getBlockAt(x, y, z).getType();
             if (!allowWater && isWater(ground)) return null;
+            if (ground == Material.LAVA) return null;
             minY = Math.min(minY, y);
             maxY = Math.max(maxY, y);
         }
         // keep slope gentle to avoid carving into hills/mountains
         if (maxY - minY > 2) return null;
-        int yCenter = world.getHighestBlockYAt(wx, wz);
+        int yCenter = findTopSolidY(world, wx, wz);
         Material above = world.getBlockAt(wx, yCenter + 1, wz).getType();
         if (above != Material.AIR) return null;
+        Material base = world.getBlockAt(wx, yCenter, wz).getType();
+        if (base == Material.LAVA) return null;
         return new Location(world, wx + 0.5, yCenter + 1, wz + 0.5);
+    }
+
+    private int findTopSolidY(World world, int x, int z) {
+        int min = world.getMinHeight();
+        int max = world.getMaxHeight() - 1;
+        boolean isNetherWorld = RegenerateNetherCommand.WORLD_NAME.equals(world.getName());
+        for (int y = max; y >= min; y--) {
+            Material m = world.getBlockAt(x, y, z).getType();
+            if (m == Material.AIR || m == Material.CAVE_AIR || m == Material.VOID_AIR) continue;
+            if (m == Material.BEDROCK && (y >= max - 4 || y <= min + 4)) continue;
+            if (isNetherWorld && y > 90) continue;
+            return y;
+        }
+        return min;
     }
 
     private Location findUnderwaterSpot(World world, int wx, int wz, int bounds) {
@@ -587,6 +608,7 @@ public final class StructureManager {
             if (sector instanceof IceSpikesSector) return ConsegrityRegions.Region.ICE_SPIKES;
             if (sector instanceof CherrySector) return ConsegrityRegions.Region.CHERRY;
             if (sector instanceof CentralSector) return ConsegrityRegions.Region.CENTRAL;
+            if (sector instanceof NetherWastelandSector) return ConsegrityRegions.Region.NETHER_WASTELAND;
             return null; // fallback: allow any region
         }
 
@@ -683,4 +705,3 @@ public final class StructureManager {
     }
     
 }
-

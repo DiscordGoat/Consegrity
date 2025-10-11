@@ -198,12 +198,7 @@ public final class MiningOxygenManager implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        PlayerOxygenData data = getData(player);
-        if (!data.initialised) {
-            data.oxygen = 0;
-            storeOxygen(player, data.oxygen);
-            data.initialised = true;
-        }
+        getData(player); // Ensure cached state reflects persisted value
         evaluateEnvironment(player);
     }
 
@@ -560,7 +555,6 @@ public final class MiningOxygenManager implements Listener {
         boolean notifiedEmpty = false;
         double depleteAccumulator = 0.0;
         double breathTimer = 0.0;
-        boolean initialised = false;
         EnvironmentSnapshot lastSnapshot;
     }
 }

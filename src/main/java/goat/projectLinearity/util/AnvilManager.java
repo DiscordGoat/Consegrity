@@ -3,6 +3,7 @@ package goat.projectLinearity.util;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,10 +23,11 @@ import org.bukkit.scheduler.BukkitScheduler;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public final class AnvilManager implements Listener {
 
-    private static final String TITLE = ChatColor.DARK_GRAY + "Forgemaster's Anvil";
+    private static final String TITLE = ChatColor.DARK_GRAY + "Anvil";
     private static final int SLOT_BASE = 10;
     private static final int SLOT_MATERIAL = 13;
     private static final int SLOT_CONFIRM = 16;
@@ -39,9 +41,23 @@ public final class AnvilManager implements Listener {
     private final JavaPlugin plugin;
     private final ItemStack filler;
     private final ItemStack confirm;
+    private final EnchantedManager enchantedManager;
 
-    public AnvilManager(JavaPlugin plugin) {
+    private static final Map<Material, Supplier<ItemStack>> ROSEGOLD_TARGETS = Map.ofEntries(
+            Map.entry(Material.GOLDEN_SWORD, ItemRegistry::getRosegoldSword),
+            Map.entry(Material.GOLDEN_PICKAXE, ItemRegistry::getRosegoldPickaxe),
+            Map.entry(Material.GOLDEN_AXE, ItemRegistry::getRosegoldAxe),
+            Map.entry(Material.GOLDEN_SHOVEL, ItemRegistry::getRosegoldShovel),
+            Map.entry(Material.GOLDEN_HOE, ItemRegistry::getRosegoldHoe),
+            Map.entry(Material.GOLDEN_HELMET, ItemRegistry::getRosegoldHelmet),
+            Map.entry(Material.GOLDEN_CHESTPLATE, ItemRegistry::getRosegoldChestplate),
+            Map.entry(Material.GOLDEN_LEGGINGS, ItemRegistry::getRosegoldLeggings),
+            Map.entry(Material.GOLDEN_BOOTS, ItemRegistry::getRosegoldBoots)
+    );
+
+    public AnvilManager(JavaPlugin plugin, EnchantedManager enchantedManager) {
         this.plugin = plugin;
+        this.enchantedManager = enchantedManager;
         this.filler = createPane(Material.GRAY_STAINED_GLASS_PANE, " ");
         this.confirm = createPane(Material.LIME_STAINED_GLASS_PANE, ChatColor.GREEN + "Confirm");
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
@@ -150,8 +166,12 @@ public final class AnvilManager implements Listener {
                     || attemptDurabilityRepair(player, material, base, top, SLOT_BASE)
                     || attemptGildIncrease(player, base, material, top, SLOT_MATERIAL)
                     || attemptGildIncrease(player, material, base, top, SLOT_BASE)
+                    || attemptRosegoldConversion(player, base, material, top, SLOT_BASE, SLOT_MATERIAL)
+                    || attemptRosegoldConversion(player, material, base, top, SLOT_MATERIAL, SLOT_BASE)
                     || attemptGoldenDurability(player, base, material, top, SLOT_BASE, SLOT_MATERIAL)
-                    || attemptGoldenDurability(player, material, base, top, SLOT_MATERIAL, SLOT_BASE);
+                    || attemptGoldenDurability(player, material, base, top, SLOT_MATERIAL, SLOT_BASE)
+                    || attemptEnchantedUpgrade(player, base, material, top, SLOT_MATERIAL, SLOT_BASE)
+                    || attemptEnchantedUpgrade(player, material, base, top, SLOT_BASE, SLOT_MATERIAL);
         }
 
         if (!success) {
@@ -210,6 +230,63 @@ public final class AnvilManager implements Listener {
         return true;
     }
 
+    private boolean attemptRosegoldConversion(Player player, ItemStack tool, ItemStack resource, Inventory top, int toolSlot, int resourceSlot) {
+        if (tool == null || resource == null) return false;
+        Supplier<ItemStack> supplier = ROSEGOLD_TARGETS.get(tool.getType());
+        if (supplier == null) return false;
+        ItemStack template = supplier.get();
+        if (template == null) return false;
+        if (!isRosegoldIngot(resource)) return false;
+
+        CustomDurabilityManager durabilityManager;
+        try {
+            durabilityManager = CustomDurabilityManager.getInstance();
+        } catch (RuntimeException ex) {
+            return false;
+        }
+
+        int newMax = durabilityManager.getMaxDurability(template);
+        if (newMax <= 0) return false;
+
+        int originalMax = Math.max(1, durabilityManager.getMaxDurability(tool));
+        int originalCurrent = durabilityManager.getCurrentDurability(tool);
+        double ratio = originalMax > 0 ? (double) originalCurrent / originalMax : 1.0;
+        int adjustedCurrent = (int) Math.round(ratio * newMax);
+        if (adjustedCurrent < 0) adjustedCurrent = 0;
+        if (adjustedCurrent > newMax) adjustedCurrent = newMax;
+
+        ItemStack converted = tool.clone();
+        ItemMeta convertedMeta = converted.getItemMeta();
+        ItemMeta templateMeta = template.getItemMeta();
+        if (convertedMeta != null && templateMeta != null && templateMeta.hasDisplayName()) {
+            convertedMeta.setDisplayName(templateMeta.getDisplayName());
+            converted.setItemMeta(convertedMeta);
+        }
+
+        if (converted.getType() == Material.GOLDEN_SWORD) {
+            ItemRegistry.applyRosegoldSwordBonus(converted);
+        }
+
+        durabilityManager.removeGoldenDurability(converted);
+        durabilityManager.setCustomDurability(converted, adjustedCurrent, newMax);
+
+        top.setItem(toolSlot, converted);
+        consumeItem(top, resourceSlot, 1);
+        playAnvilSound(player);
+        ItemMeta resultMeta = converted.getItemMeta();
+        String label = (resultMeta != null && resultMeta.hasDisplayName())
+                ? resultMeta.getDisplayName()
+                : ChatColor.LIGHT_PURPLE + "Rosegold Item";
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "Forged " + label + ChatColor.LIGHT_PURPLE + " with strengthened durability.");
+        return true;
+    }
+
+    private boolean isRosegoldIngot(ItemStack item) {
+        if (item == null) return false;
+        ItemStack reference = ItemRegistry.getRosegoldIngot();
+        return reference != null && item.isSimilar(reference);
+    }
+
     private boolean attemptGoldenDurability(Player player, ItemStack heirloom, ItemStack tool, Inventory top, int heirloomSlot, int toolSlot) {
         if (heirloom == null || tool == null) return false;
         HeirloomManager manager = HeirloomManager.getInstance();
@@ -231,6 +308,35 @@ public final class AnvilManager implements Listener {
         consumeItem(top, heirloomSlot, 1);
         player.sendMessage(ChatColor.GOLD + "Applied " + gild + " golden durability.");
         playAnvilSound(player);
+        return true;
+    }
+
+    private boolean attemptEnchantedUpgrade(Player player, ItemStack target, ItemStack book, Inventory top, int bookSlot, int targetSlot) {
+        if (enchantedManager == null) return false;
+        if (target == null || book == null) return false;
+        if (!enchantedManager.isEnchantable(target)) return false;
+        if (!enchantedManager.isCustomEnchantedBook(book)) return false;
+
+        int level = enchantedManager.getEnchantedLevel(target);
+        if (level <= 0) {
+            player.sendMessage(ChatColor.RED + "You must Enchant the item at a table first.");
+            return true;
+        }
+        if (level >= 3) {
+            player.sendMessage(ChatColor.RED + "That item is already Enchanted III.");
+            return true;
+        }
+
+        boolean upgraded = enchantedManager.upgradeItem(target);
+        if (!upgraded) {
+            player.sendMessage(ChatColor.RED + "The book fails to empower that item.");
+            return true;
+        }
+
+        top.setItem(targetSlot, target);
+        consumeItem(top, bookSlot, 1);
+        player.playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1f, 1.2f);
+        player.sendMessage(ChatColor.LIGHT_PURPLE + "Enchanted level increased to " + roman(enchantedManager.getEnchantedLevel(target)) + ".");
         return true;
     }
 
@@ -286,5 +392,14 @@ public final class AnvilManager implements Listener {
                 1.0f,
                 1.0f
         );
+    }
+
+    private String roman(int level) {
+        return switch (level) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            default -> String.valueOf(level);
+        };
     }
 }

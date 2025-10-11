@@ -51,6 +51,11 @@ public final class SidebarManager implements Listener {
         REGION_TEMPS.put(Region.CHERRY, 68.0);
         REGION_TEMPS.put(Region.OCEAN, 60.0);
         REGION_TEMPS.put(Region.NETHER, 150.0);
+        REGION_TEMPS.put(Region.NETHER_WASTELAND, 150.0);
+        REGION_TEMPS.put(Region.NETHER_BASIN, 140.0);
+        REGION_TEMPS.put(Region.NETHER_CLIFF, 150.0);
+        REGION_TEMPS.put(Region.NETHER_OCEAN, 150.0);
+        REGION_TEMPS.put(Region.NETHER_BOUNDARY, 150.0);
     }
 
     private final ProjectLinearity plugin;

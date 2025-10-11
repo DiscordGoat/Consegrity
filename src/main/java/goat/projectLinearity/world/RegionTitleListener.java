@@ -1,6 +1,7 @@
 package goat.projectLinearity.world;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.commands.RegenerateNetherCommand;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,7 +16,9 @@ import java.util.UUID;
 import static goat.projectLinearity.world.ConsegrityRegions.Region;
 
 public class RegionTitleListener implements Listener {
-    private static final String WORLD_NAME = "Consegrity";
+    private static final String CONSEGRITY_WORLD = "Consegrity";
+    private static final String CONSEGRITY_NETHER_WORLD = RegenerateNetherCommand.WORLD_NAME;
+
     private final Map<UUID, Region> lastRegion = new HashMap<>();
     private final ProjectLinearity plugin;
 
@@ -25,35 +28,49 @@ public class RegionTitleListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Player p = event.getPlayer();
-        if (!WORLD_NAME.equals(p.getWorld().getName())) return;
-        Region r = ConsegrityRegions.regionAt(p.getWorld(), p.getLocation().getBlockX(), p.getLocation().getBlockY(), p.getLocation().getBlockZ());
-        lastRegion.put(p.getUniqueId(), r);
-        sendTitle(p, r);
-        // Also show the relevant advancement tab for the region
-        showRegionTab(p, r);
+        Player player = event.getPlayer();
+        if (!isTrackedWorld(player.getWorld())) return;
+
+        Region region = ConsegrityRegions.regionAt(player.getWorld(),
+                player.getLocation().getBlockX(),
+                player.getLocation().getBlockY(),
+                player.getLocation().getBlockZ());
+        lastRegion.put(player.getUniqueId(), region);
+        sendTitle(player, region);
+        showRegionTab(player, region);
     }
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
         if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
-            event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
+            event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
 
-        Player p = event.getPlayer();
-        World w = p.getWorld();
-        if (!WORLD_NAME.equals(w.getName())) return;
+        Player player = event.getPlayer();
+        World world = player.getWorld();
+        if (!isTrackedWorld(world)) return;
 
-        Region r = ConsegrityRegions.regionAt(w, event.getTo().getBlockX(), event.getTo().getBlockY(), event.getTo().getBlockZ());
-        Region prev = lastRegion.get(p.getUniqueId());
-        if (prev != r) {
-            lastRegion.put(p.getUniqueId(), r);
-            sendTitle(p, r);
-            showRegionTab(p, r);
+        Region region = ConsegrityRegions.regionAt(world,
+                event.getTo().getBlockX(),
+                event.getTo().getBlockY(),
+                event.getTo().getBlockZ());
+        Region previous = lastRegion.get(player.getUniqueId());
+        if (previous != region) {
+            lastRegion.put(player.getUniqueId(), region);
+            sendTitle(player, region);
+            showRegionTab(player, region);
         }
     }
 
-    private void sendTitle(Player p, Region r) {
-        String title = switch (r) {
+    private boolean isTrackedWorld(World world) {
+        if (world == null) return false;
+        String name = world.getName();
+        return CONSEGRITY_WORLD.equals(name) || CONSEGRITY_NETHER_WORLD.equals(name);
+    }
+
+    private void sendTitle(Player player, Region region) {
+        String title = switch (region) {
             case CENTRAL -> "Central";
             case DESERT -> "Desert";
             case SAVANNAH -> "Savannah";
@@ -65,18 +82,22 @@ public class RegionTitleListener implements Listener {
             case CHERRY -> "Cherry";
             case OCEAN -> "Ocean";
             case NETHER -> "Nether";
+            case NETHER_WASTELAND -> "The Wasteland";
+            case NETHER_CLIFF -> "The Cliff";
+            case NETHER_BASIN -> "Nether Basin";
+            case NETHER_OCEAN -> "Nether Ocean";
+            case NETHER_BOUNDARY -> "Nether Boundary";
         };
         try {
-            p.sendTitle(title, "", 5, 40, 5);
+            player.sendTitle(title, "", 5, 40, 5);
         } catch (Throwable ignored) {
-            // In case API changes, fallback to chat
-            p.sendMessage("You have entered: " + title);
+            player.sendMessage("You have entered: " + title);
         }
     }
 
-    private void showRegionTab(Player p, Region r) {
+    private void showRegionTab(Player player, Region region) {
         try {
-            plugin.showRegionTab(p, r);
+            plugin.showRegionTab(player, region);
         } catch (Throwable ignored) {
         }
     }
