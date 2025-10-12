@@ -135,6 +135,17 @@ public final class StructureManager {
             }
         }
 
+        ConsegrityRegions.Region surfaceRegion = reg.type == GenCheckType.HELL ? null : ConsegrityRegions.regionAt(world, wx, wz);
+        ConsegrityRegions.Region hellRegion = reg.type == GenCheckType.HELL ? ConsegrityRegions.regionAt(world, wx, -80, wz) : null;
+        if (!reg.allowsAt(world, wx, wz, surfaceRegion, hellRegion)) {
+            if (debugEnabled) dbg(reg.schemName).inc(detailRegionFail(world, reg, wx, wz, surfaceRegion, hellRegion));
+            return false;
+        }
+        if (!sectorBufferSatisfied(reg, world, wx, wz, surfaceRegion, hellRegion, null)) {
+            if (debugEnabled) dbg(reg.schemName).inc("SECTOR_BUFFER");
+            return false;
+        }
+
         Location paste = pickPlacement(world, wx, wz, reg, rng);
         if (paste == null) {
             if (debugEnabled) {
@@ -148,7 +159,9 @@ public final class StructureManager {
         try {
             int cx = paste.getBlockX() >> 4;
             int cz = paste.getBlockZ() >> 4;
-            world.getChunkAt(cx, cz).load(true);
+            if (!world.isChunkLoaded(cx, cz)) {
+                world.getChunkAt(cx, cz).load(true);
+            }
         } catch (Throwable ignore) {}
 
         boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
@@ -211,6 +224,7 @@ public final class StructureManager {
     boolean tryPlaceOne(World world, int chunkX, int chunkZ, Random rng) {
         boolean placedAny = false;
         String worldKey = world.getUID().toString();
+        RegionCache regionCache = new RegionCache(world);
         for (Registration reg : registrations) {
             if (reg.placedCount(worldKey) >= reg.count) continue;
             // try a few attempts in this chunk
@@ -220,8 +234,14 @@ public final class StructureManager {
                 int wx = (chunkX << 4) + lx;
                 int wz = (chunkZ << 4) + lz;
                 if (debugEnabled) dbg(reg.schemName).attempts++;
-                if (!reg.allowsAt(world, wx, wz)) {
-                    if (debugEnabled) dbg(reg.schemName).inc(detailRegionFail(world, reg, wx, wz));
+                ConsegrityRegions.Region surfaceRegion = reg.type == GenCheckType.HELL ? null : regionCache.surface(wx, wz);
+                ConsegrityRegions.Region hellRegion = reg.type == GenCheckType.HELL ? regionCache.underworld(wx, wz) : null;
+                if (!reg.allowsAt(world, wx, wz, surfaceRegion, hellRegion)) {
+                    if (debugEnabled) dbg(reg.schemName).inc(detailRegionFail(world, reg, wx, wz, surfaceRegion, hellRegion));
+                    continue;
+                }
+                if (!sectorBufferSatisfied(reg, world, wx, wz, surfaceRegion, hellRegion, regionCache)) {
+                    if (debugEnabled) dbg(reg.schemName).inc("SECTOR_BUFFER");
                     continue;
                 }
 
@@ -234,17 +254,17 @@ public final class StructureManager {
                     }
                 }
 
+                if (!reg.isSpaced(worldKey, wx, wz)) {
+                    if (debugEnabled) dbg(reg.schemName).inc("SPACING");
+                    continue;
+                }
+
                 Location paste = pickPlacement(world, wx, wz, reg, rng);
                 if (paste == null) {
                     if (debugEnabled) {
                         String reason = detailPickFail(world, reg, wx, wz, rng);
                         dbg(reg.schemName).inc(reason == null ? "PICK_FAILED" : reason);
                     }
-                    continue;
-                }
-
-                if (!reg.isSpaced(worldKey, wx, wz)) {
-                    if (debugEnabled) dbg(reg.schemName).inc("SPACING");
                     continue;
                 }
 
@@ -274,12 +294,76 @@ public final class StructureManager {
     }
 
     private String detailRegionFail(World world, Registration reg, int wx, int wz) {
+        return detailRegionFail(world, reg, wx, wz, null, null);
+    }
+
+    private String detailRegionFail(World world, Registration reg, int wx, int wz, ConsegrityRegions.Region surfaceRegion, ConsegrityRegions.Region hellRegion) {
         try {
-            ConsegrityRegions.Region here = (reg.type == GenCheckType.HELL) ? ConsegrityRegions.regionAt(world, wx, -80, wz) : ConsegrityRegions.regionAt(world, wx, wz);
+            ConsegrityRegions.Region here;
+            if (reg.type == GenCheckType.HELL) {
+                here = (hellRegion != null) ? hellRegion : ConsegrityRegions.regionAt(world, wx, -80, wz);
+            } else {
+                here = (surfaceRegion != null) ? surfaceRegion : ConsegrityRegions.regionAt(world, wx, wz);
+            }
             if (reg.region != null && here != reg.region) return "REGION_MISMATCH:" + here;
             if (reg.type == GenCheckType.SURFACE && reg.region == null && here == ConsegrityRegions.Region.MOUNTAIN) return "SURFACE_AVOID_MOUNTAIN";
         } catch (Throwable ignored) {}
         return "REGION_FILTER";
+    }
+
+    private boolean sectorBufferSatisfied(Registration reg,
+                                          World world,
+                                          int wx,
+                                          int wz,
+                                          ConsegrityRegions.Region surfaceRegion,
+                                          ConsegrityRegions.Region hellRegion,
+                                          RegionCache cache) {
+        if (reg.bounds <= 4) return true;
+        boolean nether = reg.type == GenCheckType.HELL;
+        ConsegrityRegions.Region base = nether
+                ? (hellRegion != null ? hellRegion : ConsegrityRegions.regionAt(world, wx, -80, wz))
+                : (surfaceRegion != null ? surfaceRegion : ConsegrityRegions.regionAt(world, wx, wz));
+        if (base == null) return false;
+        int radius = Math.max(4, reg.bounds / 2);
+        int[] offsets = offsetsForRadius(radius);
+        for (int dx : offsets) {
+            for (int dz : offsets) {
+                if (dx == 0 && dz == 0) continue;
+                int sx = wx + dx;
+                int sz = wz + dz;
+                ConsegrityRegions.Region sample = nether ? fetchRegion(world, cache, sx, sz, true)
+                                                         : fetchRegion(world, cache, sx, sz, false);
+                if (sample != base) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static ConsegrityRegions.Region fetchRegion(World world, RegionCache cache, int x, int z, boolean nether) {
+        if (cache != null) {
+            return nether ? cache.underworld(x, z) : cache.surface(x, z);
+        }
+        return nether ? ConsegrityRegions.regionAt(world, x, -80, z) : ConsegrityRegions.regionAt(world, x, z);
+    }
+
+    private static int[] offsetsForRadius(int radius) {
+        java.util.LinkedHashSet<Integer> offsets = new java.util.LinkedHashSet<>();
+        offsets.add(0);
+        offsets.add(radius);
+        offsets.add(-radius);
+        int mid = radius / 2;
+        if (mid > 0 && mid != radius) {
+            offsets.add(mid);
+            offsets.add(-mid);
+        }
+        int quarter = radius / 4;
+        if (quarter > 0 && quarter != mid && quarter != radius) {
+            offsets.add(quarter);
+            offsets.add(-quarter);
+        }
+        return offsets.stream().mapToInt(Integer::intValue).toArray();
     }
 
     private String detailPickFail(World world, Registration reg, int wx, int wz, Random rng) {
@@ -624,18 +708,20 @@ public final class StructureManager {
         }
 
         boolean allowsAt(World w, int wx, int wz) {
+            ConsegrityRegions.Region surface = (type == GenCheckType.HELL) ? null : ConsegrityRegions.regionAt(w, wx, wz);
+            ConsegrityRegions.Region hell = (type == GenCheckType.HELL) ? ConsegrityRegions.regionAt(w, wx, -80, wz) : null;
+            return allowsAt(w, wx, wz, surface, hell);
+        }
+
+        boolean allowsAt(World w, int wx, int wz, ConsegrityRegions.Region surfaceRegion, ConsegrityRegions.Region hellRegion) {
             ConsegrityRegions.Region here;
             if (type == GenCheckType.HELL) {
-                here = ConsegrityRegions.regionAt(w, wx, -80, wz);
+                here = hellRegion != null ? hellRegion : ConsegrityRegions.regionAt(w, wx, -80, wz);
             } else {
-                here = ConsegrityRegions.regionAt(w, wx, wz);
+                here = surfaceRegion != null ? surfaceRegion : ConsegrityRegions.regionAt(w, wx, wz);
             }
             if (region != null && here != region) return false;
-            // Additional soft filters
-            if (type == GenCheckType.SURFACE) {
-                // Avoid mountain region for surface unless specifically targeted
-                if (region == null && here == ConsegrityRegions.Region.MOUNTAIN) return false;
-            }
+            if (type == GenCheckType.SURFACE && region == null && here == ConsegrityRegions.Region.MOUNTAIN) return false;
             return true;
         }
 
@@ -680,6 +766,40 @@ public final class StructureManager {
     }
 
     // --- Utilities ---
+    private static final class RegionCache {
+        private final World world;
+        private final java.util.Map<Long, ConsegrityRegions.Region> surface = new java.util.HashMap<>();
+        private final java.util.Map<Long, ConsegrityRegions.Region> underworld = new java.util.HashMap<>();
+
+        RegionCache(World world) {
+            this.world = world;
+        }
+
+        ConsegrityRegions.Region surface(int wx, int wz) {
+            long key = pack(wx, wz);
+            ConsegrityRegions.Region region = surface.get(key);
+            if (region == null) {
+                region = ConsegrityRegions.regionAt(world, wx, wz);
+                surface.put(key, region);
+            }
+            return region;
+        }
+
+        ConsegrityRegions.Region underworld(int wx, int wz) {
+            long key = pack(wx, wz);
+            ConsegrityRegions.Region region = underworld.get(key);
+            if (region == null) {
+                region = ConsegrityRegions.regionAt(world, wx, -80, wz);
+                underworld.put(key, region);
+            }
+            return region;
+        }
+
+        private static long pack(int x, int z) {
+            return (((long) x) << 32) ^ (z & 0xFFFFFFFFL);
+        }
+    }
+
     private void grassifyTopLayerUnderBounds(World world, int centerX, int centerZ, int startY, int bounds) {
         if (world == null || bounds <= 0) return;
         int half = bounds / 2;
