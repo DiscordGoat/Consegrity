@@ -328,6 +328,11 @@ public final class StructureManager {
     }
 
     private String debugReasonUnderwater(World world, int wx, int wz, int bounds) {
+        double radiusLimit = ConsegrityRegions.LANDMASS_RADIUS + Math.max(1, bounds) * 0.5;
+        double distSq = (double) wx * (double) wx + (double) wz * (double) wz;
+        if (distSq <= radiusLimit * radiusLimit) {
+            return "INSIDE_LAND_RADIUS";
+        }
         int half = Math.max(1, bounds / 2);
         int[] xs = new int[] { wx - half, wx + half, wx - half, wx + half, wx };
         int[] zs = new int[] { wz - half, wz - half, wz + half, wz + half, wz };
@@ -455,6 +460,11 @@ public final class StructureManager {
     }
 
     private Location findUnderwaterSpot(World world, int wx, int wz, int bounds) {
+        double radiusLimit = ConsegrityRegions.LANDMASS_RADIUS + Math.max(1, bounds) * 0.5;
+        double distSq = (double) wx * (double) wx + (double) wz * (double) wz;
+        if (distSq <= radiusLimit * radiusLimit) {
+            return null;
+        }
         int half = Math.max(1, bounds / 2);
         int[] xs = new int[] { wx - half, wx + half, wx - half, wx + half, wx };
         int[] zs = new int[] { wz - half, wz - half, wz + half, wz + half, wz };
@@ -599,6 +609,7 @@ public final class StructureManager {
 
         private ConsegrityRegions.Region mapRegion(Sector sector, GenCheckType type) {
             if (type == GenCheckType.HELL) return ConsegrityRegions.Region.NETHER;
+            if (sector instanceof OceanSector) return ConsegrityRegions.Region.OCEAN;
             if (sector instanceof DesertBiome) return ConsegrityRegions.Region.DESERT;
             if (sector instanceof SavannaSector) return ConsegrityRegions.Region.SAVANNAH;
             if (sector instanceof SwampSector) return ConsegrityRegions.Region.SWAMP;
