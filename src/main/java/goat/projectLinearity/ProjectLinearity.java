@@ -13,7 +13,7 @@ import goat.projectLinearity.commands.SetStatCommand;
 import goat.projectLinearity.commands.DebugOxygenCommand;
 import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.WarptoCommand;
-import goat.projectLinearity.libs.VillagerTradeManager;
+import goat.projectLinearity.util.VillagerTradeManager;
 import goat.projectLinearity.util.CulinaryCauldron;
 import goat.projectLinearity.util.CulinarySubsystem;
 import goat.projectLinearity.util.ShelfManager;

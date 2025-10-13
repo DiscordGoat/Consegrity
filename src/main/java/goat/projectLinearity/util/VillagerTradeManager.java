@@ -1,7 +1,6 @@
-package goat.projectLinearity.libs;
+package goat.projectLinearity.util;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.util.EnchantedManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
