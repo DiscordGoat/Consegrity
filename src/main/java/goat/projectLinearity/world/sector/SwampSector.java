@@ -5,7 +5,6 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.generator.ChunkGenerator;
 
-import java.util.Random;
 import java.util.SplittableRandom;
 
 public class SwampSector extends SectorBase {
@@ -114,7 +113,7 @@ public class SwampSector extends SectorBase {
             Material ground = safeType(data, lx, topY, lz);
             if (ground != Material.GRASS_BLOCK && ground != Material.DIRT) continue;
             if (rng.nextDouble() > 0.18) continue;
-            growSwampTree(data, lx, topY + 1, lz, Material.OAK_LOG, Material.OAK_LEAVES, new Random(rng.nextLong()));
+            growSwampTree(data, lx, topY + 1, lz, Material.OAK_LOG, Material.OAK_LEAVES, rng.split());
             if (rng.nextBoolean()) addVinesAround(data, lx, topY + 1, lz, rng);
         }
 
@@ -135,7 +134,7 @@ public class SwampSector extends SectorBase {
         }
     }
 
-    private void growSwampTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, Random rng) {
+    private void growSwampTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, SplittableRandom rng) {
         int height = 5 + rng.nextInt(3); // Increased height by 1
         for (int i = 0; i < height; ++i) data.setBlock(lx, y + i, lz, log);
         int cy = y + height - 2; // Keep canopy at original height

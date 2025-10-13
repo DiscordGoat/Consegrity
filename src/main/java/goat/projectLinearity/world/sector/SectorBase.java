@@ -10,7 +10,6 @@ import org.bukkit.block.data.MultipleFacing;
 import org.bukkit.block.data.type.Leaves;
 import org.bukkit.generator.ChunkGenerator;
 
-import java.util.Random;
 import java.util.SplittableRandom;
 
 // Shared helpers for sector implementations.
@@ -134,7 +133,7 @@ abstract class SectorBase implements Sector {
         if (top + 1 < y + height + 8) data.setBlock(lx, top + 1, lz, spruceLeaves);
     }
 
-    protected void growSimpleTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, Random rng) {
+    protected void growSimpleTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, Material log, Material leaves, SplittableRandom rng) {
         int height = 4 + rng.nextInt(3);
         for (int i = 0; i < height; ++i) data.setBlock(lx, y + i, lz, log);
         int cy = y + height - 1;

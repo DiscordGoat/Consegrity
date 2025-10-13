@@ -8,8 +8,8 @@ import org.bukkit.generator.ChunkGenerator;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
+import java.util.SplittableRandom;
 
 public class CentralSector extends SectorBase {
     private static final int SEA_LEVEL = 153; // keep consistent with generator
@@ -32,7 +32,7 @@ public class CentralSector extends SectorBase {
     }
 
     private void placeCentralTrees(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
-        Random rng = new Random(hash(seed, chunkX, 123L, chunkZ, 466661L));
+        SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 466661L);
         for (int lx = 0; lx < 16; ++lx) {
             for (int lz = 0; lz < 16; ++lz) {
                 if (centralMaskGrid[lx][lz] < 0.6) continue;
@@ -59,7 +59,7 @@ public class CentralSector extends SectorBase {
     }
 
     private void placeCentralGrass(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, double[][] centralMaskGrid) {
-        java.util.SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 206158430L);
+        SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 206158430L);
         Material grassPlant = pickGrassPlant();
         List<int[]> validSpots = new ArrayList<>();
         for (int lx = 0; lx < 16; lx++) {

@@ -113,13 +113,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         registerRecipes();
 
         try {
-            structureManager.registerStruct("jungletemple", 24, 10, 200, new JungleSector(), GenCheckType.SURFACE, true, 300);
-            structureManager.registerStruct("deserttemple", 30, 5, 200, new DesertBiome(), GenCheckType.SURFACE, true, 200);
-            structureManager.registerStruct("witchhut", 10, 7, 150, new SwampSector(), GenCheckType.SURFACE, true, 150);
+            structureManager.registerStruct("jungletemple", 24, 7, 100, new JungleSector(), GenCheckType.SURFACE, true, 300);
+            structureManager.registerStruct("deserttemple", 30, 5, 200, new DesertBiome(), GenCheckType.SURFACE, true, 100);
+            structureManager.registerStruct("witchhut", 10, 7, 100, new SwampSector(), GenCheckType.SURFACE, true, 150);
             structureManager.registerStruct("witchfestival", 60, 1, 200, new SwampSector(), GenCheckType.SURFACE, true, 300);
             structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 400);
             structureManager.registerStruct("hotspring", 10, 10, 100, new CherrySector(), GenCheckType.SURFACE, true, 120);
-            structureManager.registerStruct("monument", 70, 100, 500, new OceanSector(), GenCheckType.UNDERWATER, true, 80);
+            structureManager.registerStruct("monument", 70, 20, 500, new OceanSector(), GenCheckType.UNDERWATER, true, 80);
+            structureManager.registerStruct("pillager", 20, 12, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
+            structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
         } catch (Throwable ignored) {}
 
         // Top-up scheduling is started after pre-generation completes in RegenerateCommand

@@ -324,18 +324,23 @@ public final class StructureManager {
                 ? (hellRegion != null ? hellRegion : ConsegrityRegions.regionAt(world, wx, -80, wz))
                 : (surfaceRegion != null ? surfaceRegion : ConsegrityRegions.regionAt(world, wx, wz));
         if (base == null) return false;
-        int radius = Math.max(4, reg.bounds / 2);
-        int[] offsets = offsetsForRadius(radius);
-        for (int dx : offsets) {
-            for (int dz : offsets) {
-                if (dx == 0 && dz == 0) continue;
-                int sx = wx + dx;
-                int sz = wz + dz;
-                ConsegrityRegions.Region sample = nether ? fetchRegion(world, cache, sx, sz, true)
-                                                         : fetchRegion(world, cache, sx, sz, false);
-                if (sample != base) {
-                    return false;
-                }
+        int checkDistance = 50;
+        for (int offset = -checkDistance; offset <= checkDistance; offset++) {
+            if (offset == 0) continue;
+            int sx = wx + offset;
+            ConsegrityRegions.Region sample = nether ? fetchRegion(world, cache, sx, wz, true)
+                                                     : fetchRegion(world, cache, sx, wz, false);
+            if (sample != base) {
+                return false;
+            }
+        }
+        for (int offset = -checkDistance; offset <= checkDistance; offset++) {
+            if (offset == 0) continue;
+            int sz = wz + offset;
+            ConsegrityRegions.Region sample = nether ? fetchRegion(world, cache, wx, sz, true)
+                                                     : fetchRegion(world, cache, wx, sz, false);
+            if (sample != base) {
+                return false;
             }
         }
         return true;
@@ -346,24 +351,6 @@ public final class StructureManager {
             return nether ? cache.underworld(x, z) : cache.surface(x, z);
         }
         return nether ? ConsegrityRegions.regionAt(world, x, -80, z) : ConsegrityRegions.regionAt(world, x, z);
-    }
-
-    private static int[] offsetsForRadius(int radius) {
-        java.util.LinkedHashSet<Integer> offsets = new java.util.LinkedHashSet<>();
-        offsets.add(0);
-        offsets.add(radius);
-        offsets.add(-radius);
-        int mid = radius / 2;
-        if (mid > 0 && mid != radius) {
-            offsets.add(mid);
-            offsets.add(-mid);
-        }
-        int quarter = radius / 4;
-        if (quarter > 0 && quarter != mid && quarter != radius) {
-            offsets.add(quarter);
-            offsets.add(-quarter);
-        }
-        return offsets.stream().mapToInt(Integer::intValue).toArray();
     }
 
     private String detailPickFail(World world, Registration reg, int wx, int wz, Random rng) {

@@ -5,43 +5,142 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.generator.ChunkGenerator;
 
+import java.util.SplittableRandom;
+
 public class MesaSector extends SectorBase {
+    public static final int VALLEY_FLOOR_Y = 166;
+    private static final double PLATEAU_START_OFFSET = 100.0;
+    private static final double PLATEAU_FLATTEN_FACTOR = 0.18;
+    private static final double PLATEAU_NOISE = 2.5;
+    private static final int FOREST_CELL = 48;
+
     @Override
     public int computeSurfaceY(World world, long seed, int wx, int wz) {
-        // Keep mesa base relief similar to dunes/strata
-        double h1 = valueNoise2(seed ^ 0xBADA11D5L, (double) wx / 300.0, (double) wz / 300.0);
-        double h2 = valueNoise2(seed ^ 0xBADA11D6L, (double) wx / 96.0, (double) wz / 96.0);
-        double h3 = valueNoise2(seed ^ 0xBADA11D7L, (double) wx / 36.0, (double) wz / 36.0);
-        double baseNoise = (h1 * 0.55 + h2 * 0.30 + h3 * 0.15) * 2.0 - 1.0;
-        // Flatter base plateau
-        double base = 170.0 + baseNoise * 6.0;
+        double raw = mountainPlateauProfile(world, seed, wx, wz);
+        double plateauStart = VALLEY_FLOOR_Y + PLATEAU_START_OFFSET;
+        double height = raw;
+        if (height > plateauStart) {
+            double above = height - plateauStart;
+            height = plateauStart + above * PLATEAU_FLATTEN_FACTOR;
+            double wobble = (fbm2(seed ^ 0x5ED0BEEF, (double) wx * 0.02, (double) wz * 0.02) - 0.5) * 2.0 * PLATEAU_NOISE;
+            height += wobble;
+            height -= 10.0;
+        }
 
-        // Mountain overlay: match Jungle mountain frequency but twice the height, heavier erosion
-        double field = 0.0;
-        field += peakSum(seed, wx, wz, 140.0, 56.0, 36.0, 2.2, 0xA11L);
-        field += peakSum(seed, wx, wz, 96.0, 36.0, 24.0, 2.0, 0xA12L);
-        field += peakSum(seed, wx, wz, 64.0, 22.0, 14.0, 1.8, 0xA13L);
-
-        double ridge = fbm2(seed ^ 0xCAFED00DL, (double) wx * 0.018, (double) wz * 0.018);
-        double plains = (fbm2(seed ^ 0x600DD00EL, (double) wx * 0.02, (double) wz * 0.02) - 0.5) * 2.0 * 4.2;
-        double micro = (fbm2(seed ^ 0x33AA55CCL, (double) wx * 0.06, (double) wz * 0.06) - 0.5) * 2.0 * 2.8;
-
-        // Twice jungle mountain height (jungle uses 0.5 * (...)) and add strong erosion subtraction
-        double rawMountains = (plains + micro + (ridge - 0.5) * 2.0 * 16.0 + field);
-        double erosion = (fbm2(seed ^ 0xE0B0DE5L, (double) wx * 0.03, (double) wz * 0.03) - 0.5) * 2.0
-                + (fbm2(seed ^ 0xE0B0DE6L, (double) wx * 0.008, (double) wz * 0.008) - 0.5) * 2.0;
-        double mountains = 1.0 * rawMountains - erosion * 8.0; // stronger erosion
-
-        int yCap = Math.min(360, Math.max(256, world.getMaxHeight() - 1));
-        double H = base + mountains;
-        if (H < 150.0) H = 150.0;
-        if (H > yCap) H = yCap;
-        return (int) Math.round(H);
+        int yCap = Math.min(320, Math.max(256, world.getMaxHeight() - 1));
+        if (height < VALLEY_FLOOR_Y) height = VALLEY_FLOOR_Y;
+        if (height > yCap) height = yCap;
+        return (int) Math.round(height);
     }
 
     @Override
     public void decorate(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ,
                          int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid, double[][] centralMaskGrid) {
+        placePlateauForests(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
+        placeMesaFlora(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
+    }
+
+    private double mountainPlateauProfile(World world, long seed, int wx, int wz) {
+        double base = VALLEY_FLOOR_Y + 12.0;
+        double low = fbm2(seed ^ 0xA1B2C3D4L, (double) wx * 0.003, (double) wz * 0.003);
+        double mountainBand = (low - 0.5) * 2.0;
+        double t0 = -0.22, t1 = 0.28;
+        double mask = clamp01((mountainBand - t0) / (t1 - t0));
+
+        double field = 0.0;
+        field += peakSum(seed, wx, wz, 176.0, 60.0, 44.0, 2.2, 0xA11L) * 1.25;
+        field += peakSum(seed, wx, wz, 112.0, 44.0, 32.0, 2.0, 0xA12L) * 1.15;
+        field += peakSum(seed, wx, wz, 72.0, 28.0, 20.0, 1.9, 0xA13L) * 1.1;
+        field += peakSum(seed, wx, wz, 48.0, 18.0, 14.0, 1.75, 0xA14L);
+
+        double ridge = fbm2(seed ^ 0xCAFED00DL, (double) wx * 0.02, (double) wz * 0.02);
+        double plains = (fbm2(seed ^ 0x600DD00EL, (double) wx * 0.02, (double) wz * 0.02) - 0.5) * 2.0 * 3.2;
+        double between = (fbm2(seed ^ 0x77EEDD11L, (double) wx * 0.01, (double) wz * 0.01) - 0.5) * 2.0;
+        double betweenAmp = 16.0 * (1.0 - mask * 0.8);
+        double micro = (fbm2(seed ^ 0x33AA55CCL, (double) wx * 0.064, (double) wz * 0.064) - 0.5) * 2.0 * 2.2;
+
+        double baseH = base + plains + between * betweenAmp + micro;
+        baseH += (ridge - 0.5) * 2.0 * 16.0 * mask;
+        baseH += field;
+        baseH += fbm2(seed ^ 0xE01234L, (double) wx * 0.004, (double) wz * 0.004) * 36.0 * mask;
+
+        double maskFactor = 0.25 + mask * 0.9;
+        if (maskFactor > 1.0) maskFactor = 1.0;
+        baseH = VALLEY_FLOOR_Y + (baseH - VALLEY_FLOOR_Y) * maskFactor;
+
+        // Encourage valley floors to settle toward the valley plane
+        double valleyPull = clamp01(1.0 - Math.max(0.0, baseH - (VALLEY_FLOOR_Y + 18.0)) / 26.0);
+        baseH = lerp(baseH, VALLEY_FLOOR_Y, valleyPull * 0.35);
+
+        if (baseH < VALLEY_FLOOR_Y) baseH = VALLEY_FLOOR_Y;
+        return baseH;
+    }
+
+    private void placePlateauForests(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ,
+                                     int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
+        int baseX = chunkX << 4;
+        int baseZ = chunkZ << 4;
+        int minCellX = Math.floorDiv(baseX, FOREST_CELL);
+        int maxCellX = Math.floorDiv(baseX + 15, FOREST_CELL);
+        int minCellZ = Math.floorDiv(baseZ, FOREST_CELL);
+        int maxCellZ = Math.floorDiv(baseZ + 15, FOREST_CELL);
+
+        for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
+            for (int cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
+                if (!cellHasForest(seed, cellX, cellZ)) continue;
+                int anchorX = forestAnchorX(seed, cellX, cellZ);
+                int anchorZ = forestAnchorZ(seed, cellX, cellZ);
+                if (anchorX < baseX || anchorX > baseX + 15 || anchorZ < baseZ || anchorZ > baseZ + 15) continue;
+                int lx = anchorX - baseX;
+                int lz = anchorZ - baseZ;
+                if (regionGrid[lx][lz] != ConsegrityRegions.Region.MESA) continue;
+                int topY = topYGrid[lx][lz];
+                if (topY <= VALLEY_FLOOR_Y + 1) continue;
+                if (slopeGrid(topYGrid, lx, lz) > 1) continue;
+
+                SplittableRandom rng = rngFor(seed, anchorX, anchorZ, 0xD45A0L);
+                int trees = 2 + rng.nextInt(3);
+                for (int i = 0; i < trees; i++) {
+                    int ox = rng.nextInt(7) - 3;
+                    int oz = rng.nextInt(7) - 3;
+                    int tx = lx + ox;
+                    int tz = lz + oz;
+                    if (tx < 1 || tx > 14 || tz < 1 || tz > 14) continue;
+                    if (regionGrid[tx][tz] != ConsegrityRegions.Region.MESA) continue;
+                    int ty = topYGrid[tx][tz];
+                    if (ty <= VALLEY_FLOOR_Y) continue;
+                    if (Math.abs(ty - topY) > 2) continue;
+                    if (slopeGrid(topYGrid, tx, tz) > 1) continue;
+                    Material ground = safeType(data, tx, ty, tz);
+                    if (!ground.name().contains("TERRACOTTA")) continue;
+                    if (safeType(data, tx, ty + 1, tz) != Material.AIR) continue;
+
+                    data.setBlock(tx, ty, tz, Material.COARSE_DIRT);
+                    growSimpleTree(data, tx, ty + 1, tz, Material.DARK_OAK_LOG, Material.DARK_OAK_LEAVES, rng.split());
+                }
+            }
+        }
+    }
+
+    private boolean cellHasForest(long seed, int cellX, int cellZ) {
+        double r = rand01(hash(seed, cellX, 0L, cellZ, 0x50F357L));
+        return r < 0.5;
+    }
+
+    private int forestAnchorX(long seed, int cellX, int cellZ) {
+        long h = hash(seed, cellX, 0L, cellZ, 0xF04571L);
+        double offset = (rand01(h) - 0.5) * (FOREST_CELL - 16);
+        return cellX * FOREST_CELL + FOREST_CELL / 2 + (int) Math.round(offset);
+    }
+
+    private int forestAnchorZ(long seed, int cellX, int cellZ) {
+        long h = hash(seed, cellZ, 0L, cellX, 0xF04572L);
+        double offset = (rand01(h) - 0.5) * (FOREST_CELL - 16);
+        return cellZ * FOREST_CELL + FOREST_CELL / 2 + (int) Math.round(offset);
+    }
+
+    private void placeMesaFlora(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ,
+                                int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
         // Rare cactus/dead bush for mesa: 25% of desert cactus rate; dead bush also rare
         // Desert cactus rate is 0.5% per sandy block -> 0.125% here
         final double CACTUS_P = 0.005 * 0.25;      // 0.00125

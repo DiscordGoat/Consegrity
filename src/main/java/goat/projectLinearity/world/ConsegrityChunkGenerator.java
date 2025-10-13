@@ -3,6 +3,7 @@ package goat.projectLinearity.world;
 import goat.projectLinearity.libs.ArcticChunkGenerator;
 import java.util.Random;
 import java.util.SplittableRandom;
+import java.util.function.IntUnaryOperator;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
@@ -50,6 +51,24 @@ extends ArcticChunkGenerator {
     private static final double[] R1_SPLITS = new double[]{0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
     private static final double[] R2_SPLITS = new double[]{0.0, 0.3333333333333, 0.6666666666666, 1.0};
     private static final int[] OFFS = new int[]{0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1};
+    private static final int HEIGHT_CENTRAL = 0;
+    private static final int HEIGHT_DESERT = 1;
+    private static final int HEIGHT_SAVANNA = 2;
+    private static final int HEIGHT_SWAMP = 3;
+    private static final int HEIGHT_JUNGLE = 4;
+    private static final int HEIGHT_ICE = 5;
+    private static final int HEIGHT_CHERRY = 6;
+    private static final int HEIGHT_MESA = 7;
+    private static final int HEIGHT_MOUNTAIN = 8;
+    private static final int HEIGHT_COUNT = 9;
+    private static final int DESERT_RING_BASE = 163;
+    private static final int SAVANNA_RING_BASE = 165;
+    private static final int SWAMP_RING_BASE = 161;
+    private static final int MESA_RING_BASE = 175;
+    private static final int JUNGLE_RING_BASE = 169;
+    private static final int ICE_RING_BASE = 167;
+    private static final int CHERRY_RING_BASE = 173;
+    private static final int MOUNTAIN_RING_BASE = 175;
 
     @Override
     public ChunkGenerator.ChunkData generateChunkData(World world, Random random, int chunkX, int chunkZ, ChunkGenerator.BiomeGrid biome) {
@@ -104,87 +123,104 @@ extends ArcticChunkGenerator {
                 int idxR1 = ConsegrityChunkGenerator.arcIndex(ConsegrityChunkGenerator.wrap01(uWarp + rotR1), R1_SPLITS);
                 int idxR2 = ConsegrityChunkGenerator.arcIndex(ConsegrityChunkGenerator.wrap01(uWarp + rotR2), R2_SPLITS);
                 int oceanFloor = this.oceanFloorY(seed, wx, wz);
-                int centralTarget = centralSec.computeSurfaceY(world, seed, wx, wz);
-                int desertTarget = desertSec.computeSurfaceY(world, seed, wx, wz);
-                int savannahTarget = savannaSec.computeSurfaceY(world, seed, wx, wz);
-                int swampTarget = swampSec.computeSurfaceY(world, seed, wx, wz);
-                int jungleTarget = jungleSec.computeSurfaceY(world, seed, wx, wz);
-                int iceTarget = iceSec.computeSurfaceY(world, seed, wx, wz);
-                int cherryTarget = cherrySec.computeSurfaceY(world, seed, wx, wz);
-                int mesaTarget = mesaSec.computeSurfaceY(world, seed, wx, wz);
-                int mountainTarget = mountainSec.computeSurfaceY(world, seed, wx, wz);
-                int DESERT_BASE = 163;
-                int SAVANNA_BASE = 165;
-                int SWAMP_BASE = 161;
-                int MESA_BASE = 175;
-                int JUNGLE_BASE = 169;
-                int ICE1_BASE = 167;
-                int CHERRY1_BASE = 173;
-                int MTN_BASE = 183;
-                // Swap: put mountains into ring1 (index 2)
-                double r1DeltaA = switch (b1.a) {
-                    case 0 -> desertTarget - 163;
-                    case 1 -> savannahTarget - 165;
-                    case 2 -> mountainTarget - 175; // approximate to ring1 base
-                    case 3 -> cherryTarget - 173;
-                    case 4 -> swampTarget - 161;
-                    default -> 0.0;
-                };
-                double r1DeltaB = switch (b1.b) {
-                    case 0 -> desertTarget - 163;
-                    case 1 -> savannahTarget - 165;
-                    case 2 -> mountainTarget - 175;
-                    case 3 -> cherryTarget - 173;
-                    case 4 -> swampTarget - 161;
-                    default -> r1DeltaA;
-                };
-                double r1MainH = 165.0 + r1DeltaA;
-                double tArc = b1.a == b1.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - b1.t);
-                double r1CrossH = 165.0 + ConsegrityChunkGenerator.lerp(r1DeltaA, r1DeltaB, tArc);
-                double tBridge1 = b1.a == b1.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - Math.abs(b1.t * 2.0 - 1.0));
-                double ring1H = ConsegrityChunkGenerator.lerp(r1MainH, r1CrossH, tBridge1);
-                // Swap: put ice spikes into ring2 (default index 2)
-                double r2DeltaA = switch (b2.a) {
-                    case 0 -> mesaTarget - 175;
-                    case 1 -> jungleTarget - 169;
-                    default -> (double)(iceTarget - 167);
-                };
-                double r2DeltaB = switch (b2.b) {
-                    case 0 -> mesaTarget - 175;
-                    case 1 -> jungleTarget - 169;
-                    default -> (double)(iceTarget - 167);
-                };
-                double r2MainH = 175.0 + r2DeltaA;
-                double tArc2 = b2.a == b2.b ? 0.0 : ConsegrityChunkGenerator.smooth01(b2.t);
-                double r2CrossH = 175.0 + ConsegrityChunkGenerator.lerp(r2DeltaA, r2DeltaB, tArc2);
-                double tBridge2 = b2.a == b2.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - Math.abs(b2.t * 2.0 - 1.0));
-                double ring2H = ConsegrityChunkGenerator.lerp(r2MainH, r2CrossH, tBridge2);
-                double wC = cm;
-                double w1 = r1m;
-                double w2 = r2m;
-                double wSum = wC + w1 + w2;
-                if (union > 0.03 || C.r <= 150.0) {
-                    double landH = (wC * (double)centralTarget + w1 * ring1H + w2 * ring2H) / wSum;
-                    double tInR1 = 1.0 - ConsegrityChunkGenerator.clamp01((R1.r - (R1.outer - 5.0)) / Math.max(1.0, 10.0));
-                    double tInR2 = 1.0 - ConsegrityChunkGenerator.clamp01((R2.inner + 12.5 - R2.r) / Math.max(1.0, 25.0));
-                    double tBridge = ConsegrityChunkGenerator.smooth01(ConsegrityChunkGenerator.clamp01(Math.min(tInR1, tInR2)));
-                    double crossT = ConsegrityChunkGenerator.clamp01((R2.r - R2.inner) / Math.max(1.0, R2.outer - R2.inner));
-                    double crossH = ConsegrityChunkGenerator.lerp(ring1H, ring2H, ConsegrityChunkGenerator.smooth01(crossT));
-                    landH = ConsegrityChunkGenerator.lerp(landH, crossH, tBridge);
-                    double sIn = ConsegrityChunkGenerator.clamp01((R2.r - (R2.outer - 80.0)) / Math.max(1.0, 80.0));
-                    if ((landH = ConsegrityChunkGenerator.lerp(landH, 152.0, sIn)) < 152.0) {
-                        landH = 152.0;
-                    }
-                    target = landH;
-                } else if (R1.r < R1.innerGate) {
-                    double t = ConsegrityChunkGenerator.clamp01((R1.r - C.outerGate) / Math.max(1.0, R1.innerGate - C.outerGate));
-                    t = t * t * (t * -2.0 + 3.0);
-                    target = ConsegrityChunkGenerator.lerp(centralTarget, ring1H, t);
-                } else {
-                    double oceanRaised;
+                IntUnaryOperator height = null;
+                double ring1H = 0.0;
+                double ring2H = 0.0;
+
+                if (inOcean) {
                     double sOut = ConsegrityChunkGenerator.clamp01((R2.outer + 80.0 - R2.r) / Math.max(1.0, 80.0));
                     int shelfY = 140;
-                    target = oceanRaised = ConsegrityChunkGenerator.lerp(oceanFloor, Math.max(oceanFloor, shelfY), sOut);
+                    target = ConsegrityChunkGenerator.lerp(oceanFloor, Math.max(oceanFloor, shelfY), sOut);
+                } else {
+                    final int wxFinal = wx;
+                    final int wzFinal = wz;
+                    final int[] heightCache = new int[HEIGHT_COUNT];
+                    final boolean[] heightComputed = new boolean[HEIGHT_COUNT];
+                    height = new IntUnaryOperator() {
+                        @Override
+                        public int applyAsInt(int key) {
+                            if (!heightComputed[key]) {
+                                heightComputed[key] = true;
+                                heightCache[key] = switch (key) {
+                                    case HEIGHT_CENTRAL -> centralSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_DESERT -> desertSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_SAVANNA -> savannaSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_SWAMP -> swampSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_JUNGLE -> jungleSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_ICE -> iceSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_CHERRY -> cherrySec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_MESA -> mesaSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    case HEIGHT_MOUNTAIN -> mountainSec.computeSurfaceY(world, seed, wxFinal, wzFinal);
+                                    default -> 0;
+                                };
+                            }
+                            return heightCache[key];
+                        }
+                    };
+                    double r1DeltaA = switch (b1.a) {
+                        case 0 -> height.applyAsInt(HEIGHT_DESERT) - DESERT_RING_BASE;
+                        case 1 -> height.applyAsInt(HEIGHT_SAVANNA) - SAVANNA_RING_BASE;
+                        case 2 -> height.applyAsInt(HEIGHT_MOUNTAIN) - MOUNTAIN_RING_BASE;
+                        case 3 -> height.applyAsInt(HEIGHT_CHERRY) - CHERRY_RING_BASE;
+                        case 4 -> height.applyAsInt(HEIGHT_SWAMP) - SWAMP_RING_BASE;
+                        default -> 0.0;
+                    };
+                    double r1DeltaB = switch (b1.b) {
+                        case 0 -> height.applyAsInt(HEIGHT_DESERT) - DESERT_RING_BASE;
+                        case 1 -> height.applyAsInt(HEIGHT_SAVANNA) - SAVANNA_RING_BASE;
+                        case 2 -> height.applyAsInt(HEIGHT_MOUNTAIN) - MOUNTAIN_RING_BASE;
+                        case 3 -> height.applyAsInt(HEIGHT_CHERRY) - CHERRY_RING_BASE;
+                        case 4 -> height.applyAsInt(HEIGHT_SWAMP) - SWAMP_RING_BASE;
+                        default -> r1DeltaA;
+                    };
+                    double r1MainH = 165.0 + r1DeltaA;
+                    double tArc = b1.a == b1.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - b1.t);
+                    double r1CrossH = 165.0 + ConsegrityChunkGenerator.lerp(r1DeltaA, r1DeltaB, tArc);
+                    double tBridge1 = b1.a == b1.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - Math.abs(b1.t * 2.0 - 1.0));
+                    ring1H = ConsegrityChunkGenerator.lerp(r1MainH, r1CrossH, tBridge1);
+
+                    double r2DeltaA = switch (b2.a) {
+                        case 0 -> height.applyAsInt(HEIGHT_MESA) - MESA_RING_BASE;
+                        case 1 -> height.applyAsInt(HEIGHT_JUNGLE) - JUNGLE_RING_BASE;
+                        default -> height.applyAsInt(HEIGHT_ICE) - ICE_RING_BASE;
+                    };
+                    double r2DeltaB = switch (b2.b) {
+                        case 0 -> height.applyAsInt(HEIGHT_MESA) - MESA_RING_BASE;
+                        case 1 -> height.applyAsInt(HEIGHT_JUNGLE) - JUNGLE_RING_BASE;
+                        default -> height.applyAsInt(HEIGHT_ICE) - ICE_RING_BASE;
+                    };
+                    double r2MainH = 175.0 + r2DeltaA;
+                    double tArc2 = b2.a == b2.b ? 0.0 : ConsegrityChunkGenerator.smooth01(b2.t);
+                    double r2CrossH = 175.0 + ConsegrityChunkGenerator.lerp(r2DeltaA, r2DeltaB, tArc2);
+                    double tBridge2 = b2.a == b2.b ? 0.0 : ConsegrityChunkGenerator.smooth01(1.0 - Math.abs(b2.t * 2.0 - 1.0));
+                    ring2H = ConsegrityChunkGenerator.lerp(r2MainH, r2CrossH, tBridge2);
+
+                    double wC = cm;
+                    double w1 = r1m;
+                    double w2 = r2m;
+                    double wSum = wC + w1 + w2;
+                    if (union > 0.03 || C.r <= 150.0) {
+                        double landH = (wC * (double) height.applyAsInt(HEIGHT_CENTRAL) + w1 * ring1H + w2 * ring2H) / wSum;
+                        double tInR1 = 1.0 - ConsegrityChunkGenerator.clamp01((R1.r - (R1.outer - 5.0)) / Math.max(1.0, 10.0));
+                        double tInR2 = 1.0 - ConsegrityChunkGenerator.clamp01((R2.inner + 12.5 - R2.r) / Math.max(1.0, 25.0));
+                        double tBridge = ConsegrityChunkGenerator.smooth01(ConsegrityChunkGenerator.clamp01(Math.min(tInR1, tInR2)));
+                        double crossT = ConsegrityChunkGenerator.clamp01((R2.r - R2.inner) / Math.max(1.0, R2.outer - R2.inner));
+                        double crossH = ConsegrityChunkGenerator.lerp(ring1H, ring2H, ConsegrityChunkGenerator.smooth01(crossT));
+                        landH = ConsegrityChunkGenerator.lerp(landH, crossH, tBridge);
+                        double sIn = ConsegrityChunkGenerator.clamp01((R2.r - (R2.outer - 80.0)) / Math.max(1.0, 80.0));
+                        if ((landH = ConsegrityChunkGenerator.lerp(landH, 152.0, sIn)) < 152.0) {
+                            landH = 152.0;
+                        }
+                        target = landH;
+                    } else if (R1.r < R1.innerGate) {
+                        double t = ConsegrityChunkGenerator.clamp01((R1.r - C.outerGate) / Math.max(1.0, R1.innerGate - C.outerGate));
+                        t = t * t * (t * -2.0 + 3.0);
+                        target = ConsegrityChunkGenerator.lerp(height.applyAsInt(HEIGHT_CENTRAL), ring1H, t);
+                    } else {
+                        double sOut = ConsegrityChunkGenerator.clamp01((R2.outer + 80.0 - R2.r) / Math.max(1.0, 80.0));
+                        int shelfY = 140;
+                        target = ConsegrityChunkGenerator.lerp(oceanFloor, Math.max(oceanFloor, shelfY), sOut);
+                    }
                 }
                 topYGrid[lx][lz] = topY = (int)Math.round(target);
                 centralMaskGrid[lx][lz] = cm;
@@ -195,13 +231,10 @@ extends ArcticChunkGenerator {
                     }
                 }
                 if (inOcean) {
-                    boolean isFrozen;
                     this.paintSeafloorCap(data, lx, lz, topY, 153);
                     int depth = 153 - topY;
-                    double uO = this.angle01Warped(seed, wx, wz);
-                    // Frozen ocean now follows ring2 ice spikes sector (index 2)
-                    int sectorIdx2 = ConsegrityChunkGenerator.arcIndex(ConsegrityChunkGenerator.wrap01(uO + rotR2), R2_SPLITS);
-                    frozenOcean[lx][lz] = isFrozen = sectorIdx2 == 2;
+                    boolean isFrozen = idxR2 == 2;
+                    frozenOcean[lx][lz] = isFrozen;
                     if (isFrozen) {
                         biome.setBiome(lx, lz, depth >= 30 ? Biome.DEEP_FROZEN_OCEAN : Biome.FROZEN_OCEAN);
                     } else {
@@ -464,73 +497,43 @@ extends ArcticChunkGenerator {
         data.setBlock(lx, topY, lz, grassTop ? Material.GRASS_BLOCK : Material.SAND);
     }
 
+    private static final Material[] MESA_STRATA = new Material[]{
+        Material.TERRACOTTA,
+        Material.RED_TERRACOTTA,
+        Material.ORANGE_TERRACOTTA,
+        Material.BROWN_TERRACOTTA,
+        Material.YELLOW_TERRACOTTA,
+        Material.WHITE_TERRACOTTA,
+        Material.LIGHT_GRAY_TERRACOTTA
+    };
+
     private void paintMesaStrata(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {
-        int start = Math.max(-60, topY - 12);
+        int start = Math.max(-60, topY - 16);
         for (int y = start; y <= topY; y++) {
-            int band = Math.floorMod(y, 7);
-            Material m = switch (band) {
-                case 0 -> Material.TERRACOTTA;
-                case 1 -> Material.RED_TERRACOTTA;
-                case 2 -> Material.ORANGE_TERRACOTTA;
-                case 3 -> Material.BROWN_TERRACOTTA;
-                case 4 -> Material.YELLOW_TERRACOTTA;
-                case 5 -> Material.WHITE_TERRACOTTA;
-                default -> Material.LIGHT_GRAY_TERRACOTTA;
-            };
-            if (y == topY) {
-                int MESA_MTN_THRESHOLD = 178;
-                if (topY <= MESA_MTN_THRESHOLD) {
-                    m = Material.RED_SAND;
-                }
+            Material m;
+            if (topY <= MesaSector.VALLEY_FLOOR_Y + 1) {
+                m = y >= topY - 2 ? Material.RED_SAND : Material.RED_TERRACOTTA;
+            } else {
+                m = mesaTerracottaBand(y);
             }
             data.setBlock(lx, y, lz, m);
         }
     }
 
     private void paintMesaLandBlendCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY, double tLand) {
-        double t = ConsegrityChunkGenerator.clamp01(tLand);
-        int terr = (int) Math.round(ConsegrityChunkGenerator.lerp(10.0, 0.0, t));
-        int dirt = (int) Math.round(ConsegrityChunkGenerator.lerp(0.0, 3.0, t));
-        boolean grassTop = t > 0.15;
-        int total = terr + dirt + 1;
-        int y = Math.max(-60, topY - total + 1);
-        for (int i = 0; i < terr; ++i) {
-            int band = Math.floorMod(y + i, 7);
-            Material m = switch (band) {
-                case 0 -> Material.TERRACOTTA;
-                case 1 -> Material.RED_TERRACOTTA;
-                case 2 -> Material.ORANGE_TERRACOTTA;
-                case 3 -> Material.BROWN_TERRACOTTA;
-                case 4 -> Material.YELLOW_TERRACOTTA;
-                case 5 -> Material.WHITE_TERRACOTTA;
-                default -> Material.LIGHT_GRAY_TERRACOTTA;
-            };
-            data.setBlock(lx, y + i, lz, m);
-        }
-        y += terr;
-        for (int i = 0; i < dirt; ++i) {
-            data.setBlock(lx, y++, lz, Material.DIRT);
-        }
-        if (grassTop) {
-            data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
-        } else {
-            int MESA_MTN_THRESHOLD = 178;
-            if (topY > MESA_MTN_THRESHOLD) {
-                int band = Math.floorMod(topY, 7);
-                Material m = switch (band) {
-                    case 0 -> Material.TERRACOTTA;
-                    case 1 -> Material.RED_TERRACOTTA;
-                    case 2 -> Material.ORANGE_TERRACOTTA;
-                    case 3 -> Material.BROWN_TERRACOTTA;
-                    case 4 -> Material.YELLOW_TERRACOTTA;
-                    case 5 -> Material.WHITE_TERRACOTTA;
-                    default -> Material.LIGHT_GRAY_TERRACOTTA;
-                };
-                data.setBlock(lx, topY, lz, m);
-            } else {
-                data.setBlock(lx, topY, lz, Material.RED_SAND);
+        paintMesaStrata(data, lx, lz, topY);
+        if (topY > MesaSector.VALLEY_FLOOR_Y) {
+            double desert = ConsegrityChunkGenerator.clamp01(tLand);
+            if (desert > 0.6) {
+                data.setBlock(lx, topY, lz, Material.RED_TERRACOTTA);
             }
         }
+    }
+
+    private Material mesaTerracottaBand(int y) {
+        int layer = Math.floorDiv(y, 4);
+        int band = Math.floorMod(layer, MESA_STRATA.length);
+        return MESA_STRATA[band];
     }
 
     @Override
