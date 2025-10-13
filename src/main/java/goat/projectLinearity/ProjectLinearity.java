@@ -13,6 +13,7 @@ import goat.projectLinearity.commands.SetStatCommand;
 import goat.projectLinearity.commands.DebugOxygenCommand;
 import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.WarptoCommand;
+import goat.projectLinearity.libs.VillagerTradeManager;
 import goat.projectLinearity.util.CulinaryCauldron;
 import goat.projectLinearity.util.CulinarySubsystem;
 import goat.projectLinearity.util.ShelfManager;
@@ -57,6 +58,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private ShelfManager shelfManager;
     private CulinarySubsystem culinarySubsystem;
     private CulinaryCauldron culinaryCauldron;
+    private VillagerTradeManager villagerTradeManager;
     private double statRate = 1.0;
     private boolean debugOxygen = false;
 
@@ -83,6 +85,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         shelfManager = new ShelfManager(this);
         culinarySubsystem = CulinarySubsystem.getInstance(this);
         culinaryCauldron = new CulinaryCauldron(this);
+        villagerTradeManager = new VillagerTradeManager(this, enchantedManager);
         registerShelfRecipe();
 
         // Commands
