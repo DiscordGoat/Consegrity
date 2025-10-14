@@ -110,6 +110,18 @@ public final class StructureStore {
         return c;
     }
 
+    public synchronized java.util.Collection<StructEntry> getStructuresForName(String worldKey, String name) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        if (map.isEmpty()) return java.util.Collections.emptyList();
+        java.util.List<StructEntry> list = new java.util.ArrayList<>();
+        for (StructEntry e : map.values()) {
+            if (e.name.equalsIgnoreCase(name)) {
+                list.add(e);
+            }
+        }
+        return java.util.Collections.unmodifiableList(list);
+    }
+
     public synchronized int getPlayerDiscoveredCountForName(String worldKey, java.util.UUID playerId, String name) {
         Map<String, StructEntry> map = loadWorld(worldKey);
         int c = 0;

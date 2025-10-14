@@ -14,17 +14,8 @@ public class MountainSector extends SectorBase {
     private static final int SEA_LEVEL = 153;
     private static final double[] R1_SPLITS = new double[]{0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
 
-    // Massive Mountain (MM) — replaced by exclusion zone
-    private static final int MM_GROUND_Y = 160;
+    // Massive Mountain (MM)
     private static final double MM_EFFECT_R = 150.0;
-    private static final double MM_CORE_R = 26.0;
-    private static final double MM_CROWN_IN = 18.0;
-    private static final double MM_CROWN_OUT = 36.0;
-    private static final double MM_RANGE_CELL = 180.0;
-    private static final double MM_VALLEY_R0 = 60.0;
-    private static final double MM_VALLEY_R1 = 110.0;
-    // Exclusion: bedrock circle replacing the massif center
-    private static final double EXCLUSION_R = 30.0;
 
     @Override
     public int computeSurfaceY(World world, long seed, int wx, int wz) {
@@ -51,10 +42,6 @@ public class MountainSector extends SectorBase {
         baseH += fbm2(seed ^ 0xE01234L, (double) wx * 0.004, (double) wz * 0.004) * 70.0 * mask;
 
         int yCap = Math.min(400, Math.max(256, world.getMaxHeight() - 1));
-        // Replace massif with a flat exclusion disk at the sector center
-        if (isInExclusion(seed, wx, wz)) {
-            baseH = Math.min(baseH, MM_GROUND_Y);
-        }
         if (baseH < 150.0) baseH = 150.0;
         if (baseH > yCap) baseH = yCap;
         return (int) Math.floor(baseH);
@@ -62,8 +49,6 @@ public class MountainSector extends SectorBase {
 
     @Override
     public void decorate(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid, double[][] centralMaskGrid) {
-        // Place exclusion zone first so other features respect it
-        placeMountainRivers(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
         placeMountainTaigaEdge(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
         placeGrass(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid);
     }
@@ -77,8 +62,6 @@ public class MountainSector extends SectorBase {
             int lz = rng.nextInt(16);
             if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
             int wx = baseX + lx, wz = baseZ + lz;
-            if (isInExclusion(seed, wx, wz)) continue;
-
             int y = topYGrid[lx][lz];
             if (y > 220) continue; // No grass on high peaks
 
@@ -92,27 +75,6 @@ public class MountainSector extends SectorBase {
         }
     }
 
-    private void placeMountainRivers(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int baseX = chunkX << 4, baseZ = chunkZ << 4;
-        int riverY = Math.max(MM_GROUND_Y, SEA_LEVEL);
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
-                int wx = baseX + lx, wz = baseZ + lz;
-                if (isInExclusion(seed, wx, wz)) continue; // no rivers inside exclusion
-                double vm = valleyMask(seed, wx, wz);
-                if (vm < 0.65) continue;
-                int flatY = riverY;
-                data.setRegion(lx, Math.max(world.getMinHeight(), flatY - 2), lz, lx + 1, flatY, lz + 1, Material.STONE);
-                data.setBlock(lx, flatY, lz, Material.WATER);
-                if (safeType(data, lx, flatY + 1, lz) == Material.AIR && vm > 0.85) {
-                    data.setBlock(lx, flatY + 1, lz, Material.WATER);
-                }
-                topYGrid[lx][lz] = flatY;
-            }
-        }
-    }
-
     private void placeMountainTaigaEdge(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
         SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 0x55AA33L);
         int baseX = chunkX << 4, baseZ = chunkZ << 4;
@@ -120,7 +82,6 @@ public class MountainSector extends SectorBase {
             int lx = rng.nextInt(16), lz = rng.nextInt(16);
             if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
             int wx = baseX + lx, wz = baseZ + lz;
-            if (isInExclusion(seed, wx, wz)) continue; // skip trees inside exclusion
             double edge = taigaEdgeMask(seed, wx, wz);
             if (edge < 0.6) continue;
             if (slopeGrid(topYGrid, lx, lz) > 3) continue;
@@ -159,29 +120,6 @@ public class MountainSector extends SectorBase {
     private static class V2 { final double x, z; V2(double x, double z) { this.x = x; this.z = z; } }
 
     // Exclusion: carve a bedrock disk at the massif center
-    private void placeMountainExclusion(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] topYGrid, ConsegrityRegions.Region[][] regionGrid) {
-        int baseX = chunkX << 4, baseZ = chunkZ << 4;
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.MOUNTAIN) continue;
-                int wx = baseX + lx, wz = baseZ + lz;
-                if (!isInExclusion(seed, wx, wz)) continue;
-                int flatY = Math.max(MM_GROUND_Y, SEA_LEVEL);
-                // Flatten a thin layer and place bedrock surface
-                data.setRegion(lx, Math.max(world.getMinHeight(), flatY - 2), lz, lx + 1, flatY, lz + 1, Material.STONE);
-                data.setBlock(lx, flatY, lz, Material.BEDROCK);
-                topYGrid[lx][lz] = flatY;
-            }
-        }
-    }
-
-    private boolean isInExclusion(long seed, int wx, int wz) {
-        if (!inMountainSector(seed, wx, wz)) return false;
-        V2 c = massiveMountainCenter(seed);
-        double dx = wx - c.x, dz = wz - c.z;
-        return (dx * dx + dz * dz) <= (EXCLUSION_R * EXCLUSION_R);
-    }
-
     private V2 massiveMountainCenter(long seed) {
         double baseRot = rand01(hash(seed, 101L, 0L, 0L, 7466709L));
         double rotR1 = wrap01(baseRot);
@@ -221,16 +159,6 @@ public class MountainSector extends SectorBase {
         double angNorm = clamp01(1.0 - diff / halfWidth);
         double angular = smooth01(Math.pow(angNorm, 0.9));
         return radial * angular;
-    }
-
-    private double valleyMask(long seed, int wx, int wz) {
-        if (!inMountainSector(seed, wx, wz)) return 0.0;
-        V2 c = massiveMountainCenter(seed);
-        double d = Math.hypot(wx - c.x, wz - c.z);
-        double mid = (MM_VALLEY_R0 + MM_VALLEY_R1) * 0.5;
-        double half = (MM_VALLEY_R1 - MM_VALLEY_R0) * 0.5;
-        double t = 1.0 - Math.abs((d - mid) / half);
-        return clamp01(smooth01(Math.max(0.0, t)));
     }
 
     private double taigaEdgeMask(long seed, int wx, int wz) {

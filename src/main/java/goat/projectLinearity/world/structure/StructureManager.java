@@ -77,6 +77,7 @@ public final class StructureManager {
 
         StructureStore store = StructureStore.get(plugin);
         for (Registration reg : registrations) {
+            reg.ensureHydrated(plugin, worldKey);
             int have;
             if (reg.triggerListener) {
                 try { have = store.getPlacedCountForName(worldKey, reg.schemName); }
@@ -174,9 +175,7 @@ public final class StructureManager {
                 } catch (Throwable ignored) {}
             }
             reg.recordPlacement(worldKey, wx, wz);
-            if (reg.triggerListener) {
-                StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, true);
-            }
+            StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
             return true;
         } catch (Throwable t) {
             plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
@@ -226,6 +225,7 @@ public final class StructureManager {
         String worldKey = world.getUID().toString();
         RegionCache regionCache = new RegionCache(world);
         for (Registration reg : registrations) {
+            reg.ensureHydrated(plugin, worldKey);
             if (reg.placedCount(worldKey) >= reg.count) continue;
             // try a few attempts in this chunk
             for (int a = 0; a < 5; a++) {
@@ -278,10 +278,8 @@ public final class StructureManager {
                         } catch (Throwable ignored) {}
                     }
                     reg.recordPlacement(worldKey, wx, wz);
-                    // Persist structure instance for listener tracking
-                    if (reg.triggerListener) {
-                        StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, true);
-                    }
+                    // Persist structure instance so counts survive restarts (listeners read trigger flag)
+                    StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
                     placedAny = true;
                     break; // one per registration per chunk attempt
                 } catch (Throwable t) {
@@ -665,6 +663,7 @@ public final class StructureManager {
 
         // worldName -> placed XY (encoded as long)
         private final Map<String, Set<Long>> placements = new ConcurrentHashMap<>();
+        private final Set<String> hydratedWorlds = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
         Registration(String schemName, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance) {
             this.schemName = schemName;
@@ -747,6 +746,18 @@ public final class StructureManager {
         int placedCount(String worldKey) {
             Set<Long> set = placements.get(worldKey);
             return set == null ? 0 : set.size();
+        }
+
+        void ensureHydrated(JavaPlugin plugin, String worldKey) {
+            if (hydratedWorlds.contains(worldKey)) return;
+            java.util.Collection<StructureStore.StructEntry> entries = StructureStore.get(plugin).getStructuresForName(worldKey, schemName);
+            if (!entries.isEmpty()) {
+                Set<Long> set = placements.computeIfAbsent(worldKey, k -> new HashSet<>());
+                for (StructureStore.StructEntry entry : entries) {
+                    set.add(encode(entry.x, entry.z));
+                }
+            }
+            hydratedWorlds.add(worldKey);
         }
 
         private static long encode(int x, int z) { return (((long) x) << 32) ^ (z & 0xFFFFFFFFL); }

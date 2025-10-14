@@ -2,9 +2,12 @@ name: Consegrity
 version: '1.0-SNAPSHOT'
 main: goat.projectLinearity.ProjectLinearity
 api-version: '1.21'
+# Remain a startup plugin so the custom chunk generator loads correctly
 load: STARTUP
 authors: [ DiscordGoat ]
 description: A Frozen Survival Minecraft Project 
+depend:
+  - Citizens
 commands:
   regenerate:
     description: Regenerate the Consegrity world
@@ -54,6 +57,14 @@ commands:
     description: Toggles periodic oxygen debug logging
     usage: /debugoxygen [on|off]
     permission: consegrity.dev
+  setcultistpopulation:
+    description: Sets the target Mountain Cultist population
+    usage: /setcultistpopulation <amount>
+    permission: consegrity.cultist
+  spawncustommob:
+    description: Spawns a registered custom mob for testing
+    usage: /spawncustommob <name>
+    permission: consegrity.dev
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
@@ -69,4 +80,7 @@ permissions:
     default: op
   consegrity.items:
     description: Allows using /i to spawn custom or vanilla items
+    default: op
+  consegrity.cultist:
+    description: Allows adjusting the Mountain Cultist population
     default: op

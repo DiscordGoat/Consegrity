@@ -27,10 +27,10 @@ extends ArcticChunkGenerator {
     private static final double CENTRAL_RADIUS = 100.0;
     private static final double CENTRAL_FEATHER = 90.0;
     private static final double R1_INNER = 120.0;
-    private static final double R1_OUTER = 520.0;
+    private static final double R1_OUTER = 820.0;
     private static final double R1_FEATHER = 20.0;
     private static final double R2_INNER = 500.0;
-    private static final double R2_OUTER = 800.0;
+    private static final double R2_OUTER = 1000.0;
     private static final double R2_FEATHER = 50.0;
     // --- RNG salts (valid hex, stable) ---
     private static final long SALT_GLOWSTONE   = 0x9A0B57A1L;
