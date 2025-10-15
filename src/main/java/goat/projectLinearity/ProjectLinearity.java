@@ -24,6 +24,8 @@ import goat.projectLinearity.util.cultist.MountainCultistSpawnListener;
 import goat.projectLinearity.util.*;
 import goat.projectLinearity.world.RegionTitleListener;
 import goat.projectLinearity.world.MountainMobSpawnBlocker;
+import goat.projectLinearity.world.KeystoneManager;
+import goat.projectLinearity.world.KeystoneListener;
 import goat.projectLinearity.world.NocturnalStructureManager;
 import goat.projectLinearity.world.structure.StructureListener;
 import goat.projectLinearity.world.structure.StructureManager;
@@ -33,6 +35,7 @@ import goat.projectLinearity.world.ConsegrityRegions;
 import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -44,6 +47,8 @@ import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.List;
 import java.util.Optional;
@@ -69,6 +74,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private MountainCultistAlertListener mountainCultistAlertListener;
     private MountainMobSpawnBlocker mountainMobSpawnBlocker;
     private NocturnalStructureManager nocturnalStructureManager;
+    private KeystoneManager keystoneManager;
     private CustomEntityRegistry customEntityRegistry;
     private Listener citizensEnableListener;
     private double statRate = 1.0;
@@ -90,6 +96,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new SpaceEventListener(spaceManager, this), this);
         Bukkit.getPluginManager().registerEvents(new SpaceBlockListener(spaceManager), this);
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
+
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
         Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
@@ -160,9 +168,64 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 500);
             structureManager.registerStruct("hotspring", 10, 20, 100, new CherrySector(), GenCheckType.SURFACE, true, 120);
             structureManager.registerStruct("monument", 70, 20, 500, new OceanSector(), GenCheckType.UNDERWATER, true, 80);
+            structureManager.registerStruct("jadestatue1", 20, 1, 800, new JungleSector(), GenCheckType.SURFACE, true, 0);
+            structureManager.registerStruct("beacon0", 26, 1, 800, new MountainSector(), GenCheckType.SURFACE, true, 600);
+            structureManager.registerStruct("conduit1", 70, 1, 800, new OceanSector(), GenCheckType.UNDERWATER, true, 0);
             structureManager.registerStruct("pillager", 20, 12, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
         } catch (Throwable ignored) {}
+
+        keystoneManager = new KeystoneManager(this);
+        keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
+                "jadestatue1",
+                ChatColor.GREEN + "Jade Statue",
+                "jadestatue1",
+                java.util.List.of("jadestatue1", "jadestatue2", "jadestatue3", "jadestatuefinal"),
+                20,
+                20,
+                32,
+                new KeystoneManager.RequiredItem(Material.IRON_INGOT),
+                20,
+                32.0,
+                24.0,
+                player -> player.addPotionEffect(new PotionEffect(PotionEffectType.HERO_OF_THE_VILLAGE, 200, 0, true, false, true))
+        ));
+        
+        keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
+                "beacon0",
+                ChatColor.AQUA + "Ancient Beacon",
+                "beacon0",
+                java.util.List.of("beacon0", "beacon1", "beacon2", "beacon3", "beacon4"),
+                15,
+                15,
+                40,
+                new KeystoneManager.RequiredItem(Material.GOLD_INGOT),
+                30,
+                30.0,
+                20.0,
+                player -> player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, 400, 0, true, false, true))
+        ));
+        
+        keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
+                "conduit1",
+                ChatColor.BLUE + "Oceanic Conduit",
+                "conduit1",
+                java.util.List.of("conduit1", "conduit2", "conduit3", "conduit4"),
+                30,
+                30,
+                50,
+                new KeystoneManager.RequiredItem(Material.PRISMARINE_CRYSTALS),
+                50,
+                40.0,
+                25.0,
+                player -> {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.WATER_BREATHING, 600, 0, true, false, true));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.DOLPHINS_GRACE, 600, 0, true, false, true));
+                }
+        ));
+        
+        keystoneManager.startup();
+        Bukkit.getPluginManager().registerEvents(new KeystoneListener(keystoneManager), this);
 
         // Top-up scheduling is started after pre-generation completes in RegenerateCommand
     }
@@ -270,6 +333,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             nocturnalStructureManager.shutdown();
             nocturnalStructureManager = null;
         }
+        if (keystoneManager != null) {
+            keystoneManager.shutdown();
+            keystoneManager = null;
+        }
         if (citizensEnableListener != null) {
             HandlerList.unregisterAll(citizensEnableListener);
             citizensEnableListener = null;
@@ -293,6 +360,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public CultistPopulationManager getCultistPopulationManager() { return cultistPopulationManager; }
     public MountainCultistBehaviour getMountainCultistBehaviour() { return mountainCultistBehaviour; }
+    public KeystoneManager getKeystoneManager() { return keystoneManager; }
     public CustomEntityRegistry getCustomEntityRegistry() { return customEntityRegistry; }
     public double getStatRate() { return statRate; }
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }

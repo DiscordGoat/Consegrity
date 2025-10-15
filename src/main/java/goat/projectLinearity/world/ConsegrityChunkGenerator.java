@@ -669,6 +669,10 @@ extends ArcticChunkGenerator {
             int az = rng.nextInt(15);
             int ay = this.biasedYLocal(rng, yMin, yMax - 1, bias, peakY);
             SplittableRandom local = ConsegrityChunkGenerator.rngFor(world.getSeed(), (chunkX << 4) + ax, (chunkZ << 4) + az, ore.ordinal() * 40503 + c);
+            double depthFactor = depthAttenuation(ay);
+            if (depthFactor < 1.0 && local.nextDouble() > depthFactor) {
+                continue;
+            }
             if (isObsidian) {
                 // Preserve existing obsidian behavior: sparse, independent 5% checks per position
                 double p = 0.05;
@@ -757,6 +761,17 @@ extends ArcticChunkGenerator {
         double range = yMax - yMin;
         double d = 1.0 - Math.min(1.0, (double)Math.abs(y - peakY) / (range * 0.5));
         return Math.max(0.05, d);
+    }
+
+    private double depthAttenuation(int y) {
+        if (y >= 60) {
+            return 1.0;
+        }
+        if (y <= 0) {
+            return 0.5;
+        }
+        double t = (double) y / 60.0;
+        return 0.5 + t * (1.0 - 0.5);
     }
 
     private void paintLandCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {

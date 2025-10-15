@@ -23,7 +23,7 @@ public class MountainSector extends SectorBase {
         double base = 155.0;
         double low = fbm2(seed ^ 0xA1B2C3D4L, (double) wx * 0.003, (double) wz * 0.003);
         double mountainBand = (low - 0.5) * 2.0;
-        double t0 = 0.0, t1 = 0.38;
+        double t0 = 0.12, t1 = 0.48;
         double mask = clamp01((mountainBand - t0) / (t1 - t0));
 
         double field = 0.0;
@@ -38,8 +38,10 @@ public class MountainSector extends SectorBase {
         double betweenAmp = 18.0 * (1.0 - mask * 0.85);
         double micro = (fbm2(seed ^ 0x33AA55CCL, (double) wx * 0.06, (double) wz * 0.06) - 0.5) * 2.0 * 2.6;
 
-        double baseH = base + plains + between * betweenAmp + micro + (ridge - 0.5) * 2.0 * 20.0 * mask + field;
-        baseH += fbm2(seed ^ 0xE01234L, (double) wx * 0.004, (double) wz * 0.004) * 70.0 * mask;
+        double baseTerrain = base + plains + between * betweenAmp + micro + (ridge - 0.5) * 2.0 * 20.0 * mask;
+        double peakWeight = Math.pow(mask, 1.35);
+        double baseH = baseTerrain + field * peakWeight;
+        baseH += fbm2(seed ^ 0xE01234L, (double) wx * 0.004, (double) wz * 0.004) * 70.0 * peakWeight;
 
         int yCap = Math.min(400, Math.max(256, world.getMaxHeight() - 1));
         if (baseH < 150.0) baseH = 150.0;

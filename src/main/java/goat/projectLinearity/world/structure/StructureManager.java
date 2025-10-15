@@ -1,5 +1,6 @@
 package goat.projectLinearity.world.structure;
 
+import goat.projectLinearity.ProjectLinearity;
 import goat.projectLinearity.commands.RegenerateNetherCommand;
 import goat.projectLinearity.util.SchemManager;
 import goat.projectLinearity.world.ConsegrityRegions;
@@ -166,8 +167,15 @@ public final class StructureManager {
         } catch (Throwable ignore) {}
 
         boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
+        String schemName = reg.schemName;
+        if (schemName.equalsIgnoreCase("monument")) {
+            org.bukkit.block.Biome biome = resolveBiome(world, paste);
+            if (isFrozenOcean(biome)) {
+                schemName = "abandonedmonument";
+            }
+        }
         try {
-            schemManager.placeStructure(reg.schemName, paste, ignoreAir);
+            schemManager.placeStructure(schemName, paste, ignoreAir);
             // Surface-only: convert top layer of stone/dirt under the structure bounds to grass
             if (reg.type == GenCheckType.SURFACE) {
                 try {
@@ -175,13 +183,35 @@ public final class StructureManager {
                 } catch (Throwable ignored) {}
             }
             reg.recordPlacement(worldKey, wx, wz);
-            StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
+            StructureStore.get(plugin).addStructure(worldKey, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
+            if (plugin instanceof ProjectLinearity pl && pl.getKeystoneManager() != null) {
+                pl.getKeystoneManager().registerStructurePlacement(world, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds);
+            }
             return true;
         } catch (Throwable t) {
             plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
             if (debugEnabled) dbg(reg.schemName).inc("PLACE_ERROR:" + t.getClass().getSimpleName());
             return false;
         }
+    }
+
+    private org.bukkit.block.Biome resolveBiome(World world, Location loc) {
+        try {
+            return world.getBiome(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+        } catch (Throwable ignored) {
+            try {
+                return world.getBiome(loc.getBlockX(), loc.getBlockZ());
+            } catch (Throwable ignored2) {
+                return org.bukkit.block.Biome.OCEAN;
+            }
+        }
+    }
+
+    private boolean isFrozenOcean(org.bukkit.block.Biome biome) {
+        return biome == org.bukkit.block.Biome.FROZEN_OCEAN
+                || biome == org.bukkit.block.Biome.DEEP_FROZEN_OCEAN
+                || biome == org.bukkit.block.Biome.COLD_OCEAN
+                || biome == org.bukkit.block.Biome.DEEP_COLD_OCEAN;
     }
 
     /**

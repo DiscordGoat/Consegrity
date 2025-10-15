@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -46,7 +47,7 @@ public final class MountainCultistBehaviour implements Runnable {
     private static final double INVISIBLE_PROXIMITY_RANGE = 3.0;
     private static final double INVISIBLE_PROXIMITY_RANGE_SQ = INVISIBLE_PROXIMITY_RANGE * INVISIBLE_PROXIMITY_RANGE;
     private static final long LOS_CHECK_INTERVAL_MS = 5_000L;
-    private static final long SIREN_INTERVAL_MS = 2_000L;
+    private static final long SIREN_INTERVAL_MS = 5_000L;
     private static final long MEMORY_DURATION_MS = 10_000L;
     private static final int PATIENCE_START = 100;
     private static final double CLOSE_SIGHT_RANGE = 5.0;
@@ -70,6 +71,8 @@ public final class MountainCultistBehaviour implements Runnable {
     private final Map<UUID, RoamState> roamStates = new HashMap<>();
     private final Map<UUID, ChaseState> chaseStates = new HashMap<>();
     private final Map<UUID, Set<UUID>> playerToCultists = new HashMap<>();
+    private final Map<UUID, Integer> playerPatience = new HashMap<>();
+    private long lastPatienceResetDay = Long.MIN_VALUE;
 
     public MountainCultistBehaviour(JavaPlugin plugin, CultistPopulationManager populationManager) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
@@ -101,6 +104,7 @@ public final class MountainCultistBehaviour implements Runnable {
             if (world == null) {
                 continue;
             }
+            ensurePatienceReset(world);
             UUID id = npc.getUniqueId();
             activeIds.add(id);
 
@@ -418,13 +422,30 @@ public final class MountainCultistBehaviour implements Runnable {
 
         long now = System.currentTimeMillis();
 
+        if (state.nextHallucinationMs == 0L) {
+            state.nextHallucinationMs = now + 30_000L;
+        } else if (now >= state.nextHallucinationMs) {
+            showHallucination(player, state.patience, false);
+            state.nextHallucinationMs = now + 30_000L;
+        }
+
         if (now >= state.nextSirenMs) {
             state.nextSirenMs = now + SIREN_INTERVAL_MS;
             if (state.patience > 0) {
                 state.patience--;
+                if (state.patience < 0) {
+                    state.patience = 0;
+                }
+                storePatience(state.playerId, state.patience);
+            } else {
+                storePatience(state.playerId, state.patience);
             }
-            player.sendMessage(ChatColor.DARK_PURPLE + "Siren sound played");
-            player.sendMessage(ChatColor.GRAY + "Patience: " + state.patience);
+            Set<UUID> chasers = playerToCultists.get(state.playerId);
+            boolean isLead = chasers != null && !chasers.isEmpty() && chasers.iterator().next().equals(npc.getUniqueId());
+            if (isLead) {
+                float pitch = 0.3f + (state.patience / (float) PATIENCE_START) * 0.7f;
+                entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_SKELETON_HORSE_DEATH, 100, pitch);
+            }
         }
 
         if (now >= state.nextLosCheckMs) {
@@ -444,7 +465,7 @@ public final class MountainCultistBehaviour implements Runnable {
         if (targetWorld != null && !targetWorld.isChunkLoaded(playerLocation.getBlockX() >> 4, playerLocation.getBlockZ() >> 4)) {
             targetWorld.getChunkAt(playerLocation);
         }
-        npc.getNavigator().getLocalParameters().speedModifier(2.0f);
+        npc.getNavigator().getLocalParameters().speedModifier(computeChaseSpeed(state.patience));
         npc.getNavigator().setTarget(player, true);
         npc.faceLocation(playerLocation);
 
@@ -488,21 +509,28 @@ public final class MountainCultistBehaviour implements Runnable {
             current.lastDamageMs = System.currentTimeMillis();
             current.lastTeleportCheckMs = System.currentTimeMillis();
             current.lastRecordedLocation = npc.getEntity() != null ? npc.getEntity().getLocation().clone() : current.lastRecordedLocation;
+            current.nextHallucinationMs = System.currentTimeMillis() + 30_000L;
+            current.patience = getPatience(player);
+            storePatience(playerId, current.patience);
             return;
         }
 
         stopChase(npc, "switch target");
+        playerPatience.putIfAbsent(playerId, PATIENCE_START);
 
         ChaseState state = new ChaseState(playerId);
+        state.patience = getPatience(player);
+        storePatience(playerId, state.patience);
         state.lastSeenMs = System.currentTimeMillis();
         state.nextSirenMs = System.currentTimeMillis();
         state.nextLosCheckMs = System.currentTimeMillis();
         state.lastDamageMs = System.currentTimeMillis();
         state.lastTeleportCheckMs = System.currentTimeMillis();
+        state.nextHallucinationMs = System.currentTimeMillis() + 30_000L;
         Entity npcEntity = npc.getEntity();
         state.lastRecordedLocation = npcEntity != null ? npcEntity.getLocation().clone() : null;
         chaseStates.put(npcId, state);
-        Set<UUID> currentChasers = playerToCultists.computeIfAbsent(playerId, k -> new HashSet<>());
+        Set<UUID> currentChasers = playerToCultists.computeIfAbsent(playerId, k -> new LinkedHashSet<>());
         boolean alreadyChasing = !currentChasers.isEmpty();
         currentChasers.add(npcId);
 
@@ -511,11 +539,11 @@ public final class MountainCultistBehaviour implements Runnable {
         if (targetWorld != null && !targetWorld.isChunkLoaded(playerLocation.getBlockX() >> 4, playerLocation.getBlockZ() >> 4)) {
             targetWorld.getChunkAt(playerLocation);
         }
-        npc.getNavigator().getLocalParameters().speedModifier(2.0f);
+        npc.getNavigator().getLocalParameters().speedModifier(computeChaseSpeed(state.patience));
         npc.getNavigator().setTarget(player, true);
         npc.faceLocation(playerLocation);
         if (!alreadyChasing) {
-            player.sendMessage(ChatColor.RED + "Chase Started");
+            showHallucination(player, state.patience, true);
         }
     }
 
@@ -695,6 +723,7 @@ public final class MountainCultistBehaviour implements Runnable {
         long lastSeenMs;
         long lastDamageMs;
         long lastTeleportCheckMs;
+        long nextHallucinationMs;
         Location lastRecordedLocation;
 
         ChaseState(UUID playerId) {
@@ -721,6 +750,55 @@ public final class MountainCultistBehaviour implements Runnable {
             boosted.setZ(boosted.getZ() * scale);
         }
         entity.setVelocity(boosted);
+    }
+
+    private void showHallucination(Player player, int patience, boolean extended) {
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        double normalized = Math.max(0.0, Math.min(1.0, patience / (double) PATIENCE_START));
+        double intensity = 1.0 - normalized;
+        java.util.List<String> frames = new java.util.ArrayList<>();
+        frames.add(ChatColor.DARK_RED + "" + ChatColor.BOLD + "I SEE YOU.");
+        if (intensity > 0.2) {
+            frames.add(ChatColor.DARK_RED + "" + ChatColor.BOLD + "I " + ChatColor.MAGIC + "SEE" + ChatColor.DARK_RED + ChatColor.BOLD + " YOU.");
+        }
+        if (intensity > 0.5) {
+            frames.add(ChatColor.DARK_RED + "" + ChatColor.BOLD + ChatColor.MAGIC + "I SEE YOU");
+        }
+        if (intensity > 0.8) {
+            frames.add(ChatColor.MAGIC + "I SEE YOU.");
+        }
+        int stay = extended ? 24 : 12;
+        int fade = 4;
+        for (int i = 0; i < frames.size(); i++) {
+            String title = frames.get(i);
+            long delay = (long) i * (stay + fade);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    player.sendTitle(title, "", 0, stay, fade);
+                }
+            }, delay);
+        }
+        long resetDelay = (long) frames.size() * (stay + fade) + 2L;
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) {
+                player.resetTitle();
+            }
+        }, resetDelay);
+    }
+
+    private void ensurePatienceReset(World world) {
+        long day = world.getFullTime() / 24000L;
+        if (day != lastPatienceResetDay) {
+            playerPatience.clear();
+            lastPatienceResetDay = day;
+            for (ChaseState state : chaseStates.values()) {
+                state.patience = PATIENCE_START;
+                storePatience(state.playerId, state.patience);
+                state.nextHallucinationMs = System.currentTimeMillis() + 30_000L;
+            }
+        }
     }
 
     private boolean teleportBehindPlayer(NPC npc, Entity entity, Player player) {
@@ -805,5 +883,18 @@ public final class MountainCultistBehaviour implements Runnable {
         return world.getBlockAt(location).getType().isAir()
                 && world.getBlockAt(head).getType().isAir()
                 && world.getBlockAt(below).getType().isSolid();
+    }
+
+    private int getPatience(Player player) {
+        return playerPatience.getOrDefault(player.getUniqueId(), PATIENCE_START);
+    }
+
+    private void storePatience(UUID playerId, int patience) {
+        playerPatience.put(playerId, Math.max(0, Math.min(PATIENCE_START, patience)));
+    }
+
+    private float computeChaseSpeed(int patience) {
+        float norm = Math.max(0.0f, Math.min(1.0f, patience / (float) PATIENCE_START));
+        return 1.0f + (1.0f - norm);
     }
 }
