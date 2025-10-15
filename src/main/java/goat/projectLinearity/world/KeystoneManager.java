@@ -85,6 +85,10 @@ public final class KeystoneManager {
             return false;
         }
 
+        if (instance.processingFrame) {
+            return false;
+        }
+
         if (stack.getAmount() <= 0) {
             return false;
         }
@@ -233,9 +237,69 @@ public final class KeystoneManager {
         instance.frameInitialized = true;
     }
 
+    private Location findOptimalFireworkLocation(Location keystoneLocation) {
+        World world = keystoneLocation.getWorld();
+        if (world == null) return keystoneLocation.clone().add(0.5, 1.0, 0.5);
+
+        int startX = keystoneLocation.getBlockX();
+        int startY = keystoneLocation.getBlockY();
+        int startZ = keystoneLocation.getBlockZ();
+
+        // Search within 20 blocks radius
+        int maxDistance = 20;
+        Location bestLocation = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+
+        for (int dx = -maxDistance; dx <= maxDistance; dx++) {
+            for (int dy = -maxDistance; dy <= maxDistance; dy++) {
+                for (int dz = -maxDistance; dz <= maxDistance; dz++) {
+                    // Skip if too far (optimize search)
+                    if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > maxDistance * 1.5) continue;
+
+                    int x = startX + dx;
+                    int y = startY + dy;
+                    int z = startZ + dz;
+
+                    // Must be within world bounds
+                    if (y < world.getMinHeight() || y > world.getMaxHeight()) continue;
+
+                    Material blockType = world.getBlockAt(x, y, z).getType();
+                    Material aboveType = world.getBlockAt(x, y + 1, z).getType();
+
+                    // Check if this block is air or water
+                    boolean isValidBlock = blockType == Material.AIR ||
+                                         blockType == Material.WATER ||
+                                         blockType == Material.CAVE_AIR;
+
+                    // Check if the block above is air or ice variant (exposed)
+                    boolean isExposed = aboveType == Material.AIR ||
+                                      aboveType == Material.CAVE_AIR ||
+                                      aboveType == Material.ICE ||
+                                      aboveType == Material.PACKED_ICE ||
+                                      aboveType == Material.BLUE_ICE ||
+                                      aboveType == Material.FROSTED_ICE;
+
+                    if (isValidBlock && isExposed) {
+                        // Calculate score based on distance from keystone and height preference
+                        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        double heightBonus = y > startY ? (y - startY) * 0.5 : 0; // Prefer higher locations
+                        double score = heightBonus - distance;
+
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestLocation = new Location(world, x + 0.5, y + 1.0, z + 0.5);
+                        }
+                    }
+                }
+            }
+        }
+
+        return bestLocation != null ? bestLocation : keystoneLocation.clone().add(0.5, 1.0, 0.5);
+    }
+
     private void spawnCelebration(KeystoneInstance instance) {
         World world = instance.location.getWorld();
-        Location base = instance.location.clone().add(0.5, 1.0, 0.5);
+        Location base = findOptimalFireworkLocation(instance.location);
         world.spawnParticle(Particle.END_ROD, base, 200, 3, 4, 3, 0.05);
         world.spawnParticle(Particle.TOTEM_OF_UNDYING, base, 120, 2, 2, 2, 0.05);
         for (int i = 0; i < 6; i++) {
@@ -398,13 +462,41 @@ public final class KeystoneManager {
 
     public static final class RequiredItem {
         private final Material material;
+        private final String itemName;
+        private ItemStack customItemCache; // Lazily-resolved item
 
         public RequiredItem(Material material) {
             this.material = material;
+            this.itemName = null;
+        }
+
+        public RequiredItem(String itemName) {
+            this.material = null;
+            this.itemName = itemName;
         }
 
         public boolean test(ItemStack stack) {
-            return stack != null && stack.getType() == material;
+            if (stack == null) return false;
+
+            // Case 1: Constructed with a Material
+            if (material != null) {
+                return stack.getType() == material;
+            }
+
+            // Case 2: Constructed with a String name
+            if (itemName != null) {
+                // Lazily resolve and cache the item from the registry
+                if (customItemCache == null) {
+                    customItemCache = goat.projectLinearity.util.ItemRegistry.getItemByName(itemName);
+                }
+                // If resolution fails, this test will always fail.
+                if (customItemCache == null) {
+                    return false;
+                }
+                // isSimilar checks type and meta, but not amount.
+                return stack.isSimilar(customItemCache);
+            }
+            return false;
         }
     }
 

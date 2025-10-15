@@ -45,6 +45,10 @@ public final class KeystoneListener implements Listener {
         if (event.getClickedBlock() == null) {
             return;
         }
+        // Only accept right-click interactions
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
         Player player = event.getPlayer();
         ItemStack stack = player.getInventory().getItemInMainHand();
         if (stack == null || stack.getType() == Material.AIR) {

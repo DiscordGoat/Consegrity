@@ -852,6 +852,23 @@ extends ArcticChunkGenerator {
 
     private void placeFrozenOceanIcebergs(World world, ChunkGenerator.ChunkData data, long seed, int chunkX, int chunkZ, int[][] floorYGrid, boolean[][] frozenOcean) {
         SplittableRandom rng = rngFor(seed, chunkX, chunkZ, 30323687L);
+
+        // Add ice sheet above frozen ocean before placing icebergs
+        for (int lx = 0; lx < 16; lx++) {
+            for (int lz = 0; lz < 16; lz++) {
+                if (frozenOcean[lx][lz]) {
+                    // Add 1-2 block thick ice sheet above the water surface
+                    int iceThickness = 1 + rng.nextInt(2);
+                    for (int i = 0; i < iceThickness; i++) {
+                        int y = 153 + i; // Start at water surface (153) and go up
+                        if (y <= world.getMaxHeight() - 1 && data.getType(lx, y, lz) == Material.AIR) {
+                            data.setBlock(lx, y, lz, Material.ICE);
+                        }
+                    }
+                }
+            }
+        }
+
         boolean anyFrozen = false;
         block0: for (int x = 0; x < 16 && !anyFrozen; ++x) {
             for (int z = 0; z < 16; ++z) {
@@ -863,7 +880,8 @@ extends ArcticChunkGenerator {
         if (!anyFrozen) {
             return;
         }
-        int centers = 3 + rng.nextInt(4);
+        // Half the rate: was 3 + rng.nextInt(4), now 1 + rng.nextInt(2)
+        int centers = 1 + rng.nextInt(2);
         for (int i = 0; i < centers; ++i) {
             int cz;
             int cx = 2 + rng.nextInt(12);
@@ -871,7 +889,8 @@ extends ArcticChunkGenerator {
             int floor = floorYGrid[cx][cz];
             int sea = 153;
             int r = 3 + rng.nextInt(4);
-            int h = 6 + rng.nextInt(8);
+            // Double the height: was 6 + rng.nextInt(8), now 12 + rng.nextInt(16)
+            int h = 12 + rng.nextInt(16);
             for (int dx = -r - 1; dx <= r + 1; ++dx) {
                 for (int dz = -r - 1; dz <= r + 1; ++dz) {
                     double d;

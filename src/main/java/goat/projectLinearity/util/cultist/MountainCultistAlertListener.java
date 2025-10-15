@@ -9,6 +9,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
@@ -68,5 +70,37 @@ public final class MountainCultistAlertListener implements Listener {
             return;
         }
         behaviour.alertCultistsNear(player, location, 5.0, "invisible player hurt");
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onBlockBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        if (player.getGameMode() != GameMode.SURVIVAL) {
+            return;
+        }
+        if (!player.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY) && !player.isInvisible()) {
+            return;
+        }
+        Location location = event.getBlock().getLocation();
+        if (location.getWorld() == null || !behaviour.isNight(location.getWorld())) {
+            return;
+        }
+        behaviour.alertCultistsNear(player, location, 5.0, "invisible player broke block");
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (player.getGameMode() != GameMode.SURVIVAL) {
+            return;
+        }
+        if (!player.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY) && !player.isInvisible()) {
+            return;
+        }
+        Location location = event.getBlock().getLocation();
+        if (location.getWorld() == null || !behaviour.isNight(location.getWorld())) {
+            return;
+        }
+        behaviour.alertCultistsNear(player, location, 5.0, "invisible player placed block");
     }
 }

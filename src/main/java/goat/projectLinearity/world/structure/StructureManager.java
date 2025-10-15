@@ -147,6 +147,10 @@ public final class StructureManager {
             if (debugEnabled) dbg(reg.schemName).inc("SECTOR_BUFFER");
             return false;
         }
+        if (!structureTypeBufferSatisfied(reg, world, wx, wz)) {
+            if (debugEnabled) dbg(reg.schemName).inc("TYPE_BUFFER");
+            return false;
+        }
 
         Location paste = pickPlacement(world, wx, wz, reg, rng);
         if (paste == null) {
@@ -274,6 +278,10 @@ public final class StructureManager {
                     if (debugEnabled) dbg(reg.schemName).inc("SECTOR_BUFFER");
                     continue;
                 }
+                if (!structureTypeBufferSatisfied(reg, world, wx, wz)) {
+                    if (debugEnabled) dbg(reg.schemName).inc("TYPE_BUFFER");
+                    continue;
+                }
 
                 if (reg.minimumDistance > 0) {
                     long r2 = (long) wx * (long) wx + (long) wz * (long) wz;
@@ -352,7 +360,7 @@ public final class StructureManager {
                 ? (hellRegion != null ? hellRegion : ConsegrityRegions.regionAt(world, wx, -80, wz))
                 : (surfaceRegion != null ? surfaceRegion : ConsegrityRegions.regionAt(world, wx, wz));
         if (base == null) return false;
-        int checkDistance = 50;
+        int checkDistance = 100;
         for (int offset = -checkDistance; offset <= checkDistance; offset++) {
             if (offset == 0) continue;
             int sx = wx + offset;
@@ -371,6 +379,38 @@ public final class StructureManager {
                 return false;
             }
         }
+        return true;
+    }
+
+    private boolean structureTypeBufferSatisfied(Registration reg, World world, int wx, int wz) {
+        if (reg.bounds <= 4) return true;
+        String worldKey = world.getUID().toString();
+
+        // Get all existing structures in this world
+        StructureStore store = StructureStore.get(plugin);
+        Collection<StructureStore.StructEntry> allStructures = store.getAllStructures(worldKey);
+
+        // Minimum distance between different structure types (can be configured)
+        int minTypeDistance = Math.max(reg.bounds * 2, 100);
+        int minTypeDistanceSq = minTypeDistance * minTypeDistance;
+
+        for (StructureStore.StructEntry existing : allStructures) {
+            // Skip structures of the same type
+            if (existing.name.equalsIgnoreCase(reg.schemName)) {
+                continue;
+            }
+
+            // Check if existing structure is too close
+            int dx = existing.x - wx;
+            int dz = existing.z - wz;
+            int distanceSq = dx * dx + dz * dz;
+
+            if (distanceSq < minTypeDistanceSq) {
+                if (debugEnabled) dbg(reg.schemName).inc("TYPE_CONFLICT:" + existing.name);
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -443,7 +483,7 @@ public final class StructureManager {
             int floorY = -1;
             for (int y = sea; y >= world.getMinHeight(); y--) {
                 Material m = world.getBlockAt(x, y, z).getType();
-                if (!isWater(m) && m != Material.AIR) { floorY = y; break; }
+                if (!isWater(m) && m != Material.AIR && !isIce(m)) { floorY = y; break; }
             }
             if (floorY < world.getMinHeight()) return "NO_SEAFLOOR";
             minFloor = Math.min(minFloor, floorY);
@@ -454,7 +494,7 @@ public final class StructureManager {
         int sea = Math.max(60, ConsegrityRegions.SEA_LEVEL);
         for (int y = sea; y >= world.getMinHeight(); y--) {
             Material m = world.getBlockAt(wx, y, wz).getType();
-            if (!isWater(m) && m != Material.AIR) { centerFloor = y; break; }
+            if (!isWater(m) && m != Material.AIR && !isIce(m)) { centerFloor = y; break; }
         }
         if (centerFloor < world.getMinHeight()) return "CENTER_NO_FLOOR";
         return null;
@@ -576,7 +616,7 @@ public final class StructureManager {
             int floorY = -1;
             for (int y = sea; y >= world.getMinHeight(); y--) {
                 Material m = world.getBlockAt(x, y, z).getType();
-                if (!isWater(m) && m != Material.AIR) { floorY = y; break; }
+                if (!isWater(m) && m != Material.AIR && !isIce(m)) { floorY = y; break; }
             }
             if (floorY < world.getMinHeight()) return null;
             minFloor = Math.min(minFloor, floorY);
@@ -587,7 +627,7 @@ public final class StructureManager {
         int sea = Math.max(60, ConsegrityRegions.SEA_LEVEL);
         for (int y = sea; y >= world.getMinHeight(); y--) {
             Material m = world.getBlockAt(wx, y, wz).getType();
-            if (!isWater(m) && m != Material.AIR) { centerFloor = y; break; }
+            if (!isWater(m) && m != Material.AIR && !isIce(m)) { centerFloor = y; break; }
         }
         if (centerFloor < world.getMinHeight()) return null;
         // paste with ignoreAir=true so water is not cleared
@@ -672,7 +712,9 @@ public final class StructureManager {
     private boolean isWater(Material m) {
         return m == Material.WATER || m == Material.KELP || m == Material.KELP_PLANT || m == Material.SEAGRASS;
     }
-
+    private boolean isIce(Material m) {
+        return m == Material.ICE || m == Material.PACKED_ICE || m == Material.BLUE_ICE || m == Material.FROSTED_ICE;
+    }
     private boolean isStoneLike(Material m) {
         if (m == null) return false;
         String n = m.name();

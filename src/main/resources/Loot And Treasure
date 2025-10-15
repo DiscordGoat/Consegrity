@@ -1,0 +1,74 @@
+Loot: Items that are difficult to obtain via World.
+Treasure: Items that are impossible to obtain via World, or only appear once per world.
+Relic: Equipment that is impossible to obtain or repair.
+Recipe:
+Feast:
+
+Recipe:
+64x of each recipe, up to 4 of them
+64x of each feast, only 1 of each
+
+Loot:
+Potato
+Carrot
+Brown Mushroom
+Red Mushroom
+Honey Bottles
+Limes
+Pineapples
+Iron Blocks
+Iron Ingots
+Gold Blocks
+Gold Ingots
+Diamonds
+Splash Potion of Health Boost
+Splash Potion of Resistance
+Splash Potion of Haste (more common)
+Golden Ring
+Golden Chalice
+Golden Crown
+Enchanted Books
+Prismarine Crystals
+Jade
+Obsidian
+Books
+Lapis Lazuli
+Shelves
+Emeralds
+
+
+Treasure:
+Beetroot Seeds
+Pumpkin
+Sugar Cane
+Sweet Berries
+Splash Potion of Regeneration
+Splash Potion of Weakness
+Splash Potion of Swiftness
+Splash Potion of Slowness
+Splash Potion of Leaping
+Splash Potion of Strength
+Splash Potion of Healing
+Splash Potion of Harming
+Splash Potion of Poison
+Splash Potion of Fire Resistance
+Splash Potion of Water Breathing
+Splash Potion of Night Vision
+Splash Potion of Invisibility
+Splash Potion of Slow Falling
+
+
+
+Relics:
+ICE: Iron Sword, Sharpness 10, 1000 Durability
+Fortune: Diamond Pickaxe, Fortune 4, 100 Durability
+HighRoll: Gold Sword, 30 Durability, sharpness 25, looting 4
+Admin: Wooden Sword, Knockback 50, 60 Durability
+Fireball: Golden Shovel, Fire Aspect 50, 1000 Durability
+Worm: Golden Shovel, Efficiency 6, 10,000 Durability
+Legend: Gold Hoe, Efficiency 6, 10,000 Durability
+Story: Flint and Steel, Unbreaking 10, 1 Durability
+Aegis: Chainmail Helmet, Fire Protection V, 1000 Durability
+Echo: Chainmail Chestplate, Blast Protection V, 1000 Durability
+Gravity: Chainmail Leggings, Feather Falling V, 1000 Durability
+Earth: Chainmail Boots, Protection V, 1000 Durability

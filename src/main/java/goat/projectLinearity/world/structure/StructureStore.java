@@ -110,6 +110,11 @@ public final class StructureStore {
         return c;
     }
 
+    public synchronized java.util.Collection<StructEntry> getAllStructures(String worldKey) {
+        Map<String, StructEntry> map = loadWorld(worldKey);
+        return java.util.Collections.unmodifiableCollection(map.values());
+    }
+
     public synchronized java.util.Collection<StructEntry> getStructuresForName(String worldKey, String name) {
         Map<String, StructEntry> map = loadWorld(worldKey);
         if (map.isEmpty()) return java.util.Collections.emptyList();

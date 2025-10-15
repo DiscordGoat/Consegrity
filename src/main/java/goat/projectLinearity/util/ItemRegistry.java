@@ -246,7 +246,16 @@ public final class ItemRegistry {
     public static ItemStack getRum() {
         return LegacyItems.getRum();
     }
-
+    public static ItemStack getJade() {
+        return createCustomItem(
+                Material.EMERALD,
+                ChatColor.GREEN + "Jade",
+                List.of(ChatColor.DARK_GREEN + "A precious green gemstone."),
+                1,
+                false,
+                true
+        );
+    }
     // ===== Rosegold Materials =====
 
     public static ItemStack getRosegoldChunk() {

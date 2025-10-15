@@ -44,7 +44,7 @@ public final class MountainCultistBehaviour implements Runnable {
     private static final double LOOK_RANGE_SQ = LOOK_RANGE * LOOK_RANGE;
     private static final double SNEAK_LOOK_RANGE = 10.0;
     private static final double SNEAK_LOOK_RANGE_SQ = SNEAK_LOOK_RANGE * SNEAK_LOOK_RANGE;
-    private static final double INVISIBLE_PROXIMITY_RANGE = 3.0;
+    private static final double INVISIBLE_PROXIMITY_RANGE = 2.0;
     private static final double INVISIBLE_PROXIMITY_RANGE_SQ = INVISIBLE_PROXIMITY_RANGE * INVISIBLE_PROXIMITY_RANGE;
     private static final long LOS_CHECK_INTERVAL_MS = 5_000L;
     private static final long SIREN_INTERVAL_MS = 5_000L;
@@ -348,8 +348,11 @@ public final class MountainCultistBehaviour implements Runnable {
             }
             double distSq = origin.distanceSquared(player.getLocation());
             if (distSq <= INVISIBLE_PROXIMITY_RANGE_SQ) {
-                startChase(npc, player, "invisible proximity");
-                return;
+                // Only detect if player is actually moving (not just standing still)
+                if (isPlayerMoving(player)) {
+                    startChase(npc, player, "invisible proximity");
+                    return;
+                }
             }
         }
     }
@@ -384,6 +387,22 @@ public final class MountainCultistBehaviour implements Runnable {
 
     private boolean isInvisible(Player player) {
         return player.hasPotionEffect(PotionEffectType.INVISIBILITY) || player.isInvisible();
+    }
+
+    private void cleanseInvisibility(Player player, String detectionMethod) {
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) {
+            player.removePotionEffect(PotionEffectType.INVISIBILITY);
+            player.sendMessage(ChatColor.RED + "Your invisibility has been cleansed by cultist detection!");
+        }
+        if (player.isInvisible()) {
+            player.setInvisible(false);
+        }
+    }
+
+    private boolean isPlayerMoving(Player player) {
+        // Check if player has significant movement velocity (not just floating point errors)
+        // Using a threshold of 0.05 to detect actual player movement
+        return player.getVelocity().lengthSquared() > 0.05;
     }
 
     private boolean hasLineOfSight(Entity source, Player player) {
@@ -503,6 +522,10 @@ public final class MountainCultistBehaviour implements Runnable {
     private void startChase(NPC npc, Player player, String reason) {
         UUID npcId = npc.getUniqueId();
         UUID playerId = player.getUniqueId();
+
+        // Cleanse invisibility when chase starts
+        cleanseInvisibility(player, reason);
+
         ChaseState current = chaseStates.get(npcId);
         if (current != null && current.playerId.equals(playerId)) {
             current.lastSeenMs = System.currentTimeMillis();

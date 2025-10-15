@@ -15,7 +15,7 @@ import goat.projectLinearity.commands.SetStatCommand;
 import goat.projectLinearity.commands.SetStatRateCommand;
 import goat.projectLinearity.commands.SpawnCustomMobCommand;
 import goat.projectLinearity.commands.WarptoCommand;
-import goat.projectLinearity.libs.CustomEntityRegistry;
+import goat.projectLinearity.util.CustomEntityRegistry;
 import goat.projectLinearity.util.cultist.CultistPopulationManager;
 import goat.projectLinearity.util.cultist.MountainCultistAlertListener;
 import goat.projectLinearity.util.cultist.MountainCultistBehaviour;
@@ -184,7 +184,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 20,
                 20,
                 32,
-                new KeystoneManager.RequiredItem(Material.IRON_INGOT),
+                new KeystoneManager.RequiredItem("Jade"),
                 20,
                 32.0,
                 24.0,
@@ -198,8 +198,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 java.util.List.of("beacon0", "beacon1", "beacon2", "beacon3", "beacon4"),
                 15,
                 15,
-                40,
-                new KeystoneManager.RequiredItem(Material.GOLD_INGOT),
+                100,
+                new KeystoneManager.RequiredItem(Material.IRON_BLOCK),
                 30,
                 30.0,
                 20.0,
@@ -213,9 +213,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 java.util.List.of("conduit1", "conduit2", "conduit3", "conduit4"),
                 30,
                 30,
-                50,
+                512,
                 new KeystoneManager.RequiredItem(Material.PRISMARINE_CRYSTALS),
-                50,
+                80,
                 40.0,
                 25.0,
                 player -> {

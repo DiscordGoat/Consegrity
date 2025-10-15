@@ -1,4 +1,4 @@
-package goat.projectLinearity.libs;
+package goat.projectLinearity.util;
 
 import goat.projectLinearity.ProjectLinearity;
 import org.bukkit.Location;

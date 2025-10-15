@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.libs.CustomEntityRegistry;
+import goat.projectLinearity.util.CustomEntityRegistry;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
