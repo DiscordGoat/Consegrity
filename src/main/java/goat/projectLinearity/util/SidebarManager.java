@@ -260,7 +260,7 @@ public final class SidebarManager implements Listener {
         double temperature = data.temperature;
         Location loc = player.getLocation();
         boolean moving = true;
-        if (data.lastTickLocation != null) {
+        if (data.lastTickLocation != null && data.lastTickLocation.getWorld().equals(loc.getWorld())) {
             moving = data.lastTickLocation.distanceSquared(loc) > 0.0001;
         }
         data.lastTickLocation = loc.clone();

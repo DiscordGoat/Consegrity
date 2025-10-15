@@ -29,7 +29,7 @@ public final class ConsegrityRegions {
 
     public static final int SEA_LEVEL = 154;
     // Landmass spans the central island plus both overworld rings in the generator.
-    public static final double LANDMASS_RADIUS = 800.0;
+    public static final double LANDMASS_RADIUS = 1800.0;
 
     public static Region regionAt(World world, int x, int z) {
         if (isConsegrityNether(world)) {

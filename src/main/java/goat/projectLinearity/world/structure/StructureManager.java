@@ -391,7 +391,7 @@ public final class StructureManager {
         Collection<StructureStore.StructEntry> allStructures = store.getAllStructures(worldKey);
 
         // Minimum distance between different structure types (can be configured)
-        int minTypeDistance = Math.max(reg.bounds * 2, 100);
+        int minTypeDistance = Math.max(reg.bounds * 2, 50);
         int minTypeDistanceSq = minTypeDistance * minTypeDistance;
 
         for (StructureStore.StructEntry existing : allStructures) {

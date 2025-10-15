@@ -169,7 +169,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("hotspring", 10, 20, 100, new CherrySector(), GenCheckType.SURFACE, true, 120);
             structureManager.registerStruct("monument", 70, 20, 500, new OceanSector(), GenCheckType.UNDERWATER, true, 80);
             structureManager.registerStruct("jadestatue1", 20, 1, 800, new JungleSector(), GenCheckType.SURFACE, true, 0);
-            structureManager.registerStruct("beacon0", 26, 1, 800, new MountainSector(), GenCheckType.SURFACE, true, 600);
+            structureManager.registerStruct("beacon0", 26, 1, 2, new MountainSector(), GenCheckType.SURFACE, true, 400);
             structureManager.registerStruct("conduit1", 70, 1, 800, new OceanSector(), GenCheckType.UNDERWATER, true, 0);
             structureManager.registerStruct("pillager", 20, 12, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);

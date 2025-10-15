@@ -44,7 +44,9 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
 
         int cx = event.getChunk().getX();
         int cz = event.getChunk().getZ();
-        queue.add(new ChunkKey(world.getName(), cx, cz));
+        // Add timestamp for delayed processing
+        long enqueueTime = System.currentTimeMillis();
+        queue.add(new ChunkKey(world.getName(), cx, cz, enqueueTime));
     }
 
     @Override
@@ -56,9 +58,16 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
             }
         } catch (Throwable ignored) {}
         int budget = MAX_BUDGET;
+        long now = System.currentTimeMillis();
+        long delayMs = 120000; // 60 seconds delay
         while (budget-- > 0 && !queue.isEmpty()) {
             ChunkKey key = queue.poll();
             if (key == null) break;
+            if (now - key.enqueueTime < delayMs) {
+                // Put it back since it's not ready yet
+                queue.add(key);
+                break; // Stop processing for now
+            }
             World world = Bukkit.getWorld(key.worldName);
             if (world == null) continue;
 
@@ -67,13 +76,19 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
             try {
                 manager.tryPlaceOne(world, key.cx, key.cz, rng);
             } catch (Throwable t) {
-                // keep loop robust; log once in a while
+                // keep loop robust
             }
         }
     }
 
     private static final class ChunkKey {
         final String worldName; final int cx, cz;
-        ChunkKey(String worldName, int cx, int cz) { this.worldName = worldName; this.cx = cx; this.cz = cz; }
+        final long enqueueTime;
+        ChunkKey(String worldName, int cx, int cz, long enqueueTime) { 
+            this.worldName = worldName; 
+            this.cx = cx; 
+            this.cz = cz; 
+            this.enqueueTime = enqueueTime; 
+        }
     }
 }
