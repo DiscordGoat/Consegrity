@@ -7,6 +7,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Random;
@@ -14,10 +20,12 @@ import java.util.Random;
 /**
  * Post-generation structure spawner. Mirrors the cadence of entity spawning,
  * executing small batches on a repeating task and reacting to newly generated chunks.
+ * Persists its queue so unfinished work survives plugin reloads.
  */
 public final class DeferredStructureSpawner implements Listener, Runnable {
     private static final String WORLD_NAME = "Consegrity";
     private static final int MAX_BUDGET = 64;
+    private static final String SAVE_FILE = "structure-queue.dat";
 
     private final ProjectLinearity plugin;
     private final StructureManager manager;
@@ -26,6 +34,7 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
     public DeferredStructureSpawner(ProjectLinearity plugin, StructureManager manager) {
         this.plugin = plugin;
         this.manager = manager;
+        loadPersistedQueue();
     }
 
     @EventHandler
@@ -78,6 +87,70 @@ public final class DeferredStructureSpawner implements Listener, Runnable {
             } catch (Throwable t) {
                 // keep loop robust
             }
+        }
+    }
+
+    public void shutdown() {
+        saveQueueState();
+        queue.clear();
+    }
+
+    private void loadPersistedQueue() {
+        File folder = plugin.getDataFolder();
+        if (!folder.exists()) {
+            if (!folder.mkdirs()) {
+                return;
+            }
+        }
+        File file = new File(folder, SAVE_FILE);
+        if (!file.exists()) return;
+
+        try (BufferedReader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length != 4) continue;
+                try {
+                    String worldName = parts[0];
+                    int cx = Integer.parseInt(parts[1]);
+                    int cz = Integer.parseInt(parts[2]);
+                    long enqueueTime = Long.parseLong(parts[3]);
+                    queue.add(new ChunkKey(worldName, cx, cz, enqueueTime));
+                } catch (NumberFormatException ignored) {
+                    // skip malformed entry
+                }
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to restore deferred structure queue: " + e.getMessage());
+        }
+
+        try {
+            Files.deleteIfExists(file.toPath());
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed clearing deferred structure queue snapshot: " + e.getMessage());
+        }
+    }
+
+    private void saveQueueState() {
+        File folder = plugin.getDataFolder();
+        if (!folder.exists() && !folder.mkdirs()) {
+            return;
+        }
+        File file = new File(folder, SAVE_FILE);
+        try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
+            for (ChunkKey key : queue) {
+                writer
+                        .append(key.worldName)
+                        .append(',')
+                        .append(Integer.toString(key.cx))
+                        .append(',')
+                        .append(Integer.toString(key.cz))
+                        .append(',')
+                        .append(Long.toString(key.enqueueTime))
+                        .append('\n');
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to persist deferred structure queue: " + e.getMessage());
         }
     }
 

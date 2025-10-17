@@ -65,6 +65,10 @@ commands:
     description: Spawns a registered custom mob for testing
     usage: /spawncustommob <name>
     permission: consegrity.dev
+  curse:
+    description: Applies a curse to a player for testing
+    usage: /curse <player> <curse>
+    permission: consegrity.dev
 permissions:
   consegrity.dev:
     description: Allows using /regenerate

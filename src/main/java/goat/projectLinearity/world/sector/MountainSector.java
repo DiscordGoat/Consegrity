@@ -12,7 +12,7 @@ public class MountainSector extends SectorBase {
     private static final int CENTER_X = 0;
     private static final int CENTER_Z = 0;
     private static final int SEA_LEVEL = 153;
-    private static final double[] R1_SPLITS = new double[]{0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
+    private static final double[] R1_SPLITS = new double[]{0.0, 0.175, 0.35, 0.65, 0.825, 1.0};
 
     // Massive Mountain (MM)
     private static final double MM_EFFECT_R = 150.0;

@@ -48,7 +48,7 @@ extends ArcticChunkGenerator {
     private static final int NETHER_ROOM_MAX_R    = 40;
     private static final double NETHER_WORM_PROB  = 0.65; // spawn chance per cell
     private static final double NETHER_ROOM_PROB  = 0.22;
-    private static final double[] R1_SPLITS = new double[]{0.0, 0.2, 0.4, 0.6, 0.8, 1.0};
+    private static final double[] R1_SPLITS = new double[]{0.0, 0.175, 0.35, 0.65, 0.825, 1.0};
     private static final double[] R2_SPLITS = new double[]{0.0, 0.3333333333333, 0.6666666666666, 1.0};
     private static final int[] OFFS = new int[]{0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1};
     private static final int HEIGHT_CENTRAL = 0;
@@ -569,7 +569,7 @@ extends ArcticChunkGenerator {
             switch (region) {
                 case SWAMP: {
                     W_COPPER_R = 12;
-                    W_COAL_R = 40;
+                    W_COAL_R = 20;
                     W_IRON_R = 8;
                     W_GOLD_R = 8;
                     W_RED_R = 8;
@@ -579,7 +579,7 @@ extends ArcticChunkGenerator {
                     break;
                 }
                 case ICE_SPIKES: {
-                    W_COAL_R = 8;
+                    W_COAL_R = 4;
                     W_IRON_R = 8;
                     W_GOLD_R = 8;
                     W_RED_R = 8;
@@ -588,7 +588,7 @@ extends ArcticChunkGenerator {
                     break;
                 }
                 case CHERRY: {
-                    W_COAL_R = 40;
+                    W_COAL_R = 20;
                     W_IRON_R = 20;
                     W_GOLD_R = 10;
                     W_RED_R = 8;
@@ -598,7 +598,7 @@ extends ArcticChunkGenerator {
                 }
                 case DESERT: {
                     W_COPPER_R = 0;
-                    W_COAL_R = 40;
+                    W_COAL_R = 20;
                     W_IRON_R = 8;
                     W_GOLD_R = 8;
                     W_RED_R = 8;
@@ -609,7 +609,7 @@ extends ArcticChunkGenerator {
                 }
                 case MESA: {
                     W_COPPER_R = 0;
-                    W_COAL_R = 16;
+                    W_COAL_R = 8;
                     W_IRON_R = 12;
                     W_GOLD_R = 28; // doubled gold spawn rate in Mesa
                     W_RED_R = 8;
@@ -619,7 +619,7 @@ extends ArcticChunkGenerator {
                 }
                 case MOUNTAIN: {
                     W_COPPER_R = 0;
-                    W_COAL_R = 16;
+                    W_COAL_R = 8;
                     W_IRON_R = 16;
                     W_GOLD_R = 8;
                     W_RED_R = 8;
@@ -629,7 +629,7 @@ extends ArcticChunkGenerator {
                     break;
                 }
                 default: {
-                    W_COAL_R = 40;
+                    W_COAL_R = 20;
                     W_IRON_R = 20;
                     W_GOLD_R = 10;
                     W_RED_R = 8;

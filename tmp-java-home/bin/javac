@@ -1,0 +1,2 @@
+#!/bin/sh
+"/mnt/c/Program Files/Java/jdk-21/bin/javac.exe" "$@"

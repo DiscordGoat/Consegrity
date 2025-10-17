@@ -118,7 +118,6 @@ public final class StructureManager {
         }
     }
 
-
     private boolean tryPlaceAtCandidate(World world, Registration reg, int wx, int wz, int spacingOverride, Random rng) {
         String worldKey = world.getUID().toString();
         if (debugEnabled) dbg(reg.schemName).attempts++;

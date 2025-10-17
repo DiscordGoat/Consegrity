@@ -26,7 +26,7 @@ public class ArcticChunkGenerator extends ChunkGenerator {
 
     // Ore weights (relative rarity baseline, lower is rarer)
     // User-specified
-    private static final int W_COAL = 40;
+    private static final int W_COAL = 20;
     private static final int W_IRON = 20;
     private static final int W_GOLD = 10;
     private static final int W_DIAMOND = 1;
@@ -509,14 +509,26 @@ public class ArcticChunkGenerator extends ChunkGenerator {
         try {
             spruceLeaves = Material.SPRUCE_LEAVES.createBlockData();
             if (spruceLeaves instanceof org.bukkit.block.data.type.Leaves l) {
-                try { l.setPersistent(true); } catch (Throwable ignore) {}
-                try { l.setDistance(1); } catch (Throwable ignore) {}
+                try {
+                    l.setPersistent(true);
+                } catch (Throwable ignore) {
+                }
+                try {
+                    l.setDistance(1);
+                } catch (Throwable ignore) {
+                }
             }
         } catch (Throwable t) {
             spruceLeaves = Bukkit.createBlockData(Material.SPRUCE_LEAVES);
             if (spruceLeaves instanceof org.bukkit.block.data.type.Leaves l) {
-                try { l.setPersistent(true); } catch (Throwable ignore) {}
-                try { l.setDistance(1); } catch (Throwable ignore) {}
+                try {
+                    l.setPersistent(true);
+                } catch (Throwable ignore) {
+                }
+                try {
+                    l.setDistance(1);
+                } catch (Throwable ignore) {
+                }
             }
         }
         for (int ry = 0; ry <= radius; ry++) {
@@ -2249,6 +2261,7 @@ public class ArcticChunkGenerator extends ChunkGenerator {
     }
 
     // Dents: carve a short connector from an endpoint toward the nearest existing air in this chunk
+    // Now also removes any trees above the entrance to prevent floating trees
     private void dentTowardsAir(ChunkData data, int chunkBaseX, int chunkBaseZ,
                                 double ex, int ey, double ez, int yMin, int yMax) {
         int bestLX = -1, bestLY = -1, bestLZ = -1;
@@ -2283,6 +2296,10 @@ public class ArcticChunkGenerator extends ChunkGenerator {
             }
         }
         if (bestLX == -1) return; // no air nearby
+
+        // Remove any trees above the entrance location before carving
+        removeTreeAboveEntrance(data, chunkBaseX, chunkBaseZ, ex, ey, ez, yMin, yMax);
+
         // Carve a small line toward the found air block
         double tx = chunkBaseX + bestLX + 0.5;
         double tz = chunkBaseZ + bestLZ + 0.5;
@@ -2297,5 +2314,34 @@ public class ArcticChunkGenerator extends ChunkGenerator {
             carveSphere(data, chunkBaseX, chunkBaseZ, cx, (int) Math.round(cy), cz, 1.0, yMin, yMax);
         }
     }
-}
 
+    private void removeTreeAboveEntrance(ChunkData data, int chunkBaseX, int chunkBaseZ, double ex, int ey, double ez, int yMin, int yMax) {
+        int exi = (int) Math.floor(ex), ezi = (int) Math.floor(ez);
+        int lx0 = exi - chunkBaseX;
+        int lz0 = ezi - chunkBaseZ;
+        int R = 4;
+        // Use surface-appropriate bounds for tree removal (above ground level)
+        int surfaceMinY = Math.max(150, ey - 10); // Start from a bit below entrance
+        int surfaceMaxY = Math.min(AUDIT_Y_MAX, ey + 20); // Go up to reasonable tree height
+
+        for (int dy = 0; dy <= R; dy++) {
+            int y = ey + dy;
+            if (y < surfaceMinY || y > surfaceMaxY) continue;
+            for (int dx = -R; dx <= R; dx++) {
+                int lx = lx0 + dx;
+                if (lx < 0 || lx > 15) continue;
+                for (int dz = -R; dz <= R; dz++) {
+                    int lz = lz0 + dz;
+                    if (lz < 0 || lz > 15) continue;
+                    try {
+                        Material m = data.getType(lx, y, lz);
+                        if (isLeavesOrLog(m)) {
+                            data.setBlock(lx, y, lz, Material.AIR);
+                        }
+                    } catch (Throwable ignore) {
+                    }
+                }
+            }
+        }
+    }
+}

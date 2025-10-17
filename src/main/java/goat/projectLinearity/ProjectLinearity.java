@@ -1,33 +1,30 @@
 package goat.projectLinearity;
 
 import com.fren_gor.ultimateAdvancementAPI.AdvancementTab;
-import goat.projectLinearity.commands.GetAllConsegrityAdvancementsCommand;
-import goat.projectLinearity.commands.ItemCommand;
-import goat.projectLinearity.commands.RegenerateCommand;
-import goat.projectLinearity.commands.RegenerateNetherCommand;
-import goat.projectLinearity.commands.SetCustomDurabilityCommand;
-import goat.projectLinearity.commands.SetGildCommand;
-import goat.projectLinearity.commands.SetGoldenDurabilityCommand;
-import goat.projectLinearity.commands.SetMaxDurabilityCommand;
-import goat.projectLinearity.commands.SetCultistPopulationCommand;
-import goat.projectLinearity.commands.DebugOxygenCommand;
-import goat.projectLinearity.commands.SetStatCommand;
-import goat.projectLinearity.commands.SetStatRateCommand;
-import goat.projectLinearity.commands.SpawnCustomMobCommand;
-import goat.projectLinearity.commands.WarptoCommand;
+import goat.projectLinearity.commands.*;
+import goat.projectLinearity.listeners.CurseListener;
+import goat.projectLinearity.listeners.ZombieAttackRangeListener;
+import goat.projectLinearity.util.CurseManager;
 import goat.projectLinearity.util.CustomEntityRegistry;
+import goat.projectLinearity.util.CurseEffectController;
 import goat.projectLinearity.util.cultist.CultistPopulationManager;
 import goat.projectLinearity.util.cultist.MountainCultistAlertListener;
 import goat.projectLinearity.util.cultist.MountainCultistBehaviour;
 import goat.projectLinearity.util.cultist.MountainCultistDamageListener;
 import goat.projectLinearity.util.cultist.MountainCultistSpawnListener;
 import goat.projectLinearity.util.*;
+import goat.projectLinearity.util.samurai.CherrySamuraiBehaviour;
+import goat.projectLinearity.util.samurai.CherrySamuraiDamageListener;
+import goat.projectLinearity.util.samurai.CherrySamuraiDeathListener;
+import goat.projectLinearity.util.samurai.CherrySamuraiSpawnListener;
+import goat.projectLinearity.util.samurai.SamuraiPopulationManager;
 import goat.projectLinearity.world.RegionTitleListener;
 import goat.projectLinearity.world.MountainMobSpawnBlocker;
 import goat.projectLinearity.world.KeystoneManager;
 import goat.projectLinearity.world.KeystoneListener;
 import goat.projectLinearity.world.NocturnalStructureManager;
 import goat.projectLinearity.world.structure.StructureListener;
+import goat.projectLinearity.world.structure.DeferredStructureSpawner;
 import goat.projectLinearity.world.structure.StructureManager;
 import goat.projectLinearity.world.structure.GenCheckType;
 import goat.projectLinearity.world.sector.*;
@@ -49,13 +46,18 @@ import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 import java.util.Optional;
 
 public final class ProjectLinearity extends JavaPlugin implements Listener {
 
+    private static ProjectLinearity instance;
+
     private StructureManager structureManager;
+    private DeferredStructureSpawner deferredStructureSpawner;
+    private int deferredStructureTaskId = -1;
     private volatile boolean regenInProgress = false;
     private AnvilManager anvilManager;
     private SpaceManager spaceManager;
@@ -68,10 +70,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CulinaryCauldron culinaryCauldron;
     private VillagerTradeManager villagerTradeManager;
     private CultistPopulationManager cultistPopulationManager;
+    private SamuraiPopulationManager samuraiPopulationManager;
     private MountainCultistBehaviour mountainCultistBehaviour;
     private MountainCultistSpawnListener mountainCultistSpawnListener;
     private MountainCultistDamageListener mountainCultistDamageListener;
     private MountainCultistAlertListener mountainCultistAlertListener;
+    private CherrySamuraiBehaviour cherrySamuraiBehaviour;
+    private CherrySamuraiSpawnListener cherrySamuraiSpawnListener;
+    private CherrySamuraiDamageListener cherrySamuraiDamageListener;
     private MountainMobSpawnBlocker mountainMobSpawnBlocker;
     private NocturnalStructureManager nocturnalStructureManager;
     private KeystoneManager keystoneManager;
@@ -79,12 +85,19 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private Listener citizensEnableListener;
     private double statRate = 1.0;
     private boolean debugOxygen = false;
-
+    private CurseManager curseManager;
+    private TablistManager tablistManager;
+    private CurseEffectController curseEffectController;
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
 
+    public ProjectLinearity() {
+        instance = this;
+    }
+
     @Override
     public void onEnable() {
+        instance = this;
         CustomDurabilityManager.init(this);
         HeirloomManager.init(this);
         enchantedManager = new EnchantedManager(this);
@@ -118,17 +131,47 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(mountainCultistDamageListener, this);
         mountainCultistAlertListener = new MountainCultistAlertListener(cultistPopulationManager, mountainCultistBehaviour);
         Bukkit.getPluginManager().registerEvents(mountainCultistAlertListener, this);
+        samuraiPopulationManager = new SamuraiPopulationManager(this);
+        boolean samuraiReady = samuraiPopulationManager.startup();
+        cherrySamuraiBehaviour = new CherrySamuraiBehaviour(this, samuraiPopulationManager);
+        cherrySamuraiSpawnListener = new CherrySamuraiSpawnListener(this);
+        Bukkit.getPluginManager().registerEvents(cherrySamuraiSpawnListener, this);
+        cherrySamuraiDamageListener = new CherrySamuraiDamageListener(this, samuraiPopulationManager, cherrySamuraiBehaviour);
+        Bukkit.getPluginManager().registerEvents(cherrySamuraiDamageListener, this);
         mountainMobSpawnBlocker = new MountainMobSpawnBlocker(cultistPopulationManager);
         Bukkit.getPluginManager().registerEvents(mountainMobSpawnBlocker, this);
         nocturnalStructureManager = new NocturnalStructureManager(this);
         nocturnalStructureManager.registerStruct("haywagon", 5, 8, 200);
-        nocturnalStructureManager.startup();
-        customEntityRegistry = new CustomEntityRegistry(this);
-        registerCustomEntities();
-        if (!cultistsReady) {
-            citizensEnableListener = new CitizensEnableWatcher();
-            Bukkit.getPluginManager().registerEvents(citizensEnableListener, this);
+       nocturnalStructureManager.startup();
+       customEntityRegistry = new CustomEntityRegistry(this);
+       registerCustomEntities();
+        curseManager = new CurseManager(this);
+
+        // Initialize tablist manager for curse display
+        tablistManager = new TablistManager(this, curseManager);
+        curseManager.setTablistManager(tablistManager);
+        curseEffectController = new CurseEffectController(this, curseManager, miningOxygenManager, sidebarManager);
+        Bukkit.getPluginManager().registerEvents(curseEffectController, this);
+        curseEffectController.startup();
+
+        // Register zombie attack range listener
+        ZombieAttackRangeListener zombieAttackRangeListener = new ZombieAttackRangeListener(this);
+        Bukkit.getPluginManager().registerEvents(zombieAttackRangeListener, this);
+
+        // Register curse listener
+        CurseListener curseListener = new CurseListener(this, curseManager);
+        Bukkit.getPluginManager().registerEvents(curseListener, this);
+        
+        if (!cultistsReady || !samuraiReady) {
+            if (citizensEnableListener == null) {
+                citizensEnableListener = new CitizensEnableWatcher();
+                Bukkit.getPluginManager().registerEvents(citizensEnableListener, this);
+            }
         }
+
+        Bukkit.getPluginManager().registerEvents(new CherrySamuraiDeathListener(samuraiPopulationManager), this);
+
+
         registerShelfRecipe();
 
         // Commands
@@ -146,15 +189,21 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { DebugOxygenCommand cmd = new DebugOxygenCommand(this); getCommand("debugoxygen").setExecutor(cmd); getCommand("debugoxygen").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetCultistPopulationCommand cmd = new SetCultistPopulationCommand(this); getCommand("setcultistpopulation").setExecutor(cmd); getCommand("setcultistpopulation").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SpawnCustomMobCommand cmd = new SpawnCustomMobCommand(this); getCommand("spawncustommob").setExecutor(cmd); getCommand("spawncustommob").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { CurseCommand cmd = new CurseCommand(curseManager); getCommand("curse").setExecutor(cmd); getCommand("curse").setTabCompleter(cmd);} catch (Throwable ignored) {}
 
         // Managers
         structureManager = new StructureManager(this);
         // Enable deferred spawner (periodic + on chunk load) to place as you explore
-        goat.projectLinearity.world.structure.DeferredStructureSpawner structSpawner = new goat.projectLinearity.world.structure.DeferredStructureSpawner(this, structureManager);
-        Bukkit.getPluginManager().registerEvents(structSpawner, this);
+        deferredStructureSpawner = new DeferredStructureSpawner(this, structureManager);
+        Bukkit.getPluginManager().registerEvents(deferredStructureSpawner, this);
         Bukkit.getPluginManager().registerEvents(new StructureListener(structureManager), this);
         // Natural spawning only; no sector-based enforcement
-        try { Bukkit.getScheduler().runTaskTimer(this, structSpawner, 1L, 5L); } catch (Throwable ignore) {}
+        try {
+            BukkitTask task = Bukkit.getScheduler().runTaskTimer(this, deferredStructureSpawner, 1L, 5L);
+            deferredStructureTaskId = task.getTaskId();
+        } catch (Throwable ignore) {
+            deferredStructureTaskId = -1;
+        }
 
         enchantingManager = new EnchantingManager(this, enchantedManager);
         enchantingManager.start();
@@ -163,7 +212,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try {
             structureManager.registerStruct("jungletemple", 24, 7, 100, new JungleSector(), GenCheckType.SURFACE, true, 300);
             structureManager.registerStruct("deserttemple", 30, 6, 200, new DesertBiome(), GenCheckType.SURFACE, true, 100);
-            structureManager.registerStruct("witchhut", 9, 10, 150, new SwampSector(), GenCheckType.SURFACE, true, 250);
+            structureManager.registerStruct("witchhut", 9, 8, 150, new SwampSector(), GenCheckType.SURFACE, true, 250);
             structureManager.registerStruct("witchfestival", 60, 1, 200, new SwampSector(), GenCheckType.SURFACE, true, 300);
             structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 500);
             structureManager.registerStruct("hotspring", 10, 20, 100, new CherrySector(), GenCheckType.SURFACE, true, 120);
@@ -171,10 +220,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("jadestatue1", 20, 1, 800, new JungleSector(), GenCheckType.SURFACE, true, 0);
             structureManager.registerStruct("beacon0", 26, 1, 2, new MountainSector(), GenCheckType.SURFACE, true, 400);
             structureManager.registerStruct("conduit1", 70, 1, 800, new OceanSector(), GenCheckType.UNDERWATER, true, 0);
+            structureManager.registerStruct("sarcophagus0", 35, 1, 800, new MesaSector(), GenCheckType.SURFACE, true, 0);
             structureManager.registerStruct("pillager", 20, 12, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
         } catch (Throwable ignored) {}
-
         keystoneManager = new KeystoneManager(this);
         keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
                 "jadestatue1",
@@ -189,6 +238,22 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 32.0,
                 24.0,
                 player -> player.addPotionEffect(new PotionEffect(PotionEffectType.HERO_OF_THE_VILLAGE, 200, 0, true, false, true))
+        ));
+        keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
+                "sarcophagus0",
+                ChatColor.GOLD + "Golden Sarcophagus",
+                "sarcophagus0",
+                java.util.List.of("sarcophagus0", "sarcophagus1", "sarcophagus2",
+                        "sarcophagus3", "sarcophagus4", "sarcophagus5",
+                        "sarcophagus6", "sarcophagus7", "sarcophagus8"),
+                25,  // bounds
+                20,  // height
+                512, // totalProgress (gold ingots)
+                new KeystoneManager.RequiredItem(Material.GOLD_INGOT),
+                25,  // protectionRadius
+                30.0, // notifyRadius
+                20.0, // rewardRadius
+                player -> player.addPotionEffect(new PotionEffect(PotionEffectType.HERO_OF_THE_VILLAGE, 1200, 1, true, false, true))
         ));
         
         keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
@@ -213,7 +278,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 java.util.List.of("conduit1", "conduit2", "conduit3", "conduit4"),
                 30,
                 30,
-                512,
+                256,
                 new KeystoneManager.RequiredItem(Material.PRISMARINE_CRYSTALS),
                 80,
                 40.0,
@@ -294,6 +359,48 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                     return CustomEntityRegistry.SpawnResult.success(message);
                 }
         ));
+        customEntityRegistry.register(new CustomEntityRegistry.CustomEntityEntry(
+                "samurai",
+                "Cherry Samurai",
+                "Spawns a Cherry Samurai NPC for testing.",
+                List.of("samurai", "cherry_samurai", "cherrysamurai"),
+                (pl, location, sender) -> {
+                    SamuraiPopulationManager manager = pl.getSamuraiPopulationManager();
+                    if (manager == null) {
+                        return CustomEntityRegistry.SpawnResult.failure("Samurai manager is unavailable.");
+                    }
+                    Optional<NPC> npcOptional = manager.spawnSamuraiEntity(location);
+                    if (npcOptional.isEmpty()) {
+                        return CustomEntityRegistry.SpawnResult.failure("Unable to spawn Cherry Samurai. See console for details.");
+                    }
+                    NPC npc = npcOptional.get();
+                    Location spawnLocation = npc.getEntity() != null ? npc.getEntity().getLocation() : location;
+                    String worldName = spawnLocation.getWorld() != null ? spawnLocation.getWorld().getName() : "unknown";
+                    String message = String.format(
+                            "Spawned Cherry Samurai (%s) at %s x=%.1f y=%.1f z=%.1f",
+                            npc.getUniqueId(),
+                            worldName,
+                            spawnLocation.getX(),
+                            spawnLocation.getY(),
+                            spawnLocation.getZ());
+                    return CustomEntityRegistry.SpawnResult.success(message);
+                }
+        ));
+        customEntityRegistry.register(new CustomEntityRegistry.CustomEntityEntry(
+                "cursed_zombie",
+                "Cursed Zombie",
+                "Spawns a cursed zombie for testing curse mechanics.",
+                List.of("cursedzombie", "czombie"),
+                (pl, location, sender) -> {
+                    try {
+                        org.bukkit.entity.Zombie zombie = (org.bukkit.entity.Zombie) location.getWorld().spawnEntity(location, org.bukkit.entity.EntityType.ZOMBIE);
+                        goat.projectLinearity.listeners.CurseListener.markMonsterAsCursed(zombie);
+                        return CustomEntityRegistry.SpawnResult.success("Spawned cursed zombie at " + location.getX() + ", " + location.getY() + ", " + location.getZ());
+                    } catch (Exception e) {
+                        return CustomEntityRegistry.SpawnResult.failure("Failed to spawn cursed zombie: " + e.getMessage());
+                    }
+                }
+        ));
     }
 
     // Default world generator remains the server default; Consegrity world is created via command
@@ -310,6 +417,13 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (cultistPopulationManager != null) {
             cultistPopulationManager.shutdown();
         }
+        if (cherrySamuraiBehaviour != null) {
+            cherrySamuraiBehaviour.shutdown();
+            cherrySamuraiBehaviour = null;
+        }
+        if (samuraiPopulationManager != null) {
+            samuraiPopulationManager.shutdown();
+        }
         if (mountainCultistBehaviour != null) {
             mountainCultistBehaviour.shutdown();
         }
@@ -325,6 +439,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             HandlerList.unregisterAll(mountainCultistAlertListener);
             mountainCultistAlertListener = null;
         }
+        if (cherrySamuraiSpawnListener != null) {
+            HandlerList.unregisterAll(cherrySamuraiSpawnListener);
+            cherrySamuraiSpawnListener = null;
+        }
+        if (cherrySamuraiDamageListener != null) {
+            HandlerList.unregisterAll(cherrySamuraiDamageListener);
+            cherrySamuraiDamageListener = null;
+        }
         if (mountainMobSpawnBlocker != null) {
             HandlerList.unregisterAll(mountainMobSpawnBlocker);
             mountainMobSpawnBlocker = null;
@@ -336,6 +458,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (keystoneManager != null) {
             keystoneManager.shutdown();
             keystoneManager = null;
+        }
+        if (deferredStructureSpawner != null) {
+            if (deferredStructureTaskId != -1) {
+                try { Bukkit.getScheduler().cancelTask(deferredStructureTaskId); } catch (Throwable ignored) {}
+                deferredStructureTaskId = -1;
+            }
+            deferredStructureSpawner.shutdown();
+            deferredStructureSpawner = null;
         }
         if (citizensEnableListener != null) {
             HandlerList.unregisterAll(citizensEnableListener);
@@ -350,6 +480,17 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (spaceManager != null) {
             spaceManager.save();
         }
+        if (curseManager != null) {
+            curseManager.shutdown();
+        }
+        if (curseEffectController != null) {
+            curseEffectController.shutdown();
+            curseEffectController = null;
+        }
+        if (tablistManager != null) {
+            tablistManager.shutdown();
+        }
+        instance = null;
     }
 
     public StructureManager getStructureManager() { return structureManager; }
@@ -359,6 +500,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public SidebarManager getSidebarManager() { return sidebarManager; }
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public CultistPopulationManager getCultistPopulationManager() { return cultistPopulationManager; }
+    public SamuraiPopulationManager getSamuraiPopulationManager() { return samuraiPopulationManager; }
+    public CherrySamuraiBehaviour getCherrySamuraiBehaviour() { return cherrySamuraiBehaviour; }
     public MountainCultistBehaviour getMountainCultistBehaviour() { return mountainCultistBehaviour; }
     public KeystoneManager getKeystoneManager() { return keystoneManager; }
     public CustomEntityRegistry getCustomEntityRegistry() { return customEntityRegistry; }
@@ -366,6 +509,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
     public boolean isDebugOxygen() { return debugOxygen; }
     public void setDebugOxygen(boolean debug) { this.debugOxygen = debug; }
+    public CurseManager getCurseManager() { return curseManager; }
+    public TablistManager getTablistManager() { return tablistManager; }
+
+    public static ProjectLinearity getInstance() { return instance; }
 
     // Optional hook used by RegionTitleListener; safe no-op if tabs not initialized
     public void showRegionTab(Player p, ConsegrityRegions.Region r) {
@@ -394,10 +541,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             if (!"Citizens".equalsIgnoreCase(event.getPlugin().getName())) {
                 return;
             }
-            if (cultistPopulationManager == null) {
-                return;
-            }
-            if (cultistPopulationManager.startup()) {
+            boolean cultistsReady = cultistPopulationManager == null || cultistPopulationManager.startup();
+            boolean samuraiReady = samuraiPopulationManager == null || samuraiPopulationManager.startup();
+            if (cultistsReady && samuraiReady) {
                 HandlerList.unregisterAll(this);
                 citizensEnableListener = null;
             }
