@@ -1,8 +1,7 @@
-package goat.projectLinearity.listeners;
+package goat.projectLinearity.util.listeners;
 
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;

@@ -1,6 +1,7 @@
 package goat.projectLinearity.util;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.util.potions.CustomPotionEffectManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -61,6 +62,7 @@ public final class CurseEffectController implements Listener {
     private final CurseManager curseManager;
     private final MiningOxygenManager oxygenManager;
     private final SidebarManager sidebarManager;
+    private final CustomPotionEffectManager potionEffectManager;
 
     private final Map<UUID, Double> frailtyOriginalHealth = new HashMap<>();
     private final Map<UUID, Long> peaceMessageCooldown = new HashMap<>();
@@ -70,11 +72,13 @@ public final class CurseEffectController implements Listener {
     public CurseEffectController(ProjectLinearity plugin,
                                  CurseManager curseManager,
                                  MiningOxygenManager oxygenManager,
-                                 SidebarManager sidebarManager) {
+                                 SidebarManager sidebarManager,
+                                 CustomPotionEffectManager potionEffectManager) {
         this.plugin = plugin;
         this.curseManager = curseManager;
         this.oxygenManager = oxygenManager;
         this.sidebarManager = sidebarManager;
+        this.potionEffectManager = potionEffectManager;
     }
 
     public void startup() {
@@ -118,11 +122,11 @@ public final class CurseEffectController implements Listener {
             player.stopAllSounds();
         }
 
-        applyPotion(player, PotionEffectType.HUNGER, 1, hasCurse(player, CURSE_GLUTTONY));
-        applyPotion(player, PotionEffectType.WEAKNESS, 1, hasCurse(player, CURSE_WEAKNESS));
-        applyPotion(player, PotionEffectType.SLOWNESS, 1, hasCurse(player, CURSE_SLOWNESS));
-        applyPotion(player, PotionEffectType.MINING_FATIGUE, 2, hasCurse(player, CURSE_FATIGUE));
-        applyPotion(player, PotionEffectType.BLINDNESS, 0, hasCurse(player, CURSE_BLINDNESS));
+        applyPotion(player, PotionEffectType.HUNGER, 1, hasCurse(player, CURSE_GLUTTONY), null);
+        applyPotion(player, PotionEffectType.WEAKNESS, 1, hasCurse(player, CURSE_WEAKNESS), null);
+        applyPotion(player, PotionEffectType.SLOWNESS, 1, hasCurse(player, CURSE_SLOWNESS), "slowness");
+        applyPotion(player, PotionEffectType.MINING_FATIGUE, 2, hasCurse(player, CURSE_FATIGUE), null);
+        applyPotion(player, PotionEffectType.BLINDNESS, 0, hasCurse(player, CURSE_BLINDNESS), null);
 
         applyFrailty(player, hasCurse(player, CURSE_FRAILTY));
 
@@ -131,13 +135,16 @@ public final class CurseEffectController implements Listener {
         }
     }
 
-    private void applyPotion(Player player, PotionEffectType type, int amplifier, boolean active) {
+    private void applyPotion(Player player, PotionEffectType type, int amplifier, boolean active, String potionId) {
         if (active) {
             PotionEffect current = player.getPotionEffect(type);
             if (current == null || current.getAmplifier() != amplifier || current.getDuration() < POTION_REFRESH_TICKS / 2) {
                 player.addPotionEffect(new PotionEffect(type, POTION_REFRESH_TICKS, amplifier, true, false, false));
             }
         } else if (player.hasPotionEffect(type)) {
+            if (potionId != null && potionEffectManager != null && potionEffectManager.hasEffect(player, potionId)) {
+                return;
+            }
             player.removePotionEffect(type);
         }
     }

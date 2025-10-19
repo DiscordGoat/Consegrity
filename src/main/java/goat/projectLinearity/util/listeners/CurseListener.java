@@ -1,4 +1,4 @@
-package goat.projectLinearity.listeners;
+package goat.projectLinearity.util.listeners;
 
 import goat.projectLinearity.ProjectLinearity;
 import goat.projectLinearity.util.CurseManager;

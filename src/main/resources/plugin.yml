@@ -69,6 +69,10 @@ commands:
     description: Applies a curse to a player for testing
     usage: /curse <player> <curse>
     permission: consegrity.dev
+  potions:
+    description: Opens the potion shears catalogue
+    usage: /potions
+    permission: consegrity.potions
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
@@ -87,4 +91,7 @@ permissions:
     default: op
   consegrity.cultist:
     description: Allows adjusting the Mountain Cultist population
+    default: op
+  consegrity.potions:
+    description: Allows opening the potion shears catalogue
     default: op

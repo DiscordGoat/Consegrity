@@ -1,15 +1,17 @@
 package goat.projectLinearity.util;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.util.potions.CustomPotionEffectManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,6 +22,7 @@ public final class TablistManager {
 
     private final ProjectLinearity plugin;
     private final CurseManager curseManager;
+    private CustomPotionEffectManager potionEffectManager;
     private final BukkitTask updateTask;
     private final Map<UUID, String> lastTablistContent = new HashMap<>();
 
@@ -34,6 +37,10 @@ public final class TablistManager {
                 updateAllTablists();
             }
         }.runTaskTimer(plugin, 20L, 20L);
+    }
+
+    public void setPotionEffectManager(CustomPotionEffectManager manager) {
+        this.potionEffectManager = manager;
     }
 
     /**
@@ -51,31 +58,46 @@ public final class TablistManager {
     public void updatePlayerTablist(Player player) {
         Map<CurseRegistry.Curse, Long> activeCurses = curseManager.getActiveCurses(player);
 
-        if (activeCurses.isEmpty()) {
-            // Clear tablist if no curses
+        List<String> potionLines = potionEffectManager != null ? potionEffectManager.getTabLines(player) : Collections.emptyList();
+        boolean hasCurses = !activeCurses.isEmpty();
+        boolean hasPotions = potionLines != null && !potionLines.isEmpty();
+
+        if (!hasCurses && !hasPotions) {
             clearPlayerTablist(player);
             return;
         }
 
-        StringBuilder curseDisplay = new StringBuilder();
-        curseDisplay.append("\n");
-        curseDisplay.append(ChatColor.DARK_RED).append("§l⚠ CURSES ⚠").append("\n");
+        StringBuilder footer = new StringBuilder();
+        footer.append("\n");
 
-        for (Map.Entry<CurseRegistry.Curse, Long> entry : activeCurses.entrySet()) {
-            CurseRegistry.Curse curse = entry.getKey();
-            long remainingSeconds = entry.getValue() / 1000;
+        if (hasCurses) {
+            footer.append(ChatColor.DARK_RED).append("§l⚠ CURSES ⚠").append("\n");
+            for (Map.Entry<CurseRegistry.Curse, Long> entry : activeCurses.entrySet()) {
+                CurseRegistry.Curse curse = entry.getKey();
+                long remainingSeconds = entry.getValue() / 1000;
 
-            curseDisplay.append(ChatColor.RED)
-                       .append(curse.displayName())
-                       .append(ChatColor.GRAY)
-                       .append(": ")
-                       .append(ChatColor.YELLOW)
-                       .append(remainingSeconds)
-                       .append("s")
-                       .append("\n");
+                footer.append(ChatColor.RED)
+                      .append(curse.displayName())
+                      .append(ChatColor.GRAY)
+                      .append(": ")
+                      .append(ChatColor.YELLOW)
+                      .append(remainingSeconds)
+                      .append("s")
+                      .append("\n");
+            }
         }
 
-        String newContent = curseDisplay.toString();
+        if (hasPotions) {
+            if (hasCurses) {
+                footer.append("\n");
+            }
+            footer.append(ChatColor.DARK_AQUA).append("§lPOTIONS").append("\n");
+            for (String line : potionLines) {
+                footer.append(line).append("\n");
+            }
+        }
+
+        String newContent = footer.toString();
 
         // Only update if content changed to avoid unnecessary packets
         String lastContent = lastTablistContent.get(player.getUniqueId());

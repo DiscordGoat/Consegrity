@@ -2,8 +2,8 @@ package goat.projectLinearity;
 
 import com.fren_gor.ultimateAdvancementAPI.AdvancementTab;
 import goat.projectLinearity.commands.*;
-import goat.projectLinearity.listeners.CurseListener;
-import goat.projectLinearity.listeners.ZombieAttackRangeListener;
+import goat.projectLinearity.util.listeners.CurseListener;
+import goat.projectLinearity.util.listeners.ZombieAttackRangeListener;
 import goat.projectLinearity.util.CurseManager;
 import goat.projectLinearity.util.CustomEntityRegistry;
 import goat.projectLinearity.util.CurseEffectController;
@@ -13,6 +13,9 @@ import goat.projectLinearity.util.cultist.MountainCultistBehaviour;
 import goat.projectLinearity.util.cultist.MountainCultistDamageListener;
 import goat.projectLinearity.util.cultist.MountainCultistSpawnListener;
 import goat.projectLinearity.util.*;
+import goat.projectLinearity.util.potions.CustomPotionEffectManager;
+import goat.projectLinearity.util.potions.PotionGuiManager;
+import goat.projectLinearity.util.potions.PotionUsageListener;
 import goat.projectLinearity.util.samurai.CherrySamuraiBehaviour;
 import goat.projectLinearity.util.samurai.CherrySamuraiDamageListener;
 import goat.projectLinearity.util.samurai.CherrySamuraiDeathListener;
@@ -88,6 +91,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CurseManager curseManager;
     private TablistManager tablistManager;
     private CurseEffectController curseEffectController;
+    private PotionGuiManager potionGuiManager;
+    private CustomPotionEffectManager customPotionEffectManager;
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
 
@@ -103,6 +108,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         enchantedManager = new EnchantedManager(this);
         enchantedManager.start();
         anvilManager = new AnvilManager(this, enchantedManager);
+        potionGuiManager = new PotionGuiManager(this, enchantedManager);
         spaceManager = new SpaceManager(this);
         spaceManager.load();
         Bukkit.getPluginManager().registerEvents(new SpacePresenceListener(spaceManager), this);
@@ -150,7 +156,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Initialize tablist manager for curse display
         tablistManager = new TablistManager(this, curseManager);
         curseManager.setTablistManager(tablistManager);
-        curseEffectController = new CurseEffectController(this, curseManager, miningOxygenManager, sidebarManager);
+        customPotionEffectManager = new CustomPotionEffectManager(this, tablistManager);
+        tablistManager.setPotionEffectManager(customPotionEffectManager);
+        new PotionUsageListener(this, customPotionEffectManager);
+        curseEffectController = new CurseEffectController(this, curseManager, miningOxygenManager, sidebarManager, customPotionEffectManager);
         Bukkit.getPluginManager().registerEvents(curseEffectController, this);
         curseEffectController.startup();
 
@@ -190,6 +199,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { SetCultistPopulationCommand cmd = new SetCultistPopulationCommand(this); getCommand("setcultistpopulation").setExecutor(cmd); getCommand("setcultistpopulation").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SpawnCustomMobCommand cmd = new SpawnCustomMobCommand(this); getCommand("spawncustommob").setExecutor(cmd); getCommand("spawncustommob").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { CurseCommand cmd = new CurseCommand(curseManager); getCommand("curse").setExecutor(cmd); getCommand("curse").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { PotionCatalogueCommand cmd = new PotionCatalogueCommand(this, potionGuiManager); getCommand("potions").setExecutor(cmd);} catch (Throwable ignored) {}
 
         // Managers
         structureManager = new StructureManager(this);
@@ -394,7 +404,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 (pl, location, sender) -> {
                     try {
                         org.bukkit.entity.Zombie zombie = (org.bukkit.entity.Zombie) location.getWorld().spawnEntity(location, org.bukkit.entity.EntityType.ZOMBIE);
-                        goat.projectLinearity.listeners.CurseListener.markMonsterAsCursed(zombie);
+                        goat.projectLinearity.util.listeners.CurseListener.markMonsterAsCursed(zombie);
                         return CustomEntityRegistry.SpawnResult.success("Spawned cursed zombie at " + location.getX() + ", " + location.getY() + ", " + location.getZ());
                     } catch (Exception e) {
                         return CustomEntityRegistry.SpawnResult.failure("Failed to spawn cursed zombie: " + e.getMessage());
@@ -490,6 +500,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (tablistManager != null) {
             tablistManager.shutdown();
         }
+        if (customPotionEffectManager != null) {
+            customPotionEffectManager.shutdown();
+        }
         instance = null;
     }
 
@@ -499,12 +512,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public SpaceManager getSpaceManager() { return spaceManager; }
     public SidebarManager getSidebarManager() { return sidebarManager; }
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
+    public EnchantedManager getEnchantedManager() { return enchantedManager; }
+    public PotionGuiManager getPotionGuiManager() { return potionGuiManager; }
     public CultistPopulationManager getCultistPopulationManager() { return cultistPopulationManager; }
     public SamuraiPopulationManager getSamuraiPopulationManager() { return samuraiPopulationManager; }
     public CherrySamuraiBehaviour getCherrySamuraiBehaviour() { return cherrySamuraiBehaviour; }
     public MountainCultistBehaviour getMountainCultistBehaviour() { return mountainCultistBehaviour; }
     public KeystoneManager getKeystoneManager() { return keystoneManager; }
     public CustomEntityRegistry getCustomEntityRegistry() { return customEntityRegistry; }
+    public CustomPotionEffectManager getCustomPotionEffectManager() { return customPotionEffectManager; }
     public double getStatRate() { return statRate; }
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
     public boolean isDebugOxygen() { return debugOxygen; }

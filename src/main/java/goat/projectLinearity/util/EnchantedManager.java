@@ -1,6 +1,6 @@
 package goat.projectLinearity.util;
 
-import goat.projectLinearity.util.ItemRegistry;
+import goat.projectLinearity.util.potions.PotionRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -22,6 +22,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Sound;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -239,9 +240,11 @@ public final class EnchantedManager implements Listener {
 
     public boolean isEnchantable(ItemStack stack) {
         if (stack == null || stack.getType() == Material.AIR) return false;
+        if (PotionRegistry.PotionItemData.from(stack).isPresent()) {
+            return true;
+        }
         Material type = stack.getType();
-        if (type.getMaxDurability() <= 0) return false;
-        return true;
+        return type.getMaxDurability() > 0;
     }
 
     public boolean isGoldItem(ItemStack stack) {
@@ -293,7 +296,6 @@ public final class EnchantedManager implements Listener {
             return;
         }
 
-        // Sanitize vanilla enchanted books entering inventory
         ItemStack current = event.getCurrentItem();
         if (current != null && current.getType() == Material.ENCHANTED_BOOK) {
             event.setCurrentItem(convertToCustomBook(current));
@@ -303,9 +305,26 @@ public final class EnchantedManager implements Listener {
             event.setCursor(convertToCustomBook(cursor));
         }
 
-        // Allow applying custom book by dragging onto an item
         cursor = event.getCursor();
         current = event.getCurrentItem();
+        if (cursor != null && cursor.equals(ItemRegistry.getEnchantedBook()) && PotionRegistry.PotionItemData.from(current).isPresent()) {
+            event.setCancelled(true);
+            ItemStack finalCurrent = current;
+            PotionRegistry.PotionItemData.from(current).ifPresent(data -> {
+                int tier = data.getEnchantTier();
+                if (tier >= 3) {
+                    player.sendMessage(ChatColor.RED + "That potion is already Enchanted III.");
+                    return;
+                }
+                PotionRegistry.incrementEnchantTier(finalCurrent, tier + 1);
+                decrementCursor(event, player);
+                player.updateInventory();
+                player.playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1f, 1.2f);
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "Potion enchanted to tier " + roman(tier + 1) + ".");
+            });
+            return;
+        }
+
         if (cursor != null && cursor.equals(ItemRegistry.getEnchantedBook()) && isEnchantable(current)) {
             event.setCancelled(true);
             if (!ensureUpgradeable(player, current)) {
@@ -318,7 +337,24 @@ public final class EnchantedManager implements Listener {
             return;
         }
 
-        // Handle reverse order (book in slot, item on cursor)
+        if (current != null && PotionRegistry.PotionItemData.from(cursor).isPresent() && event.getCurrentItem() != null && cursor.equals(ItemRegistry.getEnchantedBook())) {
+            event.setCancelled(true);
+            ItemStack finalCursor = cursor;
+            PotionRegistry.PotionItemData.from(cursor).ifPresent(data -> {
+                int tier = data.getEnchantTier();
+                if (tier >= 3) {
+                    player.sendMessage(ChatColor.RED + "That potion is already Enchanted III.");
+                    return;
+                }
+                PotionRegistry.incrementEnchantTier(finalCursor, tier + 1);
+                decrementSlotItem(event, player);
+                player.updateInventory();
+                player.playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1f, 1.2f);
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "Potion enchanted to tier " + roman(tier + 1) + ".");
+            });
+            return;
+        }
+
         if (current != null && cursor.equals(ItemRegistry.getEnchantedBook()) && isEnchantable(cursor)) {
             event.setCancelled(true);
             if (!ensureUpgradeable(player, cursor)) {

@@ -201,51 +201,28 @@ public final class ItemRegistry {
         }
         return builder.toString();
     }
-
-    public static ItemStack createCustomItem(
-            Material material,
-            String name,
-            List<String> lore,
-            int amount,
-            boolean unbreakable,
-            boolean addEnchantmentShimmer
-    ) {
-        ItemStack item = new ItemStack(material != null ? material : Material.STONE, Math.max(1, amount));
+    private static ItemStack createCustomItem(Material material, String name, List<String> lore, int amount,
+                                              boolean unbreakable, boolean addEnchantmentShimmer) {
+        ItemStack item = new ItemStack(material, amount);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            if (name != null) {
-                meta.setDisplayName(name);
-            }
-            meta.setLore(lore != null && !lore.isEmpty() ? new ArrayList<>(lore) : null);
+            meta.setDisplayName(name);
+            if (lore != null) meta.setLore(lore);
             meta.setUnbreakable(unbreakable);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
+
             if (addEnchantmentShimmer) {
-                meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+                meta.addEnchant(Enchantment.UNBREAKING, 1, true); // gives shimmer
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);  // hides the "Luck" line
             }
+
             item.setItemMeta(meta);
         }
         return item;
     }
 
-    public static ItemStack getShelfItem() {
-        return LegacyItems.getShelfItem();
-    }
 
-    public static ItemStack getButter() {
-        return LegacyItems.getButter();
-    }
 
-    public static ItemStack getDough() {
-        return LegacyItems.getDough();
-    }
 
-    public static ItemStack getChocolate() {
-        return LegacyItems.getChocolate();
-    }
-
-    public static ItemStack getRum() {
-        return LegacyItems.getRum();
-    }
     public static ItemStack getJade() {
         return createCustomItem(
                 Material.EMERALD,
@@ -407,88 +384,6 @@ public final class ItemRegistry {
     }
 
     // ===== Heirlooms =====
-
-    public static ItemStack getGoldenRing() {
-        ItemStack item = createCustomItem(
-                Material.LEATHER_CHESTPLATE,
-                ChatColor.GOLD + "Golden Ring",
-                Arrays.asList(ChatColor.DARK_PURPLE + "Smithing Item"),
-                1,
-                false,
-                true
-        );
-        HeirloomManager mgr = HeirloomManager.getInstance();
-        if (mgr != null) {
-            mgr.setGild(item, 0, 100);
-        }
-        return item;
-    }
-
-    public static ItemStack getGoldenChalice() {
-        ItemStack item = createCustomItem(
-                Material.LEATHER_CHESTPLATE,
-                ChatColor.GOLD + "Golden Chalice",
-                Arrays.asList(ChatColor.DARK_PURPLE + "Smithing Item"),
-                1,
-                false,
-                true
-        );
-        HeirloomManager mgr = HeirloomManager.getInstance();
-        if (mgr != null) {
-            mgr.setGild(item, 0, 250);
-        }
-        return item;
-    }
-
-    public static ItemStack getGoldenCrown() {
-        ItemStack item = createCustomItem(
-                Material.LEATHER_CHESTPLATE,
-                ChatColor.GOLD + "Golden Crown",
-                Arrays.asList(ChatColor.DARK_PURPLE + "Smithing Item"),
-                1,
-                false,
-                true
-        );
-        HeirloomManager mgr = HeirloomManager.getInstance();
-        if (mgr != null) {
-            mgr.setGild(item, 0, 500);
-        }
-        return item;
-    }
-
-
-private static final class LegacyItems {
-    private LegacyItems() {
-    } // Private constructor to prevent instantiation
-
-
-    public static ItemStack getItemByName(String itemName) {
-        // Replace underscores with spaces
-        String formattedName = itemName.replace("_", " ");
-
-        for (Method method : LegacyItems.class.getDeclaredMethods()) {
-            if (method.getReturnType().equals(ItemStack.class)) {
-                try {
-                    ItemStack item = (ItemStack) method.invoke(null);
-                    if (item != null) {
-                        ItemMeta meta = item.getItemMeta();
-                        if (meta != null) {
-                            // Compare stripped color from displayName with stripped color from input
-                            String displayNameNoColor = ChatColor.stripColor(meta.getDisplayName());
-                            String formattedNoColor = ChatColor.stripColor(formattedName);
-
-                            if (displayNameNoColor.equalsIgnoreCase(formattedNoColor)) {
-                                return item;
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        return null;
-    }
 
 
     public static ItemStack getHostility() {
@@ -4250,9 +4145,7 @@ private static final class LegacyItems {
         return lootTable.get(random.nextInt(lootTable.size()));
     }
 
-    private static ItemStack createCustomItem(Material material, String name, List<String> lore, int amount, boolean unbreakable, boolean addEnchantmentShimmer) {
-        return ItemRegistry.createCustomItem(material, name, lore, amount, unbreakable, addEnchantmentShimmer);
-    }
+
 
     // ===== GEMSTONES =====
 
@@ -5195,6 +5088,42 @@ private static final class LegacyItems {
                 true
         );
     }
+
+private static final class LegacyItems {
+    private LegacyItems() {
+    } // Private constructor to prevent instantiation
+
+
+    public static ItemStack getItemByName(String itemName) {
+        // Replace underscores with spaces
+        String formattedName = itemName.replace("_", " ");
+
+        for (Method method : LegacyItems.class.getDeclaredMethods()) {
+            if (method.getReturnType().equals(ItemStack.class)) {
+                try {
+                    ItemStack item = (ItemStack) method.invoke(null);
+                    if (item != null) {
+                        ItemMeta meta = item.getItemMeta();
+                        if (meta != null) {
+                            // Compare stripped color from displayName with stripped color from input
+                            String displayNameNoColor = ChatColor.stripColor(meta.getDisplayName());
+                            String formattedNoColor = ChatColor.stripColor(formattedName);
+
+                            if (displayNameNoColor.equalsIgnoreCase(formattedNoColor)) {
+                                return item;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return null;
+    }
+
+
+
 }
 
 }
