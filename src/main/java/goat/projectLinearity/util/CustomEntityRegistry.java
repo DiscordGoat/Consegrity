@@ -3,6 +3,8 @@ package goat.projectLinearity.util;
 import goat.projectLinearity.ProjectLinearity;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.inventory.ItemFactory;
+import org.bukkit.inventory.meta.components.FoodComponent;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +42,7 @@ public final class CustomEntityRegistry {
         for (String alias : entry.aliases()) {
             lookup.put(normalise(alias), entry);
         }
+
     }
 
     public Optional<CustomEntityEntry> find(String key) {
