@@ -1,0 +1,137 @@
+size: 27
+items:
+  - slot: 0
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 1
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 2
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 3
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 4
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 5
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 6
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 7
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 8
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 9
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 10
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 11
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 12
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 13
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 14
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 15
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 16
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 17
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 18
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 19
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 20
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 21
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 22
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 23
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 24
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 25
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
+  - slot: 26
+    item:
+      ==: org.bukkit.inventory.ItemStack
+      type: EMERALD
+      amount: 64
