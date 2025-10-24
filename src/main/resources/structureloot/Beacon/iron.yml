@@ -1,0 +1,77 @@
+size: 27
+items:
+- slot: 0
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 8
+- slot: 3
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: SWEET_BERRIES
+    amount: 8
+- slot: 4
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 4
+- slot: 5
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: SWEET_BERRIES
+    amount: 8
+- slot: 11
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: HONEY_BOTTLE
+- slot: 12
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 4
+- slot: 13
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_BLOCK
+- slot: 14
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 4
+- slot: 15
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: HONEY_BOTTLE
+- slot: 21
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: SWEET_BERRIES
+    amount: 8
+- slot: 22
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 4
+- slot: 23
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: SWEET_BERRIES
+    amount: 8
+- slot: 26
+  item:
+    ==: org.bukkit.inventory.ItemStack
+    v: 3955
+    type: IRON_INGOT
+    amount: 8

@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
-import goat.projectLinearity.util.CurseManager;
-import goat.projectLinearity.util.CurseRegistry;
+import goat.projectLinearity.subsystems.world.desert.CurseManager;
+import goat.projectLinearity.subsystems.world.desert.CurseRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;

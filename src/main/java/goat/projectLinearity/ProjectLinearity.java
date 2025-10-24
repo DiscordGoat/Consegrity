@@ -2,36 +2,57 @@ package goat.projectLinearity;
 
 import com.fren_gor.ultimateAdvancementAPI.AdvancementTab;
 import goat.projectLinearity.commands.*;
-import goat.projectLinearity.util.listeners.CurseListener;
-import goat.projectLinearity.util.listeners.ZombieAttackRangeListener;
-import goat.projectLinearity.util.CurseManager;
+import goat.projectLinearity.subsystems.culinary.CulinaryCauldron;
+import goat.projectLinearity.subsystems.culinary.CulinaryCatalogueManager;
+import goat.projectLinearity.subsystems.culinary.CulinarySubsystem;
+import goat.projectLinearity.subsystems.enchanting.EnchantedManager;
+import goat.projectLinearity.subsystems.enchanting.EnchantingManager;
+import goat.projectLinearity.subsystems.farming.CropHarvestListener;
+import goat.projectLinearity.subsystems.farming.CropPlantingListener;
+import goat.projectLinearity.subsystems.mechanics.*;
+import goat.projectLinearity.subsystems.mechanics.listeners.CurseListener;
+import goat.projectLinearity.subsystems.mechanics.listeners.ZombieAttackRangeListener;
+import goat.projectLinearity.subsystems.mechanics.spaces.SpaceBlockListener;
+import goat.projectLinearity.subsystems.mechanics.spaces.SpaceEventListener;
+import goat.projectLinearity.subsystems.mechanics.spaces.SpaceManager;
+import goat.projectLinearity.subsystems.mechanics.spaces.SpacePresenceListener;
+import goat.projectLinearity.subsystems.mining.MiningOxygenManager;
+import goat.projectLinearity.subsystems.trading.VillagerTradeManager;
+import goat.projectLinearity.commands.SaveInventoryCommand;
+import goat.projectLinearity.commands.StructureDebugCommand;
+import goat.projectLinearity.subsystems.world.desert.CurseManager;
+import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
+import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
+import goat.projectLinearity.subsystems.world.loot.LootRegistry;
 import goat.projectLinearity.util.CustomEntityRegistry;
-import goat.projectLinearity.util.CurseEffectController;
-import goat.projectLinearity.util.cultist.CultistPopulationManager;
-import goat.projectLinearity.util.cultist.MountainCultistAlertListener;
-import goat.projectLinearity.util.cultist.MountainCultistBehaviour;
-import goat.projectLinearity.util.cultist.MountainCultistDamageListener;
-import goat.projectLinearity.util.cultist.MountainCultistSpawnListener;
+import goat.projectLinearity.subsystems.world.desert.CurseEffectController;
+import goat.projectLinearity.subsystems.world.cultist.CultistPopulationManager;
+import goat.projectLinearity.subsystems.world.cultist.MountainCultistAlertListener;
+import goat.projectLinearity.subsystems.world.cultist.MountainCultistBehaviour;
+import goat.projectLinearity.subsystems.world.cultist.MountainCultistDamageListener;
+import goat.projectLinearity.subsystems.world.cultist.MountainCultistSpawnListener;
 import goat.projectLinearity.util.*;
-import goat.projectLinearity.util.potions.CustomPotionEffectManager;
-import goat.projectLinearity.util.potions.PotionGuiManager;
-import goat.projectLinearity.util.potions.PotionUsageListener;
-import goat.projectLinearity.util.samurai.CherrySamuraiBehaviour;
-import goat.projectLinearity.util.samurai.CherrySamuraiDamageListener;
-import goat.projectLinearity.util.samurai.CherrySamuraiDeathListener;
-import goat.projectLinearity.util.samurai.CherrySamuraiSpawnListener;
-import goat.projectLinearity.util.samurai.SamuraiPopulationManager;
-import goat.projectLinearity.world.RegionTitleListener;
-import goat.projectLinearity.world.MountainMobSpawnBlocker;
-import goat.projectLinearity.world.KeystoneManager;
-import goat.projectLinearity.world.KeystoneListener;
-import goat.projectLinearity.world.NocturnalStructureManager;
-import goat.projectLinearity.world.structure.StructureListener;
-import goat.projectLinearity.world.structure.DeferredStructureSpawner;
-import goat.projectLinearity.world.structure.StructureManager;
-import goat.projectLinearity.world.structure.GenCheckType;
-import goat.projectLinearity.world.sector.*;
-import goat.projectLinearity.world.ConsegrityRegions;
+import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
+import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
+import goat.projectLinearity.subsystems.brewing.PotionUsageListener;
+import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiBehaviour;
+import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDamageListener;
+import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDeathListener;
+import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiSpawnListener;
+import goat.projectLinearity.subsystems.world.samurai.SamuraiPopulationManager;
+import goat.projectLinearity.subsystems.mechanics.RegionTitleListener;
+import goat.projectLinearity.subsystems.mechanics.MountainMobSpawnBlocker;
+import goat.projectLinearity.subsystems.world.structure.KeystoneManager;
+import goat.projectLinearity.subsystems.world.structure.KeystoneListener;
+import goat.projectLinearity.subsystems.world.NocturnalStructureManager;
+import goat.projectLinearity.subsystems.world.structure.StructureListener;
+import goat.projectLinearity.subsystems.world.structure.DeferredStructureSpawner;
+import goat.projectLinearity.subsystems.world.structure.StructureManager;
+import goat.projectLinearity.subsystems.fishing.FishingManager;
+import goat.projectLinearity.subsystems.fishing.SeaCreatureRegistry;
+import goat.projectLinearity.subsystems.world.structure.GenCheckType;
+import goat.projectLinearity.subsystems.world.sector.*;
+import goat.projectLinearity.subsystems.world.ConsegrityRegions;
 import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -58,6 +79,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
 
     private static ProjectLinearity instance;
 
+    private static final String DEEP_SEA_DIVER_SKIN_VALUE = "ewogICJ0aW1lc3RhbXAiIDogMTc1MjI5NTMxODk1OSwKICAicHJvZmlsZUlkIiA6ICJhNzdkNmQ2YmFjOWE0NzY3YTFhNzU1NjYxOTllYmY5MiIsCiAgInByb2ZpbGVOYW1lIiA6ICIwOEJFRDUiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYzkxNTVmYzZjNTM3NTBhNjVlZDc0NTk4NjJiN2E4MDNlODdiM2FkYzczNzg2NmU0ZjU1NzNhZmFiOWRiM2M1ZiIKICAgIH0KICB9Cn0=";
+    private static final String DEEP_SEA_DIVER_SKIN_SIGNATURE = "WSGoyR4hZtLze2rI+7DZTsgqI4+DiEjt2BeYtfHBaNJ/EhwbDrO2J/CjcrJO/Xv+ETK234/Sf0YNanMMfAObs6OyhYerpDMlneKl3jzAErApI46mswIrhz2G7z4VWHhjJLQycTvUe1aYQ2gO0a9j4aLNncHkBB9qw1s24lxBezzF0YkuU1gCihJav/QiOBKt+hFy+cdp1JuBpRNWU/RhLCUUSBCvKlp8TtVxZ839j2JXgPXEkyziX9gMJ2rsWcUxuUsfxXyBO0EpauoFmO7cuvJ4hLahT83/Vt8jqr0m1cmpiE0jc6xzOECdNjQKeiLAFnAv6KVyXBpY79FzIbXQ/czeDLodk6EfR8a9Tpkn0THh/rfTR53fryEyzdHuKPk9udLmDruzW41+WPmbzRacEMpkbVwd/P33oP9BPRqmtZUll4SW09bHt3n1o44VB12tYfrkl6gp6eRIM6JkjK/mPBa2Utkm35wKanHvlJtXpYsm2fbei/nX0CYINr3EpmU5mDfBCguK2GqRjYu3b3hHNHw4vBB7csfV1yOu6UN7cj2n+IEtt+CJ/z2UpnU1a/OSK2KEI3gI+yi8ItVPvLRNVISCe9HRIRF+UGXaHW78UuV+osZ/sr7xsxUJ9Wl+ecar2QVSvX2cyIHkYVAQcFvpbZ3Q8Npn3F87sjKteteZ64U=";
+
     private StructureManager structureManager;
     private DeferredStructureSpawner deferredStructureSpawner;
     private int deferredStructureTaskId = -1;
@@ -70,6 +94,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private EnchantingManager enchantingManager;
     private ShelfManager shelfManager;
     private CulinarySubsystem culinarySubsystem;
+    private CulinaryCatalogueManager culinaryCatalogueManager;
     private CulinaryCauldron culinaryCauldron;
     private VillagerTradeManager villagerTradeManager;
     private CultistPopulationManager cultistPopulationManager;
@@ -83,6 +108,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CherrySamuraiDamageListener cherrySamuraiDamageListener;
     private MountainMobSpawnBlocker mountainMobSpawnBlocker;
     private NocturnalStructureManager nocturnalStructureManager;
+    private LootRegistry lootRegistry;
+    private LootPopulatorManager lootPopulatorManager;
     private KeystoneManager keystoneManager;
     private CustomEntityRegistry customEntityRegistry;
     private Listener citizensEnableListener;
@@ -93,6 +120,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CurseEffectController curseEffectController;
     private PotionGuiManager potionGuiManager;
     private CustomPotionEffectManager customPotionEffectManager;
+    private SeaCreatureRegistry seaCreatureRegistry;
+    private FishingManager fishingManager;
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
 
@@ -116,6 +145,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new SpaceBlockListener(spaceManager), this);
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
         Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
+        Bukkit.getPluginManager().registerEvents(new CropPlantingListener(), this);
+        Bukkit.getPluginManager().registerEvents(new CropHarvestListener(), this);
 
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
@@ -123,11 +154,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
 
         shelfManager = new ShelfManager(this);
         culinarySubsystem = CulinarySubsystem.getInstance(this);
+        culinaryCatalogueManager = new CulinaryCatalogueManager(this, culinarySubsystem);
+        culinarySubsystem.setCatalogueManager(culinaryCatalogueManager);
         culinaryCauldron = new CulinaryCauldron(this);
         villagerTradeManager = new VillagerTradeManager(this, enchantedManager);
         if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
             getLogger().warning("Unable to create plugin data folder.");
         }
+        lootRegistry = new LootRegistry(this);
+        lootPopulatorManager = new LootPopulatorManager(this, lootRegistry);
         cultistPopulationManager = new CultistPopulationManager(this);
         boolean cultistsReady = cultistPopulationManager.startup();
         mountainCultistBehaviour = new MountainCultistBehaviour(this, cultistPopulationManager);
@@ -148,9 +183,13 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(mountainMobSpawnBlocker, this);
         nocturnalStructureManager = new NocturnalStructureManager(this);
         nocturnalStructureManager.registerStruct("haywagon", 5, 8, 200);
-       nocturnalStructureManager.startup();
-       customEntityRegistry = new CustomEntityRegistry(this);
-       registerCustomEntities();
+        nocturnalStructureManager.startup();
+        customEntityRegistry = new CustomEntityRegistry(this);
+        registerCustomEntities();
+        seaCreatureRegistry = new SeaCreatureRegistry(this, customEntityRegistry);
+        Bukkit.getPluginManager().registerEvents(seaCreatureRegistry, this);
+        registerSeaCreatures();
+        fishingManager = new FishingManager(this, seaCreatureRegistry);
         curseManager = new CurseManager(this);
 
         // Initialize tablist manager for curse display
@@ -185,7 +224,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
 
         // Commands
         try { getCommand("regenerate").setExecutor(new RegenerateCommand(this)); } catch (Throwable ignored) {}
-        try { getCommand("regeneratenether").setExecutor(new RegenerateNetherCommand(this)); } catch (Throwable ignored) {}
         try { WarptoCommand warpto = new WarptoCommand(); getCommand("warpto").setExecutor(warpto); getCommand("warpto").setTabCompleter(warpto);} catch (Throwable ignored) {}
         try { getCommand("getallconsegrityadvancements").setExecutor(new GetAllConsegrityAdvancementsCommand(this)); } catch (Throwable ignored) {}
         try { SetCustomDurabilityCommand cmd = new SetCustomDurabilityCommand(); getCommand("setcustomdurability").setExecutor(cmd); getCommand("setcustomdurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
@@ -200,9 +238,22 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { SpawnCustomMobCommand cmd = new SpawnCustomMobCommand(this); getCommand("spawncustommob").setExecutor(cmd); getCommand("spawncustommob").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { CurseCommand cmd = new CurseCommand(curseManager); getCommand("curse").setExecutor(cmd); getCommand("curse").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { PotionCatalogueCommand cmd = new PotionCatalogueCommand(this, potionGuiManager); getCommand("potions").setExecutor(cmd);} catch (Throwable ignored) {}
+        try { CulinaryCatalogueCommand cmd = new CulinaryCatalogueCommand(this, culinaryCatalogueManager, culinarySubsystem); getCommand("culinary").setExecutor(cmd); getCommand("culinary").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try {
+            SaveInventoryCommand cmd = new SaveInventoryCommand(this, lootRegistry);
+            getCommand("saveinventory").setExecutor(cmd);
+            getCommand("saveinventory").setTabCompleter(cmd);
+            Bukkit.getPluginManager().registerEvents(cmd, this);
+        } catch (Throwable ignored) {}
+        try {
+            StructureDebugCommand cmd = new StructureDebugCommand(this);
+            getCommand("structuredebug").setExecutor(cmd);
+            getCommand("structuredebug").setTabCompleter(cmd);
+        } catch (Throwable ignored) {}
 
         // Managers
         structureManager = new StructureManager(this);
+        structureManager.setLootPopulatorManager(lootPopulatorManager);
         // Enable deferred spawner (periodic + on chunk load) to place as you explore
         deferredStructureSpawner = new DeferredStructureSpawner(this, structureManager);
         Bukkit.getPluginManager().registerEvents(deferredStructureSpawner, this);
@@ -322,6 +373,19 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             Bukkit.addRecipe(recipe);
         } catch (IllegalArgumentException ignored) {
         }
+
+        NamespacedKey beetrootJuiceKey = new NamespacedKey(this, "beetroot_juice");
+        try {
+            Bukkit.removeRecipe(beetrootJuiceKey);
+        } catch (Throwable ignored) {}
+        try {
+            ShapedRecipe beetrootJuiceRecipe = new ShapedRecipe(beetrootJuiceKey, ItemRegistry.getBeetrootJuice());
+            beetrootJuiceRecipe.shape("B", "B", "G");
+            beetrootJuiceRecipe.setIngredient('B', Material.BEETROOT);
+            beetrootJuiceRecipe.setIngredient('G', Material.GLASS_BOTTLE);
+            Bukkit.addRecipe(beetrootJuiceRecipe);
+        } catch (IllegalArgumentException ignored) {
+        }
     }
 
     private void registerShelfRecipe() {
@@ -404,13 +468,30 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 (pl, location, sender) -> {
                     try {
                         org.bukkit.entity.Zombie zombie = (org.bukkit.entity.Zombie) location.getWorld().spawnEntity(location, org.bukkit.entity.EntityType.ZOMBIE);
-                        goat.projectLinearity.util.listeners.CurseListener.markMonsterAsCursed(zombie);
+                        goat.projectLinearity.subsystems.mechanics.listeners.CurseListener.markMonsterAsCursed(zombie);
                         return CustomEntityRegistry.SpawnResult.success("Spawned cursed zombie at " + location.getX() + ", " + location.getY() + ", " + location.getZ());
                     } catch (Exception e) {
                         return CustomEntityRegistry.SpawnResult.failure("Failed to spawn cursed zombie: " + e.getMessage());
                     }
                 }
         ));
+    }
+
+    private void registerSeaCreatures() {
+        if (seaCreatureRegistry == null) {
+            return;
+        }
+        seaCreatureRegistry.register(new SeaCreatureRegistry.SeaCreatureDefinition(
+                "deep_sea_diver",
+                "Deep Sea Diver",
+                DEEP_SEA_DIVER_SKIN_VALUE,
+                DEEP_SEA_DIVER_SKIN_SIGNATURE,
+                SeaCreatureRegistry.BehaviorTrait.DIVER,
+                200.0,
+                6.0,
+                List.of()
+        ));
+        seaCreatureRegistry.registerLoot("deep_sea_diver", "Sponge", 1, 1, 1, 2);
     }
 
     // Default world generator remains the server default; Consegrity world is created via command
@@ -502,6 +583,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         }
         if (customPotionEffectManager != null) {
             customPotionEffectManager.shutdown();
+        }
+        if (fishingManager != null) {
+            fishingManager.shutdown();
+            fishingManager = null;
+        }
+        if (seaCreatureRegistry != null) {
+            seaCreatureRegistry.shutdown();
+            seaCreatureRegistry = null;
         }
         instance = null;
     }

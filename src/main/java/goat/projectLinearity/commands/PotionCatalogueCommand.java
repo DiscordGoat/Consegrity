@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.util.potions.PotionGuiManager;
+import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

@@ -4,14 +4,14 @@
  * Could not load the following classes:
  *  org.bukkit.Material
  */
-package goat.projectLinearity.advs.tab0;
+package goat.projectLinearity.subsystems.advancements.advs.tab0;
 
 import com.fren_gor.ultimateAdvancementAPI.advancement.Advancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.BaseAdvancement;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.AdvancementFrameType;
 import com.fren_gor.ultimateAdvancementAPI.advancement.display.FancyAdvancementDisplay;
 import com.fren_gor.ultimateAdvancementAPI.util.AdvancementKey;
-import goat.projectLinearity.advs.AdvancementTabNamespaces;
+import goat.projectLinearity.subsystems.advancements.advs.AdvancementTabNamespaces;
 import org.bukkit.Material;
 
 public class Oak_sapling3

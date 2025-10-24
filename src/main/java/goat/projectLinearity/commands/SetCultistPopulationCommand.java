@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.util.cultist.CultistPopulationManager;
+import goat.projectLinearity.subsystems.world.cultist.CultistPopulationManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

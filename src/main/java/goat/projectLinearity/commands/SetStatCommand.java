@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.util.SidebarManager;
+import goat.projectLinearity.subsystems.mechanics.SidebarManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;

@@ -1,6 +1,6 @@
-package goat.projectLinearity.world.sector;
+package goat.projectLinearity.subsystems.world.sector;
 
-import goat.projectLinearity.world.ConsegrityRegions;
+import goat.projectLinearity.subsystems.world.ConsegrityRegions;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.generator.ChunkGenerator;

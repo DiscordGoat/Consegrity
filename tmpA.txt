@@ -1,8 +1,8 @@
-package goat.projectLinearity.world.structure;
+package goat.projectLinearity.subsystems.world.structure;
 
 import goat.projectLinearity.util.SchemManager;
-import goat.projectLinearity.world.ConsegrityRegions;
-import goat.projectLinearity.world.sector.*;
+import goat.projectLinearity.subsystems.world.ConsegrityRegions;
+import goat.projectLinearity.subsystems.world.sector.*;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;

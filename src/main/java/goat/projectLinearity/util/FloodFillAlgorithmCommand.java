@@ -1,6 +1,8 @@
 package goat.projectLinearity.util;
 
 
+import goat.projectLinearity.subsystems.mechanics.spaces.Space;
+import goat.projectLinearity.subsystems.mechanics.spaces.SpaceManager;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;

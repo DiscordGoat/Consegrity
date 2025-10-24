@@ -1,7 +1,7 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
-import goat.projectLinearity.world.ConsegrityChunkGenerator;
+import goat.projectLinearity.subsystems.world.ConsegrityChunkGenerator;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -9,8 +9,6 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.GameRule;
 
 import java.io.IOException;
 import java.nio.file.*;

@@ -2,6 +2,9 @@ package goat.projectLinearity.util;
 
 import goat.projectLinearity.ProjectLinearity;
 
+import goat.projectLinearity.subsystems.culinary.CulinarySubsystem;
+import goat.projectLinearity.subsystems.mechanics.CustomDurabilityManager;
+import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -38,6 +41,10 @@ public final class ItemRegistry {
     private static final Set<String> CUSTOM_SUGGESTIONS = new LinkedHashSet<>();
     private static final Method SET_GLINT_OVERRIDE_METHOD;
     private static final boolean GLINT_OVERRIDE_PRIMITIVE;
+    private static final String SEEDLING_KEY_NAME = "seedling_type";
+    private static final String SEEDLING_TINY_CARROT = "tiny_carrot";
+    private static final String SEEDLING_BABY_POTATO = "baby_potato";
+    private static NamespacedKey seedlingKey;
 
     static {
         cacheItemMethods();
@@ -200,6 +207,57 @@ public final class ItemRegistry {
             builder.append(Character.toLowerCase(c));
         }
         return builder.toString();
+    }
+
+    private static NamespacedKey getSeedlingKey() {
+        if (seedlingKey == null) {
+            ProjectLinearity plugin = ProjectLinearity.getPlugin(ProjectLinearity.class);
+            seedlingKey = new NamespacedKey(plugin, SEEDLING_KEY_NAME);
+        }
+        return seedlingKey;
+    }
+
+    private static ItemStack tagSeedling(ItemStack item, String type) {
+        if (item == null) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return item;
+        }
+        PersistentDataContainer container = meta.getPersistentDataContainer();
+        container.set(getSeedlingKey(), PersistentDataType.STRING, type);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static boolean matchesSeedling(ItemStack item, Material material, String type, String fallbackName) {
+        if (item == null || item.getType() != material) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        PersistentDataContainer container = meta.getPersistentDataContainer();
+        String stored = container.get(getSeedlingKey(), PersistentDataType.STRING);
+        if (type.equals(stored)) {
+            return true;
+        }
+        if (!meta.hasDisplayName()) {
+            return false;
+        }
+        String display = normalize(meta.getDisplayName());
+        String fallback = normalize(fallbackName);
+        return !display.isEmpty() && display.equals(fallback);
+    }
+
+    public static boolean isTinyCarrot(ItemStack item) {
+        return matchesSeedling(item, Material.CARROT, SEEDLING_TINY_CARROT, "Tiny Carrot");
+    }
+
+    public static boolean isBabyPotato(ItemStack item) {
+        return matchesSeedling(item, Material.POTATO, SEEDLING_BABY_POTATO, "Baby Potato");
     }
     private static ItemStack createCustomItem(Material material, String name, List<String> lore, int amount,
                                               boolean unbreakable, boolean addEnchantmentShimmer) {
@@ -3121,6 +3179,49 @@ public final class ItemRegistry {
                 1,
                 false // Set to true if you want it to be unbreakable
                 , true
+        );
+    }
+    // ===== Crop Seedlings =====
+
+    public static ItemStack getTinyCarrot() {
+        return tagSeedling(createCustomItem(
+                Material.CARROT,
+                ChatColor.YELLOW + "Tiny Carrot",
+                Arrays.asList(
+                        ChatColor.GRAY + "A carefully cultivated seedling.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Plant to grow a carrot crop."
+                ),
+                1,
+                false,
+                false
+        ), SEEDLING_TINY_CARROT);
+    }
+
+    public static ItemStack getBabyPotato() {
+        return tagSeedling(createCustomItem(
+                Material.POTATO,
+                ChatColor.YELLOW + "Baby Potato",
+                Arrays.asList(
+                        ChatColor.GRAY + "A sprouting potato cutting.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Plant to grow a potato crop."
+                ),
+                1,
+                false,
+                false
+        ), SEEDLING_BABY_POTATO);
+    }
+
+    public static ItemStack getBeetrootJuice() {
+        return createCustomItem(
+                Material.HONEY_BOTTLE,
+                ChatColor.RED + "Beetroot Juice",
+                Arrays.asList(
+                        ChatColor.GRAY + "Freshly pressed beetroot tonic.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Restores nutrition and fortifies the spirit."
+                ),
+                1,
+                false,
+                false
         );
     }
     public static ItemStack getCarrotSeeder() {

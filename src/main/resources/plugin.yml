@@ -73,6 +73,18 @@ commands:
     description: Opens the potion shears catalogue
     usage: /potions
     permission: consegrity.potions
+  culinary:
+    description: Opens the culinary recipe catalogue
+    usage: /culinary
+    permission: consegrity.culinary
+  saveinventory:
+    description: Saves the next chest inventory opened for a structure
+    usage: /saveinventory <structure> <name>
+    permission: consegrity.dev
+  structuredebug:
+    description: Toggles structure placement debug logging
+    usage: /structuredebug <on|off|summary>
+    permission: consegrity.dev
 permissions:
   consegrity.dev:
     description: Allows using /regenerate
@@ -94,4 +106,7 @@ permissions:
     default: op
   consegrity.potions:
     description: Allows opening the potion shears catalogue
+    default: op
+  consegrity.culinary:
+    description: Allows opening the culinary recipe catalogue
     default: op
