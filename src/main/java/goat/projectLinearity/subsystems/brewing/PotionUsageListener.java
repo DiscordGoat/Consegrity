@@ -96,7 +96,15 @@ public final class PotionUsageListener implements Listener {
 
     private void handleDrinkUse(Player player, ItemStack stack, PotionItemData data, EquipmentSlot hand) {
         int remaining = consumeCharge(player, stack, data, hand);
-        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_DRINK, 1.0f, 1.15f);
+        Sound drinkSound = Sound.ENTITY_GENERIC_DRINK;
+        float volume = 1.0f;
+        float pitch = 1.15f;
+        if ("instant_air".equalsIgnoreCase(data.getDefinition().getId())) {
+            drinkSound = Sound.ITEM_TRIDENT_RIPTIDE_1;
+            volume = 1.2f;
+            pitch = 1.0f;
+        }
+        player.playSound(player.getLocation(), drinkSound, volume, pitch);
         swing(player, hand);
 
         effectManager.applyEffect(player, data);
@@ -151,6 +159,10 @@ public final class PotionUsageListener implements Listener {
         Player thrower = null;
         if (event.getPotion().getShooter() instanceof Player shooter) {
             thrower = shooter;
+        }
+
+        if ("instant_lightning".equalsIgnoreCase(data.getDefinition().getId())) {
+            event.getEntity().getWorld().strikeLightning(event.getEntity().getLocation());
         }
 
         if (thrower != null) {

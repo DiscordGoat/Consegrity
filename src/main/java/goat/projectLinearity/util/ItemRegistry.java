@@ -3943,6 +3943,21 @@ public final class ItemRegistry {
         );
     }
 
+    public static ItemStack getGoldenTear() {
+        return createCustomItem(
+                Material.GHAST_TEAR,
+                ChatColor.GOLD + "Golden Tear",
+                Arrays.asList(
+                        ChatColor.GRAY + "A shimmering tear infused with netherlight.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Potent catalyst prized by brewmasters.",
+                        ChatColor.DARK_PURPLE + "Brewing Ingredient"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
     public static ItemStack getLeviathanHeart() {
         return createCustomItem(
                 Material.RED_DYE,

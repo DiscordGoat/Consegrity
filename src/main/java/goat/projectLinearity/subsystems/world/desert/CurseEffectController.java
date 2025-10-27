@@ -42,7 +42,7 @@ import java.util.UUID;
  */
 public final class CurseEffectController implements Listener {
 
-    private static final int POTION_REFRESH_TICKS = 120;
+    private static final int CURSE_EFFECT_TICKS = 40; // 2 seconds, reapplied by curses on each tick cycle
 
     private static final CurseRegistry.Curse CURSE_FREEZING = requireCurse("curse_of_freezing");
     private static final CurseRegistry.Curse CURSE_MICROWAVING = requireCurse("curse_of_microwaving");
@@ -124,10 +124,10 @@ public final class CurseEffectController implements Listener {
             player.stopAllSounds();
         }
 
-        applyPotion(player, PotionEffectType.HUNGER, 1, hasCurse(player, CURSE_GLUTTONY), null);
+        applyPotion(player, PotionEffectType.HUNGER, 1, hasCurse(player, CURSE_GLUTTONY), "hunger");
         applyPotion(player, PotionEffectType.WEAKNESS, 1, hasCurse(player, CURSE_WEAKNESS), null);
         applyPotion(player, PotionEffectType.SLOWNESS, 1, hasCurse(player, CURSE_SLOWNESS), "slowness");
-        applyPotion(player, PotionEffectType.MINING_FATIGUE, 2, hasCurse(player, CURSE_FATIGUE), null);
+        applyPotion(player, PotionEffectType.MINING_FATIGUE, 2, hasCurse(player, CURSE_FATIGUE), "mining_fatigue");
         applyPotion(player, PotionEffectType.BLINDNESS, 0, hasCurse(player, CURSE_BLINDNESS), null);
 
         applyFrailty(player, hasCurse(player, CURSE_FRAILTY));
@@ -138,17 +138,21 @@ public final class CurseEffectController implements Listener {
     }
 
     private void applyPotion(Player player, PotionEffectType type, int amplifier, boolean active, String potionId) {
-        if (active) {
-            PotionEffect current = player.getPotionEffect(type);
-            if (current == null || current.getAmplifier() != amplifier || current.getDuration() < POTION_REFRESH_TICKS / 2) {
-                player.addPotionEffect(new PotionEffect(type, POTION_REFRESH_TICKS, amplifier, true, false, false));
-            }
-        } else if (player.hasPotionEffect(type)) {
-            if (potionId != null && potionEffectManager != null && potionEffectManager.hasEffect(player, potionId)) {
+        if (!active) {
+            return;
+        }
+
+        PotionEffect current = player.getPotionEffect(type);
+        if (current != null) {
+            if (current.getAmplifier() > amplifier) {
                 return;
             }
-            player.removePotionEffect(type);
+            if (current.getAmplifier() == amplifier && current.getDuration() > CURSE_EFFECT_TICKS) {
+                return;
+            }
         }
+
+        player.addPotionEffect(new PotionEffect(type, CURSE_EFFECT_TICKS, amplifier, true, false, false));
     }
 
     private void applyFrailty(Player player, boolean active) {

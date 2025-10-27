@@ -1,6 +1,7 @@
 package goat.projectLinearity.subsystems.trading;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.enchanting.EnchantedManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -19,7 +20,6 @@ import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ public final class VillagerTradeManager implements Listener {
     private static final int SLOT_ENCHANT = 22;
     private static final int SLOT_COAL = 24;
 
-    private final JavaPlugin plugin;
+    private final ProjectLinearity plugin;
     private final EnchantedManager enchantedManager;
     private final ItemStack filler;
     private final Map<Integer, TradeType> tradeSlots;
@@ -73,9 +73,9 @@ public final class VillagerTradeManager implements Listener {
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             inventory.setItem(slot, filler.clone());
         }
-        inventory.setItem(SLOT_MEAL, createMealIcon());
+        inventory.setItem(SLOT_MEAL, createMealIcon(player));
         inventory.setItem(SLOT_ENCHANT, createEnchantIcon(player));
-        inventory.setItem(SLOT_COAL, createCoalIcon());
+        inventory.setItem(SLOT_COAL, createCoalIcon(player));
         player.openInventory(inventory);
     }
 
@@ -103,7 +103,9 @@ public final class VillagerTradeManager implements Listener {
             }
             handleTrade(player, type);
             // Refresh icons that depend on player state (e.g. enchant cost)
+            top.setItem(SLOT_MEAL, createMealIcon(player));
             top.setItem(SLOT_ENCHANT, createEnchantIcon(player));
+            top.setItem(SLOT_COAL, createCoalIcon(player));
         } else if (event.isShiftClick()) {
             event.setCancelled(true);
         }
@@ -133,15 +135,20 @@ public final class VillagerTradeManager implements Listener {
 
     private void executeMealTrade(Player player) {
         int cost = 1;
-        if (!hasEmeralds(player, cost)) {
-            player.sendMessage(ChatColor.RED + "You need " + cost + " Emerald to buy this.");
+        int effectiveCost = getEffectiveCost(player, cost);
+        if (!hasEmeralds(player, effectiveCost)) {
+            player.sendMessage(ChatColor.RED + "You need " + effectiveCost + " Emerald" + (effectiveCost == 1 ? "" : "s") + " to buy this.");
             return;
         }
-        removeEmeralds(player, cost);
+        removeEmeralds(player, effectiveCost);
         player.setFoodLevel(20);
         player.setSaturation(20f);
         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_CELEBRATE, 1f, 1.2f);
-        player.sendMessage(ChatColor.GREEN + "Enjoy your well balanced meal!");
+        if (effectiveCost < cost) {
+            player.sendMessage(ChatColor.GREEN + "Enjoy your well balanced meal! " + ChatColor.DARK_GREEN + "(Charisma discount applied)");
+        } else {
+            player.sendMessage(ChatColor.GREEN + "Enjoy your well balanced meal!");
+        }
     }
 
     private void executeEnchantTrade(Player player) {
@@ -156,7 +163,8 @@ public final class VillagerTradeManager implements Listener {
             return;
         }
         int targetLevel = level + 1;
-        int cost = enchantCostForLevel(targetLevel);
+        int baseCost = enchantCostForLevel(targetLevel);
+        int cost = getEffectiveCost(player, baseCost);
         if (!hasEmeralds(player, cost)) {
             player.sendMessage(ChatColor.RED + "You need " + cost + " Emerald" + (cost == 1 ? "" : "s") + " to buy this.");
             return;
@@ -165,22 +173,31 @@ public final class VillagerTradeManager implements Listener {
         enchantedManager.applyTier(hand, targetLevel);
         player.updateInventory();
         player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1f, 1.2f);
-        player.sendMessage(ChatColor.LIGHT_PURPLE + "Enchanted level increased to " + roman(targetLevel) + ".");
+        if (cost < baseCost) {
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "Enchanted level increased to " + roman(targetLevel) + ChatColor.DARK_GREEN + " (Charisma discount applied)." );
+        } else {
+            player.sendMessage(ChatColor.LIGHT_PURPLE + "Enchanted level increased to " + roman(targetLevel) + ".");
+        }
     }
 
     private void executeCoalTrade(Player player) {
         int cost = 1;
-        if (!hasEmeralds(player, cost)) {
-            player.sendMessage(ChatColor.RED + "You need " + cost + " Emerald to buy this.");
+        int effectiveCost = getEffectiveCost(player, cost);
+        if (!hasEmeralds(player, effectiveCost)) {
+            player.sendMessage(ChatColor.RED + "You need " + effectiveCost + " Emerald" + (effectiveCost == 1 ? "" : "s") + " to buy this.");
             return;
         }
-        removeEmeralds(player, cost);
+        removeEmeralds(player, effectiveCost);
         int amount = random.nextInt(8) + 1;
         ItemStack coal = new ItemStack(Material.COAL, amount);
         Map<Integer, ItemStack> leftover = player.getInventory().addItem(coal);
         leftover.values().forEach(rem -> player.getWorld().dropItemNaturally(player.getLocation(), rem));
         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_TRADE, 1f, 1f);
-        player.sendMessage(ChatColor.GREEN + "You received " + amount + " Coal.");
+        if (effectiveCost < cost) {
+            player.sendMessage(ChatColor.GREEN + "You received " + amount + " Coal " + ChatColor.DARK_GREEN + "(Charisma discount applied)." );
+        } else {
+            player.sendMessage(ChatColor.GREEN + "You received " + amount + " Coal.");
+        }
     }
 
     private int enchantCostForLevel(int targetLevel) {
@@ -192,13 +209,18 @@ public final class VillagerTradeManager implements Listener {
         };
     }
 
-    private ItemStack createMealIcon() {
+    private ItemStack createMealIcon(Player player) {
         ItemStack item = new ItemStack(Material.COOKED_BEEF);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.GOLD + "Well Balanced Meal");
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Cost: 1 Emerald");
+            int baseCost = 1;
+            int cost = getEffectiveCost(player, baseCost);
+            lore.add(ChatColor.GRAY + "Cost: " + cost + " Emerald" + (cost == 1 ? "" : "s"));
+            if (cost < baseCost) {
+                lore.add(ChatColor.DARK_GREEN + "Charisma discount applied (-50%).");
+            }
             lore.add(ChatColor.GRAY + "Restores full hunger and saturation.");
             meta.setLore(lore);
             item.setItemMeta(meta);
@@ -221,9 +243,13 @@ public final class VillagerTradeManager implements Listener {
                     lore.add(ChatColor.RED + "Already Enchanted III.");
                 } else {
                     int targetLevel = level + 1;
-                    int cost = enchantCostForLevel(targetLevel);
+                    int baseCost = enchantCostForLevel(targetLevel);
+                    int cost = getEffectiveCost(player, baseCost);
                     lore.add(ChatColor.GRAY + "Next tier: " + ChatColor.LIGHT_PURPLE + roman(targetLevel));
                     lore.add(ChatColor.GRAY + "Cost: " + cost + " Emerald" + (cost == 1 ? "" : "s"));
+                    if (cost < baseCost) {
+                        lore.add(ChatColor.DARK_GREEN + "Charisma discount applied (-50%).");
+                    }
                 }
             }
             meta.setLore(lore);
@@ -232,13 +258,18 @@ public final class VillagerTradeManager implements Listener {
         return icon;
     }
 
-    private ItemStack createCoalIcon() {
+    private ItemStack createCoalIcon(Player player) {
         ItemStack icon = new ItemStack(Material.COAL);
         ItemMeta meta = icon.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.DARK_GRAY + "Coal Bundle");
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Cost: 1 Emerald");
+            int baseCost = 1;
+            int cost = getEffectiveCost(player, baseCost);
+            lore.add(ChatColor.GRAY + "Cost: " + cost + " Emerald" + (cost == 1 ? "" : "s"));
+            if (cost < baseCost) {
+                lore.add(ChatColor.DARK_GREEN + "Charisma discount applied (-50%).");
+            }
             lore.add(ChatColor.GRAY + "Receive 1-8 Coal.");
             meta.setLore(lore);
             icon.setItemMeta(meta);
@@ -246,7 +277,18 @@ public final class VillagerTradeManager implements Listener {
         return icon;
     }
 
+    private int getEffectiveCost(Player player, int baseCost) {
+        CustomPotionEffectManager effectManager = plugin.getCustomPotionEffectManager();
+        if (effectManager == null) {
+            return baseCost;
+        }
+        return effectManager.getCharismaticCost(player, Math.max(1, baseCost));
+    }
+
     private boolean hasEmeralds(Player player, int amount) {
+        if (amount <= 0) {
+            return true;
+        }
         return countPlainEmeralds(player) >= amount;
     }
 
@@ -263,6 +305,9 @@ public final class VillagerTradeManager implements Listener {
     }
 
     private boolean removeEmeralds(Player player, int amount) {
+        if (amount <= 0) {
+            return true;
+        }
         PlayerInventory inventory = player.getInventory();
         ItemStack[] contents = inventory.getContents();
         for (int slot = 0; slot < contents.length && amount > 0; slot++) {

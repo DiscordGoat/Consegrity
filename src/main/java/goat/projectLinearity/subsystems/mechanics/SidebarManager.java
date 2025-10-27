@@ -148,8 +148,28 @@ public final class SidebarManager implements Listener {
         updateSidebarLines(player, data);
     }
 
+    public void adjustTemperature(Player player, double delta) {
+        PlayerSidebarData data = players.computeIfAbsent(player.getUniqueId(), uuid -> new PlayerSidebarData(player.getUniqueId()));
+        if (data.scoreboard == null) {
+            createSidebar(player, data);
+            updateSidebarLines(player, data);
+        }
+        data.temperature += delta;
+        data.targetTemperature = data.temperature;
+        data.manualOverrideUntil = System.currentTimeMillis() + 2000L;
+        updateSidebarLines(player, data);
+    }
+
     public void initialise(Player player) {
         setup(player);
+    }
+
+    public void refreshDisplay(Player player) {
+        PlayerSidebarData data = players.get(player.getUniqueId());
+        if (data == null || data.scoreboard == null) {
+            return;
+        }
+        updateSidebarLines(player, data);
     }
 
     private void updatePlayer(Player player) {

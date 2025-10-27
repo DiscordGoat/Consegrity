@@ -25,6 +25,10 @@ commands:
     description: Teleport to the spawn of a world
     usage: /warpto <worldName>
     permission: consegrity.warpto
+  warptoelite:
+    description: Teleport to the currently active elite (dev only)
+    usage: /warptoelite
+    permission: consegrity.dev
   setcustomdurability:
     description: Sets the current durability of the held item
     usage: /setcustomdurability <amount>
@@ -57,6 +61,14 @@ commands:
     description: Toggles periodic oxygen debug logging
     usage: /debugoxygen [on|off]
     permission: consegrity.dev
+  firetickdebug:
+    description: Toggles fire tick debug display in tablist
+    usage: /firetickdebug
+    permission: consegrity.dev
+  oxygendebug:
+    description: Toggles oxygen debug display in tablist
+    usage: /oxygendebug
+    permission: consegrity.dev
   setcultistpopulation:
     description: Sets the target Mountain Cultist population
     usage: /setcultistpopulation <amount>
@@ -73,6 +85,14 @@ commands:
     description: Opens the potion shears catalogue
     usage: /potions
     permission: consegrity.potions
+  cleanse:
+    description: Removes active custom potion effects from yourself
+    usage: /cleanse <positive|negative|all>
+    permission: consegrity.dev
+  effectcustom:
+    description: Applies a custom potion effect to yourself for testing
+    usage: /effectcustom <effectId> <potency> <durationSeconds>
+    permission: consegrity.dev
   culinary:
     description: Opens the culinary recipe catalogue
     usage: /culinary

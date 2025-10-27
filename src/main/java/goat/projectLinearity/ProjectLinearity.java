@@ -2,6 +2,10 @@ package goat.projectLinearity;
 
 import com.fren_gor.ultimateAdvancementAPI.AdvancementTab;
 import goat.projectLinearity.commands.*;
+import goat.projectLinearity.listeners.BlindnessListener;
+import goat.projectLinearity.listeners.HungerListener;
+import goat.projectLinearity.listeners.InvisibilityListener;
+import goat.projectLinearity.listeners.NightVisionListener;
 import goat.projectLinearity.subsystems.culinary.CulinaryCauldron;
 import goat.projectLinearity.subsystems.culinary.CulinaryCatalogueManager;
 import goat.projectLinearity.subsystems.culinary.CulinarySubsystem;
@@ -22,6 +26,7 @@ import goat.projectLinearity.commands.SaveInventoryCommand;
 import goat.projectLinearity.commands.StructureDebugCommand;
 import goat.projectLinearity.subsystems.world.desert.CurseManager;
 import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
+import goat.projectLinearity.subsystems.world.loot.GhastDropListener;
 import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
 import goat.projectLinearity.subsystems.world.loot.LootRegistry;
 import goat.projectLinearity.util.CustomEntityRegistry;
@@ -32,6 +37,10 @@ import goat.projectLinearity.subsystems.world.cultist.MountainCultistBehaviour;
 import goat.projectLinearity.subsystems.world.cultist.MountainCultistDamageListener;
 import goat.projectLinearity.subsystems.world.cultist.MountainCultistSpawnListener;
 import goat.projectLinearity.util.*;
+import goat.projectLinearity.subsystems.brewing.BonusJumpManager;
+import goat.projectLinearity.subsystems.brewing.CustomPotionCombatListener;
+import goat.projectLinearity.subsystems.brewing.NauseaProjectileListener;
+import goat.projectLinearity.subsystems.world.EliteManager;
 import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
 import goat.projectLinearity.subsystems.brewing.PotionUsageListener;
@@ -42,6 +51,7 @@ import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiSpawnListener
 import goat.projectLinearity.subsystems.world.samurai.SamuraiPopulationManager;
 import goat.projectLinearity.subsystems.mechanics.RegionTitleListener;
 import goat.projectLinearity.subsystems.mechanics.MountainMobSpawnBlocker;
+import goat.projectLinearity.subsystems.mechanics.AggressionManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneListener;
 import goat.projectLinearity.subsystems.world.NocturnalStructureManager;
@@ -59,6 +69,7 @@ import org.bukkit.Material;
 import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Location;
+import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -90,6 +101,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private SpaceManager spaceManager;
     private MiningOxygenManager miningOxygenManager;
     private SidebarManager sidebarManager;
+    private AggressionManager aggressionManager;
     private EnchantedManager enchantedManager;
     private EnchantingManager enchantingManager;
     private ShelfManager shelfManager;
@@ -117,9 +129,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private boolean debugOxygen = false;
     private CurseManager curseManager;
     private TablistManager tablistManager;
+    private DamageDisplayManager damageDisplayManager;
     private CurseEffectController curseEffectController;
     private PotionGuiManager potionGuiManager;
     private CustomPotionEffectManager customPotionEffectManager;
+    private CustomPotionCombatListener customPotionCombatListener;
+    private BonusJumpManager bonusJumpManager;
+    private NauseaProjectileListener nauseaProjectileListener;
+    private EliteManager eliteManager;
     private SeaCreatureRegistry seaCreatureRegistry;
     private FishingManager fishingManager;
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
@@ -147,10 +164,13 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropPlantingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropHarvestListener(), this);
+        Bukkit.getPluginManager().registerEvents(new GhastDropListener(), this);
 
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
         Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
+
+        aggressionManager = new AggressionManager(this);
 
         shelfManager = new ShelfManager(this);
         culinarySubsystem = CulinarySubsystem.getInstance(this);
@@ -192,12 +212,17 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         fishingManager = new FishingManager(this, seaCreatureRegistry);
         curseManager = new CurseManager(this);
 
+        damageDisplayManager = new DamageDisplayManager(this);
         // Initialize tablist manager for curse display
         tablistManager = new TablistManager(this, curseManager);
         curseManager.setTablistManager(tablistManager);
-        customPotionEffectManager = new CustomPotionEffectManager(this, tablistManager);
+        customPotionEffectManager = new CustomPotionEffectManager(this, tablistManager, damageDisplayManager);
         tablistManager.setPotionEffectManager(customPotionEffectManager);
         new PotionUsageListener(this, customPotionEffectManager);
+        customPotionCombatListener = new CustomPotionCombatListener(this, customPotionEffectManager);
+        bonusJumpManager = new BonusJumpManager(this);
+        nauseaProjectileListener = new NauseaProjectileListener(this, customPotionEffectManager);
+        eliteManager = new EliteManager(this);
         curseEffectController = new CurseEffectController(this, curseManager, miningOxygenManager, sidebarManager, customPotionEffectManager);
         Bukkit.getPluginManager().registerEvents(curseEffectController, this);
         curseEffectController.startup();
@@ -209,6 +234,22 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Register curse listener
         CurseListener curseListener = new CurseListener(this, curseManager);
         Bukkit.getPluginManager().registerEvents(curseListener, this);
+        
+        // Register invisibility listener
+        InvisibilityListener invisibilityListener = new InvisibilityListener(this);
+        Bukkit.getPluginManager().registerEvents(invisibilityListener, this);
+        
+        // Register blindness listener
+        BlindnessListener blindnessListener = new BlindnessListener(customPotionEffectManager);
+        Bukkit.getPluginManager().registerEvents(blindnessListener, this);
+        
+        // Register night vision listener
+        NightVisionListener nightVisionListener = new NightVisionListener(this);
+        Bukkit.getPluginManager().registerEvents(nightVisionListener, this);
+        
+        // Register hunger listener
+        HungerListener hungerListener = new HungerListener(this);
+        Bukkit.getPluginManager().registerEvents(hungerListener, this);
         
         if (!cultistsReady || !samuraiReady) {
             if (citizensEnableListener == null) {
@@ -225,6 +266,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Commands
         try { getCommand("regenerate").setExecutor(new RegenerateCommand(this)); } catch (Throwable ignored) {}
         try { WarptoCommand warpto = new WarptoCommand(); getCommand("warpto").setExecutor(warpto); getCommand("warpto").setTabCompleter(warpto);} catch (Throwable ignored) {}
+        try { getCommand("warptoelite").setExecutor(new WarptoEliteCommand(this)); } catch (Throwable ignored) {}
         try { getCommand("getallconsegrityadvancements").setExecutor(new GetAllConsegrityAdvancementsCommand(this)); } catch (Throwable ignored) {}
         try { SetCustomDurabilityCommand cmd = new SetCustomDurabilityCommand(); getCommand("setcustomdurability").setExecutor(cmd); getCommand("setcustomdurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetGoldenDurabilityCommand cmd = new SetGoldenDurabilityCommand(); getCommand("setgoldendurability").setExecutor(cmd); getCommand("setgoldendurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
@@ -234,10 +276,14 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { SetStatCommand cmd = new SetStatCommand(this); getCommand("setstat").setExecutor(cmd); getCommand("setstat").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetStatRateCommand cmd = new SetStatRateCommand(this); getCommand("setstatrate").setExecutor(cmd); getCommand("setstatrate").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { DebugOxygenCommand cmd = new DebugOxygenCommand(this); getCommand("debugoxygen").setExecutor(cmd); getCommand("debugoxygen").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { getCommand("firetickdebug").setExecutor(new FireTickDebugCommand(this)); } catch (Throwable ignored) {}
+        try { getCommand("oxygendebug").setExecutor(new OxygenDebugCommand(this)); } catch (Throwable ignored) {}
         try { SetCultistPopulationCommand cmd = new SetCultistPopulationCommand(this); getCommand("setcultistpopulation").setExecutor(cmd); getCommand("setcultistpopulation").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SpawnCustomMobCommand cmd = new SpawnCustomMobCommand(this); getCommand("spawncustommob").setExecutor(cmd); getCommand("spawncustommob").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { CurseCommand cmd = new CurseCommand(curseManager); getCommand("curse").setExecutor(cmd); getCommand("curse").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { PotionCatalogueCommand cmd = new PotionCatalogueCommand(this, potionGuiManager); getCommand("potions").setExecutor(cmd);} catch (Throwable ignored) {}
+        try { CleanseCommand cmd = new CleanseCommand(this); getCommand("cleanse").setExecutor(cmd); getCommand("cleanse").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { EffectCustomCommand cmd = new EffectCustomCommand(this); getCommand("effectcustom").setExecutor(cmd); getCommand("effectcustom").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { CulinaryCatalogueCommand cmd = new CulinaryCatalogueCommand(this, culinaryCatalogueManager, culinarySubsystem); getCommand("culinary").setExecutor(cmd); getCommand("culinary").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try {
             SaveInventoryCommand cmd = new SaveInventoryCommand(this, lootRegistry);
@@ -284,6 +330,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("sarcophagus0", 35, 1, 800, new MesaSector(), GenCheckType.SURFACE, true, 0);
             structureManager.registerStruct("pillager", 20, 12, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
+            structureManager.registerStruct("seamine", 4, 100, 200, new OceanSector(), GenCheckType.UNDERWATER, true, 10, Biome.FROZEN_OCEAN);
+            structureManager.registerStruct("seamine", 4, 200, 50, new OceanSector(), GenCheckType.UNDERWATER, true, 80, null);
         } catch (Throwable ignored) {}
         keystoneManager = new KeystoneManager(this);
         keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
@@ -581,8 +629,28 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (tablistManager != null) {
             tablistManager.shutdown();
         }
+        if (customPotionCombatListener != null) {
+            customPotionCombatListener.shutdown();
+            customPotionCombatListener = null;
+        }
+        if (bonusJumpManager != null) {
+            bonusJumpManager.shutdown();
+            bonusJumpManager = null;
+        }
+        if (nauseaProjectileListener != null) {
+            HandlerList.unregisterAll(nauseaProjectileListener);
+            nauseaProjectileListener = null;
+        }
+        if (eliteManager != null) {
+            eliteManager.shutdown();
+            eliteManager = null;
+        }
         if (customPotionEffectManager != null) {
             customPotionEffectManager.shutdown();
+        }
+        if (damageDisplayManager != null) {
+            damageDisplayManager.shutdown();
+            damageDisplayManager = null;
         }
         if (fishingManager != null) {
             fishingManager.shutdown();
@@ -600,6 +668,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public void setRegenInProgress(boolean inProgress) { this.regenInProgress = inProgress; }
     public SpaceManager getSpaceManager() { return spaceManager; }
     public SidebarManager getSidebarManager() { return sidebarManager; }
+    public AggressionManager getAggressionManager() { return aggressionManager; }
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public EnchantedManager getEnchantedManager() { return enchantedManager; }
     public PotionGuiManager getPotionGuiManager() { return potionGuiManager; }
@@ -610,6 +679,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public KeystoneManager getKeystoneManager() { return keystoneManager; }
     public CustomEntityRegistry getCustomEntityRegistry() { return customEntityRegistry; }
     public CustomPotionEffectManager getCustomPotionEffectManager() { return customPotionEffectManager; }
+    public DamageDisplayManager getDamageDisplayManager() { return damageDisplayManager; }
+    public BonusJumpManager getBonusJumpManager() { return bonusJumpManager; }
+    public EliteManager getEliteManager() { return eliteManager; }
     public double getStatRate() { return statRate; }
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
     public boolean isDebugOxygen() { return debugOxygen; }

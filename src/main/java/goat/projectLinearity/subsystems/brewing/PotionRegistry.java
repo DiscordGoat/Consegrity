@@ -53,8 +53,24 @@ public final class PotionRegistry {
     static {
         register(
                 new PotionDefinition(
-                        "swiftness",
-                        ChatColor.AQUA,
+                        "haste", "#F3B23E",  // Display color
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.HONEYCOMB  // Core ingredient
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                "Golden Tear"  // Nether variant
+                        ),
+                        new PotionStats(60, 1, 20),  // Overworld: 60s duration, potency 1, 20 charges
+                        new PotionStats(120, 2, 10)  // Nether: 120s duration, potency 2, 10 charges
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "swiftness", "#58BFFE",
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
@@ -71,8 +87,290 @@ public final class PotionRegistry {
         );
         register(
                 new PotionDefinition(
-                        "strength",
-                        ChatColor.DARK_RED,
+                        "night_vision", "#2EE68D",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.GOLDEN_CARROT
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.ENDER_EYE
+                        ),
+                        new PotionStats(60, 1, 15),  // Overworld: 60s duration, potency 1, 15 charges
+                        new PotionStats(180, 2, 5)   // Nether: 180s duration, potency 2, 5 charges
+                )
+                );
+        register(
+                new PotionDefinition(
+                        "hunger", "#857729",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.ROTTEN_FLESH
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.SPIDER_EYE
+                        ),
+                        new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
+                        new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "weakness", "#B391C8",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.FERMENTED_SPIDER_EYE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BONE_MEAL
+                        ),
+                        new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
+                        new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "poison", "#47FF6D",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.POISONOUS_POTATO
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.FERMENTED_SPIDER_EYE
+                        ),
+                        new PotionStats(45, 1, 15),  // Overworld: 45s duration, potency 1, 15 charges
+                        new PotionStats(90, 2, 8)    // Nether: 90s duration, potency 2, 8 charges
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "wither", "#3B3344",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.WITHER_ROSE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.WITHER_SKELETON_SKULL
+                        ),
+                        new PotionStats(60, 1, 12),  // Overworld: 60s duration, potency 1, 12 charges
+                        new PotionStats(120, 2, 6)    // Nether: 120s duration, potency 2, 6 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "absorption", "#FFC659",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.GLOW_BERRIES
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.GILDED_BLACKSTONE
+                        ),
+                        new PotionStats(600, 1, 10),  // Overworld: 10 minutes, potency 1, 10 charges
+                        new PotionStats(900, 2, 6)    // Nether: 15 minutes, potency 2, 6 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "health_boost", "#FF6F82",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.APPLE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.GOLDEN_APPLE
+                        ),
+                        new PotionStats(600, 1, 8),   // Overworld: 10 minutes, potency 1, 8 charges
+                        new PotionStats(900, 2, 5)    // Nether: 15 minutes, potency 2, 5 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "saturation", "#D7B356",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.SWEET_BERRIES
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.GLOWSTONE_DUST
+                        ),
+                        new PotionStats(60, 1, 12),   // Overworld: 60s base, scales with potency
+                        new PotionStats(60, 2, 8)     // Nether: same base duration with higher potency
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "well_balanced_meal", "#B47A45",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.BREAD
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.COOKED_BEEF
+                        ),
+                        new PotionStats(1, 1, 20),   // Instant effect, 20 uses
+                        new PotionStats(1, 1, 20)
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "glowing", "#FFF45C",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.GLOW_INK_SAC
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.SPECTRAL_ARROW
+                        ),
+                        new PotionStats(60, 1, 12),   // Overworld: 60s duration, potency 1, 12 charges
+                        new PotionStats(120, 2, 8)    // Nether: 120s duration, potency 2, 8 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "levitation", "#C9ACFF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.PHANTOM_MEMBRANE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.SHULKER_SHELL
+                        ),
+                        new PotionStats(20, 1, 8),   // Overworld: short duration, potency 1, 8 charges
+                        new PotionStats(30, 2, 6)    // Nether: longer duration, potency 2, 6 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "luck", "#1FAE5D",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.EMERALD
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.RABBIT_FOOT
+                        ),
+                        new PotionStats(180, 1, 10),  // Overworld: 3 minutes, potency 1, 10 charges
+                        new PotionStats(240, 2, 6)    // Nether: 4 minutes, potency 2, 6 charges
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "slow_falling", "#F7C7A5",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.FEATHER
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.GHAST_TEAR
+                        ),
+                        new PotionStats(120, 1, 12),
+                        new PotionStats(240, 2, 8)
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "instant_lightning", "#3B7CFF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.AMETHYST_SHARD
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.LIGHTNING_ROD
+                        ),
+                        new PotionStats(1, 1, 12),
+                        new PotionStats(1, 1, 12)
+                )
+        );
+
+        register(
+                new PotionDefinition(
+                        "blindness", "#2B2E3A",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.BLACK_DYE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.ENDER_EYE
+                        ),
+                        new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
+                        new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "invisibility", "#DAE0EA",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.INK_SAC
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.ENDER_PEARL
+                        ),
+                        new PotionStats(60, 1, 15),  // Overworld: 60s duration, potency 1, 15 charges
+                        new PotionStats(180, 2, 5)   // Nether: 180s duration, potency 2, 5 charges
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "strength", "#C83C32",
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
@@ -89,8 +387,7 @@ public final class PotionRegistry {
         );
         register(
                 new PotionDefinition(
-                        "oxygen_recovery",
-                        ChatColor.DARK_AQUA,
+                        "oxygen_recovery", "#3ED2CA",
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
@@ -107,8 +404,7 @@ public final class PotionRegistry {
         );
         register(
                 new PotionDefinition(
-                        "slowness",
-                        ChatColor.BLUE,
+                        "slowness", "#6F7F8F",
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
@@ -121,6 +417,312 @@ public final class PotionRegistry {
                         ),
                         new PotionStats(60, 1, 20),
                         new PotionStats(120, 2, 10)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "mining_fatigue", "#8A7558",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.DEEPSLATE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BASALT
+                        ),
+                        new PotionStats(60, 1, 18),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_health", "#FF4FA8",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.GLISTERING_MELON_SLICE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.GHAST_TEAR
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_damage", "#7A245A",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.SPIDER_EYE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.FERMENTED_SPIDER_EYE
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_cooling", "#7CE6FF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.PACKED_ICE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BLUE_ICE
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_warming", "#FF6633",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.BLAZE_ROD
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.MAGMA_CREAM
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_oxygen", "#51C9FF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.KELP
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.TUBE_CORAL_FAN
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "instant_air", "#A6E3FF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.PHANTOM_MEMBRANE
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BREEZE_ROD
+                        ),
+                        new PotionStats(1, 1, 16),
+                        new PotionStats(1, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "frostbite", "#71B9FF",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.SNOW_BLOCK
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BLUE_ICE
+                        ),
+                        new PotionStats(120, 1, 12),
+                        new PotionStats(180, 2, 8)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "heatstroke", "#FF945C",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.BLAZE_POWDER
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.MAGMA_BLOCK
+                        ),
+                        new PotionStats(120, 1, 12),
+                        new PotionStats(180, 2, 8)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "leaping", "#7EDB5A",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.RABBIT_FOOT
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.PHANTOM_MEMBRANE
+                        ),
+                        new PotionStats(60, 1, 20),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "nausea", "#C963B8",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.POISONOUS_POTATO
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.ROTTEN_FLESH
+                        ),
+                        new PotionStats(60, 1, 16),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "regeneration", "#EB5E87",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.GHAST_TEAR
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.SHULKER_SHELL
+                        ),
+                        new PotionStats(60, 1, 16),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "resistance", "#5464D0",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.IRON_INGOT
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.BLAZE_ROD
+                        ),
+                        new PotionStats(60, 1, 16),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "fire_resistance", "#FF7A2B",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.MAGMA_CREAM
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.MAGMA_BLOCK
+                        ),
+                        new PotionStats(60, 1, 20),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "water_breathing", "#2F9ED1",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.PUFFERFISH
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.PRISMARINE_CRYSTALS
+                        ),
+                        new PotionStats(60, 1, 20),
+                        new PotionStats(120, 2, 12)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "conduit_power", "#2B8DD8",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.NAUTILUS_SHELL
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.HEART_OF_THE_SEA
+                        ),
+                        new PotionStats(120, 1, 12),
+                        new PotionStats(240, 2, 8)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "dolphins_grace", "#2FC0E0",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.TROPICAL_FISH
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.PRISMARINE_BRICKS
+                        ),
+                        new PotionStats(120, 1, 12),
+                        new PotionStats(240, 2, 8)
+                )
+        );
+        register(
+                new PotionDefinition(
+                        "charismatic_bartering", "#7CE078",
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.HONEY_BOTTLE,
+                                Material.EMERALD
+                        ),
+                        new PotionRecipe(
+                                Material.GLASS_BOTTLE,
+                                Material.NETHER_WART,
+                                Material.EMERALD_BLOCK
+                        ),
+                        new PotionStats(180, 1, 10),
+                        new PotionStats(240, 2, 6)
                 )
         );
     }
@@ -299,27 +901,24 @@ public final class PotionRegistry {
         };
     }
 
-    private static Color convertColor(ChatColor chatColor) {
-        if (chatColor == null) {
-            return Color.WHITE;
+    private static String sanitizeHex(String raw) {
+        String candidate = (raw == null || raw.isBlank()) ? "#FFFFFF" : raw.trim();
+        if (!candidate.startsWith("#")) {
+            candidate = "#" + candidate;
         }
-        return switch (chatColor) {
-            case AQUA -> Color.fromRGB(0, 194, 255);
-            case DARK_AQUA -> Color.fromRGB(0, 124, 148);
-            case DARK_RED -> Color.fromRGB(153, 0, 0);
-            case RED -> Color.fromRGB(255, 64, 64);
-            case GOLD -> Color.fromRGB(255, 170, 0);
-            case YELLOW -> Color.fromRGB(255, 252, 61);
-            case GREEN -> Color.fromRGB(64, 204, 64);
-            case DARK_GREEN -> Color.fromRGB(0, 102, 0);
-            case BLUE -> Color.fromRGB(64, 64, 255);
-            case DARK_BLUE -> Color.fromRGB(0, 0, 170);
-            case LIGHT_PURPLE -> Color.fromRGB(255, 128, 255);
-            case DARK_PURPLE -> Color.fromRGB(128, 0, 128);
-            case WHITE -> Color.fromRGB(255, 255, 255);
-            case GRAY, DARK_GRAY -> Color.fromRGB(96, 96, 96);
-            default -> Color.WHITE;
-        };
+        if (!candidate.matches("^#[0-9a-fA-F]{6}$")) {
+            throw new IllegalArgumentException("Invalid hex color: " + raw);
+        }
+        return candidate.toUpperCase(Locale.ENGLISH);
+    }
+
+    private static String toColorCode(String hex) {
+        return net.md_5.bungee.api.ChatColor.of(hex).toString();
+    }
+
+    private static Color toBukkitColor(String hex) {
+        int rgb = Integer.parseInt(hex.substring(1), 16);
+        return Color.fromRGB(rgb);
     }
 
     private static NamespacedKey key(String suffix) {
@@ -337,7 +936,8 @@ public final class PotionRegistry {
     public static final class PotionDefinition {
         private final String id;
         private final String displayName;
-        private final ChatColor accentColor;
+        private final String accentHex;
+        private final String accentColorCode;
         private final Color accentBukkitColor;
         private final PotionRecipe overworldRecipe;
         private final PotionRecipe netherRecipe;
@@ -347,15 +947,16 @@ public final class PotionRegistry {
         private final Map<BrewType, NamespacedKey> discoveryKeys;
 
         private PotionDefinition(String id,
-                                 ChatColor accentColor,
+                                 String accentHex,
                                  PotionRecipe overworldRecipe,
                                  PotionRecipe netherRecipe,
                                  PotionStats overworldStats,
                                  PotionStats netherStats) {
             this.id = Objects.requireNonNull(id, "id").toLowerCase(Locale.ENGLISH);
             this.displayName = formatDisplayName(id);
-            this.accentColor = Objects.requireNonNullElse(accentColor, ChatColor.WHITE);
-            this.accentBukkitColor = convertColor(this.accentColor);
+            this.accentHex = sanitizeHex(accentHex);
+            this.accentColorCode = toColorCode(this.accentHex);
+            this.accentBukkitColor = toBukkitColor(this.accentHex);
             this.overworldRecipe = Objects.requireNonNull(overworldRecipe, "overworldRecipe");
             this.netherRecipe = Objects.requireNonNull(netherRecipe, "netherRecipe");
             this.overworldStats = Objects.requireNonNull(overworldStats, "overworldStats");
@@ -375,8 +976,8 @@ public final class PotionRegistry {
             return displayName;
         }
 
-        public ChatColor getAccentColor() {
-            return accentColor;
+        public String getAccentColor() {
+            return accentColorCode;
         }
 
         public PotionRecipe getRecipe(BrewType type) {
@@ -389,6 +990,10 @@ public final class PotionRegistry {
 
         public PotionStats getStats(BrewType type) {
             return type == BrewType.NETHER ? netherStats : overworldStats;
+        }
+
+        public String getAccentHex() {
+            return accentHex;
         }
 
         private static String formatDisplayName(String id) {
@@ -496,7 +1101,7 @@ public final class PotionRegistry {
             return finalStats;
         }
 
-        public ChatColor getAccentColor() {
+        public String getAccentColor() {
             return definition.getAccentColor();
         }
 

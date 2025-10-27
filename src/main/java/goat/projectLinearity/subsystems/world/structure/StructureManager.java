@@ -8,6 +8,9 @@ import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Biome;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
@@ -53,6 +56,50 @@ public final class StructureManager {
             lootPopulatorManager.handleStructurePlacement(structureName, origin, bounds);
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "Failed populating loot for " + structureName + " at " + origin, t);
+        }
+    }
+
+    private void postProcessStructure(Registration reg, Location origin, Biome biome) {
+        if (!"seamine".equalsIgnoreCase(reg.schemName)) {
+            return;
+        }
+        spawnSeamineGuardian(origin, Math.max(4, reg.bounds));
+    }
+
+    private void spawnSeamineGuardian(Location origin, int bounds) {
+        World world = origin.getWorld();
+        if (world == null) {
+            return;
+        }
+        int radius = Math.max(bounds, 6);
+        int baseX = origin.getBlockX();
+        int baseY = origin.getBlockY();
+        int baseZ = origin.getBlockZ();
+        Location found = null;
+        int minY = Math.max(world.getMinHeight(), baseY - 6);
+        int maxY = Math.min(world.getMaxHeight(), baseY + 12);
+        outer:
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = baseX - radius; x <= baseX + radius; x++) {
+                for (int z = baseZ - radius; z <= baseZ + radius; z++) {
+                    Material type = world.getBlockAt(x, y, z).getType();
+                    if (type == Material.BLACKSTONE) {
+                        found = new Location(world, x + 0.5, y + 1.5, z + 0.5);
+                        break outer;
+                    }
+                }
+            }
+        }
+        if (found == null) {
+            return;
+        }
+        Collection<Entity> nearby = world.getNearbyEntities(found, 1.5, 1.5, 1.5, entity -> entity.getType() == EntityType.ELDER_GUARDIAN);
+        if (!nearby.isEmpty()) {
+            return;
+        }
+        Entity spawned = world.spawnEntity(found, EntityType.ELDER_GUARDIAN);
+        if (spawned != null) {
+            spawned.setPersistent(true);
         }
     }
     public String debugSummary(String worldKey) {
@@ -194,10 +241,16 @@ public final class StructureManager {
             }
         } catch (Throwable ignore) {}
 
+        Biome biome = resolveBiome(world, paste);
+        if (reg.requiredBiome != null && !matchesRequiredBiome(biome, reg.requiredBiome)) {
+            if (debugEnabled) dbg(reg.schemName).inc("REQUIRED_BIOME");
+            debugDecision(reg.schemName, "candidate at " + wx + "," + wz + " rejected due to biome requirement " + reg.requiredBiome + " (found " + biome + ")");
+            return false;
+        }
+
         boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
         String schemName = reg.schemName;
         if (schemName.equalsIgnoreCase("monument")) {
-            org.bukkit.block.Biome biome = resolveBiome(world, paste);
             if (isFrozenOcean(biome)) {
                 schemName = "abandonedmonument";
             }
@@ -217,6 +270,7 @@ public final class StructureManager {
             if (plugin instanceof ProjectLinearity pl && pl.getKeystoneManager() != null) {
                 pl.getKeystoneManager().registerStructurePlacement(world, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds);
             }
+            postProcessStructure(reg, paste, biome);
             return true;
         } catch (Throwable t) {
             plugin.getLogger().warning("Failed placing '" + reg.schemName + "' at " + paste + ": " + t.getMessage());
@@ -244,6 +298,15 @@ public final class StructureManager {
                 || biome == org.bukkit.block.Biome.DEEP_COLD_OCEAN;
     }
 
+    private boolean matchesRequiredBiome(Biome actual, Biome required) {
+        if (required == null) return true;
+        if (actual == null) return false;
+        if (required == Biome.FROZEN_OCEAN) {
+            return isFrozenOcean(actual);
+        }
+        return actual == required;
+    }
+
     /**
      * Register a schematic to spawn with constraints.
      *
@@ -255,20 +318,28 @@ public final class StructureManager {
      * @param type     Placement type (surface, underwater, etc.).
      */
     public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type) {
-        registerStruct(schem, bounds, count, spacing, sector, type, false, 0);
+        registerStruct(schem, bounds, count, spacing, sector, type, false, 0, null);
     }
 
 
     // Overload: include listener trigger and minimum distance from origin (blocks)
     public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance) {
-        String base = normalizeName(schem);
-        registrations.add(new Registration(base, bounds, count, spacing, sector, type, triggerListener, Math.max(0, minimumDistance)));
-        plugin.getLogger().info("Registered structure '" + base + "' (count=" + count + ", spacing=" + spacing + ", bounds=" + bounds + ", type=" + type + ", trigger=" + triggerListener + ", minDist=" + minimumDistance + ")");
+        registerStruct(schem, bounds, count, spacing, sector, type, triggerListener, minimumDistance, null);
     }
 
     // Convenience overload for minimumDistance without triggerListener
     public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, int minimumDistance) {
-        registerStruct(schem, bounds, count, spacing, sector, type, false, minimumDistance);
+        registerStruct(schem, bounds, count, spacing, sector, type, false, minimumDistance, null);
+    }
+
+    public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, Biome requiredBiome) {
+        registerStruct(schem, bounds, count, spacing, sector, type, false, 0, requiredBiome);
+    }
+
+    public void registerStruct(String schem, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance, Biome requiredBiome) {
+        String base = normalizeName(schem);
+        registrations.add(new Registration(base, bounds, count, spacing, sector, type, triggerListener, Math.max(0, minimumDistance), requiredBiome));
+        plugin.getLogger().info("Registered structure '" + base + "' (count=" + count + ", spacing=" + spacing + ", bounds=" + bounds + ", type=" + type + ", trigger=" + triggerListener + ", minDist=" + minimumDistance + ", requiredBiome=" + (requiredBiome != null ? requiredBiome.name() : "any") + ")");
     }
 
     private static String normalizeName(String name) {
@@ -338,9 +409,30 @@ public final class StructureManager {
                     continue;
                 }
 
-                boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
                 try {
-                    schemManager.placeStructure(reg.schemName, paste, ignoreAir);
+                    int cx = paste.getBlockX() >> 4;
+                    int cz = paste.getBlockZ() >> 4;
+                    if (!world.isChunkLoaded(cx, cz)) {
+                        world.getChunkAt(cx, cz).load(true);
+                    }
+                } catch (Throwable ignore) {}
+
+                Biome biome = resolveBiome(world, paste);
+                if (reg.requiredBiome != null && !matchesRequiredBiome(biome, reg.requiredBiome)) {
+                    if (debugEnabled) dbg(reg.schemName).inc("REQUIRED_BIOME");
+                    debugDecision(reg.schemName, "candidate at " + wx + "," + wz + " rejected due to biome requirement " + reg.requiredBiome + " (found " + biome + ")");
+                    continue;
+                }
+
+                boolean ignoreAir = (reg.type == GenCheckType.UNDERWATER);
+                String schemName = reg.schemName;
+                if (schemName.equalsIgnoreCase("monument")) {
+                    if (isFrozenOcean(biome)) {
+                        schemName = "abandonedmonument";
+                    }
+                }
+                try {
+                    schemManager.placeStructure(schemName, paste, ignoreAir);
                     if (debugEnabled) dbg(reg.schemName).successes++;
                     if (reg.type == GenCheckType.SURFACE) {
                         try {
@@ -349,9 +441,13 @@ public final class StructureManager {
                     }
                     reg.recordPlacement(worldKey, wx, wz);
                     // Persist structure instance so counts survive restarts (listeners read trigger flag)
-                    StructureStore.get(plugin).addStructure(worldKey, reg.schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
-                    triggerLootPopulation(reg.schemName, paste, reg.bounds);
+                    StructureStore.get(plugin).addStructure(worldKey, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
+                    triggerLootPopulation(schemName, paste, reg.bounds);
                     debugDecision(reg.schemName, "placed at " + paste.getBlockX() + "," + paste.getBlockY() + "," + paste.getBlockZ());
+                    if (plugin instanceof ProjectLinearity pl && pl.getKeystoneManager() != null) {
+                        pl.getKeystoneManager().registerStructurePlacement(world, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds);
+                    }
+                    postProcessStructure(reg, paste, biome);
                     placedAny = true;
                     break; // one per registration per chunk attempt
                 } catch (Throwable t) {
@@ -763,13 +859,14 @@ public final class StructureManager {
         public final GenCheckType type;
         public final boolean triggerListener;
         public final int minimumDistance;
+        public final Biome requiredBiome;
         private final ConsegrityRegions.Region region;
 
         // worldName -> placed XY (encoded as long)
         private final Map<String, Set<Long>> placements = new ConcurrentHashMap<>();
         private final Set<String> hydratedWorlds = java.util.Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-        Registration(String schemName, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance) {
+        Registration(String schemName, int bounds, int count, int spacing, Sector sector, GenCheckType type, boolean triggerListener, int minimumDistance, Biome requiredBiome) {
             this.schemName = schemName;
             this.bounds = Math.max(1, bounds);
             this.count = Math.max(0, count);
@@ -778,6 +875,7 @@ public final class StructureManager {
             this.type = type;
             this.triggerListener = triggerListener;
             this.minimumDistance = Math.max(0, minimumDistance);
+            this.requiredBiome = requiredBiome;
             this.region = mapRegion(sector, type);
         }
 

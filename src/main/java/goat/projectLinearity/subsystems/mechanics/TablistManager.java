@@ -11,11 +11,13 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Scoreboard;
 
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 /**
  * Manages the tablist display for showing active curses to players.
@@ -27,6 +29,8 @@ public final class TablistManager {
     private CustomPotionEffectManager potionEffectManager;
     private final BukkitTask updateTask;
     private final Map<UUID, String> lastTablistContent = new HashMap<>();
+    private final Set<UUID> fireDebug = new HashSet<>();
+    private final Set<UUID> oxygenDebug = new HashSet<>();
 
     public TablistManager(ProjectLinearity plugin, CurseManager curseManager) {
         this.plugin = plugin;
@@ -63,8 +67,9 @@ public final class TablistManager {
         List<String> potionLines = potionEffectManager != null ? potionEffectManager.getTabLines(player) : Collections.emptyList();
         boolean hasCurses = !activeCurses.isEmpty();
         boolean hasPotions = potionLines != null && !potionLines.isEmpty();
+        boolean hasDebug = fireDebug.contains(player.getUniqueId()) || oxygenDebug.contains(player.getUniqueId());
 
-        if (!hasCurses && !hasPotions) {
+        if (!hasCurses && !hasPotions && !hasDebug) {
             clearPlayerTablist(player);
             return;
         }
@@ -96,6 +101,45 @@ public final class TablistManager {
             footer.append(ChatColor.DARK_AQUA).append("§lPOTIONS").append("\n");
             for (String line : potionLines) {
                 footer.append(line).append("\n");
+            }
+        }
+
+        if (hasDebug) {
+            if (footer.length() > 1) {
+                footer.append("\n");
+            }
+            footer.append(ChatColor.GRAY).append("§lDEBUG").append("\n");
+            if (fireDebug.contains(player.getUniqueId())) {
+                footer.append(ChatColor.RED)
+                        .append("Fire Ticks: ")
+                        .append(ChatColor.YELLOW)
+                        .append(player.getFireTicks())
+                        .append("\n");
+            }
+            if (oxygenDebug.contains(player.getUniqueId())) {
+                int remainingAir = player.getRemainingAir();
+                int maxAir = player.getMaximumAir();
+                footer.append(ChatColor.AQUA)
+                        .append("Vanilla Air: ")
+                        .append(ChatColor.YELLOW)
+                        .append(remainingAir)
+                        .append(ChatColor.GRAY)
+                        .append("/")
+                        .append(ChatColor.YELLOW)
+                        .append(maxAir)
+                        .append("\n");
+                if (plugin.getMiningOxygenManager() != null) {
+                    int miningOxygen = plugin.getMiningOxygenManager().getOxygen(player);
+                    footer.append(ChatColor.AQUA)
+                            .append("Mining Oxygen: ")
+                            .append(ChatColor.YELLOW)
+                            .append(miningOxygen)
+                            .append(ChatColor.GRAY)
+                            .append("/")
+                            .append(ChatColor.YELLOW)
+                            .append(600)
+                            .append("\n");
+                }
             }
         }
 
@@ -147,5 +191,27 @@ public final class TablistManager {
             updateTask.cancel();
         }
         lastTablistContent.clear();
+        fireDebug.clear();
+        oxygenDebug.clear();
+    }
+
+    public boolean toggleFireDebug(Player player) {
+        UUID id = player.getUniqueId();
+        if (fireDebug.contains(id)) {
+            fireDebug.remove(id);
+            return false;
+        }
+        fireDebug.add(id);
+        return true;
+    }
+
+    public boolean toggleOxygenDebug(Player player) {
+        UUID id = player.getUniqueId();
+        if (oxygenDebug.contains(id)) {
+            oxygenDebug.remove(id);
+            return false;
+        }
+        oxygenDebug.add(id);
+        return true;
     }
 }

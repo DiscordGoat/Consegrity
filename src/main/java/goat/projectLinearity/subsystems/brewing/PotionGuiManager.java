@@ -30,8 +30,10 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,8 +47,17 @@ public final class PotionGuiManager implements Listener {
     private static final String TITLE_BREW = ChatColor.DARK_AQUA + "%s " + ChatColor.GRAY + "(%s)";
     private static final ChatColor UNDISCOVERED_COLOR = ChatColor.DARK_GRAY;
 
-    private static final int CATALOGUE_SIZE = 36;
-    private static final int[] CATALOGUE_POTION_SLOTS = {11, 13, 15, 29};
+    private static final int CATALOGUE_SIZE = 45;
+    private static final int[] CATALOGUE_POTION_SLOTS = {
+            10, 11, 12, 13, 14, 15, 16,
+            19, 20, 21, 22, 23, 24, 25,
+            28, 29, 30, 31, 32, 33, 34
+    };
+    private static final int SLOT_PREV_PAGE = 36;
+    private static final int SLOT_PAGE_INFO = 40;
+    private static final int SLOT_NEXT_PAGE = 44;
+    private static final String ACTION_PREVIOUS_PAGE = "__prev";
+    private static final String ACTION_NEXT_PAGE = "__next";
 
     private static final int BREW_SIZE = 54;
     private static final int SLOT_INFO_PRIMARY = 4;
@@ -82,30 +93,56 @@ public final class PotionGuiManager implements Listener {
     // --- Catalogue ---
 
     public void openCatalogue(Player player) {
+        openCatalogue(player, 0);
+    }
+
+    private void openCatalogue(Player player, int page) {
         if (player == null) return;
-        CatalogueHolder holder = new CatalogueHolder(player.getUniqueId());
+
+        List<PotionDefinition> definitions = new ArrayList<>(PotionRegistry.getAll());
+        int perPage = CATALOGUE_POTION_SLOTS.length;
+        int totalPages = Math.max(1, (int) Math.ceil(definitions.size() / (double) perPage));
+        int clampedPage = Math.max(0, Math.min(page, totalPages - 1));
+
+        CatalogueHolder holder = new CatalogueHolder(player.getUniqueId(), clampedPage, totalPages);
         Inventory inventory = Bukkit.createInventory(holder, CATALOGUE_SIZE, TITLE_CATALOGUE);
         fill(inventory, filler);
 
-        int index = 0;
-        for (PotionDefinition definition : PotionRegistry.getAll()) {
-            if (index >= CATALOGUE_POTION_SLOTS.length) {
-                break;
-            }
-            int slot = CATALOGUE_POTION_SLOTS[index++];
+        int start = clampedPage * perPage;
+        int end = Math.min(start + perPage, definitions.size());
+
+        for (int index = start; index < end; index++) {
+            PotionDefinition definition = definitions.get(index);
+            int slot = CATALOGUE_POTION_SLOTS[index - start];
             ItemStack icon = createCatalogueIcon(player, definition);
             inventory.setItem(slot, icon);
             holder.slotMapping.put(slot, definition.getId());
         }
 
+        if (totalPages > 1) {
+            if (clampedPage > 0) {
+                ItemStack previous = buildPageButton(false, clampedPage, totalPages);
+                inventory.setItem(SLOT_PREV_PAGE, previous);
+                holder.slotMapping.put(SLOT_PREV_PAGE, ACTION_PREVIOUS_PAGE);
+            }
+            if (clampedPage < totalPages - 1) {
+                ItemStack next = buildPageButton(true, clampedPage, totalPages);
+                inventory.setItem(SLOT_NEXT_PAGE, next);
+                holder.slotMapping.put(SLOT_NEXT_PAGE, ACTION_NEXT_PAGE);
+            }
+        }
+        inventory.setItem(SLOT_PAGE_INFO, buildPageIndicator(clampedPage, totalPages));
+
         player.openInventory(inventory);
-        player.sendMessage(PREFIX + "Select a potion recipe. Left-click for Overworld, right-click for Nether.");
+        player.sendMessage(PREFIX + "Select a potion recipe. " + ChatColor.GRAY + "Page "
+                + ChatColor.YELLOW + (clampedPage + 1) + ChatColor.GRAY + "/" + ChatColor.YELLOW + totalPages
+                + ChatColor.GRAY + ". Left-click for Overworld, right-click for Nether.");
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.6f);
     }
 
     private ItemStack createCatalogueIcon(Player player, PotionDefinition definition) {
         boolean discovered = PotionRegistry.hasDiscovered(player, definition);
-        ChatColor color = discovered ? definition.getAccentColor() : UNDISCOVERED_COLOR;
+        String color = discovered ? definition.getAccentColor() : UNDISCOVERED_COLOR.toString();
         ItemStack icon = new ItemStack(Material.POTION);
         ItemMeta baseMeta = icon.getItemMeta();
         PotionMeta meta = baseMeta instanceof PotionMeta ? (PotionMeta) baseMeta : null;
@@ -136,9 +173,9 @@ public final class PotionGuiManager implements Listener {
 
     // --- Brewing ---
 
-    private void openBrewing(Player player, PotionDefinition definition, BrewType type) {
+    private void openBrewing(Player player, PotionDefinition definition, BrewType type, int originPage) {
         if (player == null || definition == null || type == null) return;
-        BrewingHolder holder = new BrewingHolder(player.getUniqueId(), definition, type);
+        BrewingHolder holder = new BrewingHolder(player.getUniqueId(), definition, type, originPage);
         String title = String.format(TITLE_BREW, definition.getDisplayName(), type == BrewType.NETHER ? "Nether" : "Overworld");
         Inventory inventory = Bukkit.createInventory(holder, BREW_SIZE, title);
         fill(inventory, filler);
@@ -231,6 +268,23 @@ public final class PotionGuiManager implements Listener {
         return pane(Material.ORANGE_STAINED_GLASS_PANE, ChatColor.GOLD + "Toggle Splash Variant",
                 ChatColor.GRAY + "Current: " + status,
                 ChatColor.DARK_GRAY + "Splash variants excel at support.");
+    }
+
+    private ItemStack buildPageButton(boolean forward, int currentPage, int totalPages) {
+        int targetPage = forward ? currentPage + 1 : currentPage - 1;
+        Material material = forward ? Material.SPECTRAL_ARROW : Material.ARROW;
+        String title = forward ? ChatColor.GREEN + "Next Page" : ChatColor.GREEN + "Previous Page";
+        String descriptor = forward ? "next" : "previous";
+        return pane(material, title,
+                ChatColor.GRAY + "Go to page " + ChatColor.YELLOW + (targetPage + 1)
+                        + ChatColor.GRAY + "/" + ChatColor.YELLOW + totalPages,
+                ChatColor.DARK_GRAY + "View the " + descriptor + " recipes.");
+    }
+
+    private ItemStack buildPageIndicator(int currentPage, int totalPages) {
+        return pane(Material.PAPER, ChatColor.AQUA + "Catalogue Page",
+                ChatColor.GRAY + "Viewing page " + ChatColor.YELLOW + (currentPage + 1)
+                        + ChatColor.GRAY + "/" + ChatColor.YELLOW + totalPages);
     }
 
     private ItemStack pane(Material material, String name, String... lore) {
@@ -349,20 +403,31 @@ public final class PotionGuiManager implements Listener {
         if (!holder.isOwner(player.getUniqueId())) {
             return;
         }
-        String id = holder.slotMapping.get(rawSlot);
-        if (id == null) {
+        String action = holder.slotMapping.get(rawSlot);
+        if (action == null) {
             return;
         }
-        PotionDefinition definition = PotionRegistry.getById(id).orElse(null);
+        if (ACTION_PREVIOUS_PAGE.equals(action)) {
+            openCatalogue(player, holder.getPage() - 1);
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.2f);
+            return;
+        }
+        if (ACTION_NEXT_PAGE.equals(action)) {
+            openCatalogue(player, holder.getPage() + 1);
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.8f);
+            return;
+        }
+
+        PotionDefinition definition = PotionRegistry.getById(action).orElse(null);
         if (definition == null) {
             player.sendMessage(PREFIX + ChatColor.RED + "That recipe is unavailable.");
             return;
         }
 
         if (event.getClick() == ClickType.LEFT) {
-            openBrewing(player, definition, BrewType.OVERWORLD);
+            openBrewing(player, definition, BrewType.OVERWORLD, holder.getPage());
         } else if (event.getClick() == ClickType.RIGHT) {
-            openBrewing(player, definition, BrewType.NETHER);
+            openBrewing(player, definition, BrewType.NETHER, holder.getPage());
         } else {
             player.sendMessage(PREFIX + ChatColor.RED + "Use left-click or right-click to choose a recipe variant.");
         }
@@ -418,7 +483,7 @@ public final class PotionGuiManager implements Listener {
 
     private void returnAndReopenCatalogue(Player player, Inventory top, BrewingHolder holder) {
         returnResidualItems(player, top, holder);
-        Bukkit.getScheduler().runTask(plugin, () -> openCatalogue(player));
+        Bukkit.getScheduler().runTask(plugin, () -> openCatalogue(player, holder.getCataloguePage()));
         player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.6f, 1.3f);
     }
 
@@ -649,14 +714,27 @@ public final class PotionGuiManager implements Listener {
 
     private static final class CatalogueHolder implements InventoryHolder {
         private final UUID owner;
+        private final int page;
+        private final int totalPages;
         private final Map<Integer, String> slotMapping = new HashMap<>();
 
-        private CatalogueHolder(UUID owner) {
+        private CatalogueHolder(UUID owner, int page, int totalPages) {
             this.owner = owner;
+            this.page = page;
+            this.totalPages = totalPages;
         }
 
         private boolean isOwner(UUID uuid) {
             return owner.equals(uuid);
+        }
+
+        private int getPage() {
+            return page;
+        }
+
+        @SuppressWarnings("unused")
+        private int getTotalPages() {
+            return totalPages;
         }
 
         @Override
@@ -669,12 +747,14 @@ public final class PotionGuiManager implements Listener {
         private final UUID owner;
         private final PotionDefinition definition;
         private final BrewType brewType;
+        private final int cataloguePage;
         private boolean splash;
 
-        private BrewingHolder(UUID owner, PotionDefinition definition, BrewType brewType) {
+        private BrewingHolder(UUID owner, PotionDefinition definition, BrewType brewType, int cataloguePage) {
             this.owner = owner;
             this.definition = definition;
             this.brewType = brewType;
+            this.cataloguePage = cataloguePage;
         }
 
         private boolean isOwner(UUID uuid) {
@@ -685,8 +765,12 @@ public final class PotionGuiManager implements Listener {
             splash = !splash;
         }
 
-        public boolean isSplash() {
+        private boolean isSplash() {
             return splash;
+        }
+
+        private int getCataloguePage() {
+            return cataloguePage;
         }
 
         @Override
