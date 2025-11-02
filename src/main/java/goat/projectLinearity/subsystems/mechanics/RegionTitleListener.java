@@ -16,7 +16,7 @@ import java.util.UUID;
 import static goat.projectLinearity.subsystems.world.ConsegrityRegions.Region;
 
 public class RegionTitleListener implements Listener {
-    private static final String CONSEGRITY_WORLD = "Consegrity";
+    private static final String TRACKED_WORLD = "Consegrity";
 
     private final Map<UUID, Region> lastRegion = new HashMap<>();
     private final ProjectLinearity plugin;
@@ -65,7 +65,7 @@ public class RegionTitleListener implements Listener {
     private boolean isTrackedWorld(World world) {
         if (world == null) return false;
         String name = world.getName();
-        return CONSEGRITY_WORLD.equals(name);
+        return TRACKED_WORLD.equals(name);
     }
 
     private void sendTitle(Player player, Region region) {
