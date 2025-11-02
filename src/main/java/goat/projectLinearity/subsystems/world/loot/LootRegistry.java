@@ -238,7 +238,6 @@ public final class LootRegistry {
                 plugin.getLogger().warning("[LootRegistry] Unable to create loot directory " + directory.getAbsolutePath());
             }
             inventories.clear();
-            copyBundledDefaults();
             refreshChestCounts();
             File[] files = directory.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".yml"));
             if (files != null) {
@@ -271,33 +270,9 @@ public final class LootRegistry {
             }
         }
 
-        private void copyBundledDefaults() {
-            String resource = "structureloot/" + directoryName + "/default.yml";
-            try (InputStream is = plugin.getResource(resource)) {
-                if (is == null) {
-                    return;
-                }
-            } catch (IOException ignored) {
-                // Should not happen for resource stream (no IO performed)
-            }
-            File target = new File(directory, "default.yml");
-            if (!target.exists()) {
-                try {
-                    plugin.saveResource(resource, false);
-                } catch (IllegalArgumentException ignored) {
-                    // Resource might not exist inside the jar during development runs
-                }
-            }
-        }
-
         private ItemStack[] generatePlaceholderInventory() {
             int size = DEFAULT_TEMPLATE_SIZE;
-            ItemStack[] contents = new ItemStack[size];
-            int maxStack = Math.max(1, Math.min(64, placeholderMaterial.getMaxStackSize()));
-            for (int i = 0; i < size; i++) {
-                contents[i] = new ItemStack(placeholderMaterial, maxStack);
-            }
-            return contents;
+            return new ItemStack[size];
         }
 
         private int detectChestCount(String structureName) {
