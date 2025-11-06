@@ -175,12 +175,12 @@ public final class ItemRegistry {
             if (recipe == null) {
                 continue;
             }
-            Supplier<ItemStack> supplier = () -> CulinarySubsystem.createRecipeItem(recipe);
+            Supplier<ItemStack> dishSupplier = () -> CulinarySubsystem.createOutputItem(recipe);
             String baseName = recipe.getName();
-            registerCustomSupplier(baseName, supplier);
-            registerCustomSupplier(baseName + " recipe", supplier);
-            registerCustomSupplier("recipe " + baseName, supplier);
-            registerCustomSupplier(baseName.toLowerCase(Locale.ENGLISH).replace(' ', '_'), supplier);
+            registerCustomSupplier(baseName, dishSupplier);
+            registerCustomSupplier(baseName + " recipe", dishSupplier);
+            registerCustomSupplier("recipe " + baseName, dishSupplier);
+            registerCustomSupplier(baseName.toLowerCase(Locale.ENGLISH).replace(' ', '_'), dishSupplier);
         }
     }
 
@@ -3126,6 +3126,21 @@ public final class ItemRegistry {
         );
     }
 
+    public static ItemStack getWarpedApple() {
+        return createCustomItem(
+                Material.APPLE,
+                ChatColor.DARK_AQUA + "Warped Apple",
+                Arrays.asList(
+                        ChatColor.GRAY + "An apple warped by Nether winds.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Brew potent absorption tonics.",
+                        ChatColor.DARK_PURPLE + "Brewing Ingredient"
+                ),
+                1,
+                true,
+                true
+        );
+    }
+
     /** Fast-eat item for fishing that grants long lasting absorption. */
     public static ItemStack getGoldenFish() {
         return createCustomItem(
@@ -3951,6 +3966,81 @@ public final class ItemRegistry {
                         ChatColor.GRAY + "A shimmering tear infused with netherlight.",
                         ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Potent catalyst prized by brewmasters.",
                         ChatColor.DARK_PURPLE + "Brewing Ingredient"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getGoldenEye() {
+        return createCustomItem(
+                Material.ENDER_EYE,
+                ChatColor.GOLD + "Golden Eye",
+                Arrays.asList(
+                        ChatColor.GRAY + "A watchful relic warmed by nether flame.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Core ingredient for Nether Night Vision.",
+                        ChatColor.DARK_PURPLE + "Brewing Ingredient"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getRedSugarCane() {
+        return createCustomItem(
+                Material.SUGAR_CANE,
+                ChatColor.RED + "Red Sugar Cane",
+                Arrays.asList(
+                        ChatColor.GRAY + "Sugar cane infused with crimson sap.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Brewing ingredient for Health Boost (Nether).",
+                        ChatColor.DARK_PURPLE + "Brewing Ingredient"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getMoldingFlesh() {
+        return createCustomItem(
+                Material.ROTTEN_FLESH,
+                ChatColor.DARK_PURPLE + "Molding Flesh",
+                Arrays.asList(
+                        ChatColor.GRAY + "Sinew-stripped and still twitching with change.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Catalyst for scavenger brews.",
+                        ChatColor.DARK_PURPLE + "Mutation Catalyst"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getCharredFlesh() {
+        return createCustomItem(
+                Material.ROTTEN_FLESH,
+                ChatColor.DARK_GRAY + "Charred Flesh",
+                Arrays.asList(
+                        ChatColor.GRAY + "Crisped sinew steeped in wither rot.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Core ingredient for Nether Hunger.",
+                        ChatColor.DARK_PURPLE + "Mutation Catalyst"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getWeakenedMarrow() {
+        return createCustomItem(
+                Material.BONE,
+                ChatColor.DARK_PURPLE + "Weakened Marrow",
+                Arrays.asList(
+                        ChatColor.GRAY + "Brittle marrow leeched of strength.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Core ingredient for Nether Weakness.",
+                        ChatColor.DARK_PURPLE + "Mutation Catalyst"
                 ),
                 1,
                 false,

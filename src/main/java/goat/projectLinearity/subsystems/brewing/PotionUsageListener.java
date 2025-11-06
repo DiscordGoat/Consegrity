@@ -128,7 +128,8 @@ public final class PotionUsageListener implements Listener {
         PotionMeta meta = (PotionMeta) thrownItem.getItemMeta();
         if (meta != null) {
             meta.setColor(data.getBukkitColor());
-            PotionRegistry.writePotionData(meta, data.getDefinition(), data.getBrewType(), data.getEnchantTier(), true);
+            PotionRegistry.writePotionData(meta, data.getDefinition(), data.getBrewType(), data.getEnchantTier(), true,
+                    data.getDurationOverride(), data.getPotencyOverride(), data.getChargesOverride());
             thrownItem.setItemMeta(meta);
         }
         projectile.setItem(thrownItem);

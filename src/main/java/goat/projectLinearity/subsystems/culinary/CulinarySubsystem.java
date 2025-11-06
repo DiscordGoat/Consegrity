@@ -14,6 +14,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.Event;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -48,26 +49,11 @@ public class CulinarySubsystem implements Listener {
     private final Map<String, RecipeSession> activeRecipeSessions = new HashMap<>();
     private final Random random = new Random();
     private final Map<UUID, CulinaryRecipe> selectedRecipes = new HashMap<>();
+    private final Map<UUID, Long> interactionCooldowns = new HashMap<>();
+    private static final long INTERACTION_COOLDOWN_MS = 100; // 0.1 second cooldown
     private CulinaryCatalogueManager catalogueManager;
 
 
-    private enum FoodGroup {
-        FRUITS(ChatColor.DARK_RED),
-        GRAINS(ChatColor.GOLD),
-        PROTEINS(ChatColor.RED),
-        VEGGIES(ChatColor.GREEN),
-        SUGARS(ChatColor.LIGHT_PURPLE);
-
-        private final ChatColor color;
-
-        FoodGroup(ChatColor color) {
-            this.color = color;
-        }
-
-        public ChatColor getColor() {
-            return color;
-        }
-    }
     public List<ItemStack> getAllRecipeItems() {
         List<ItemStack> recipeItems = new ArrayList<>();
 
@@ -227,7 +213,6 @@ public class CulinarySubsystem implements Listener {
                 "Tidal Shot",
                 Arrays.asList("Rum", "Gunpowder", "Ice", "Sea Salt"),
                 1000,
-                FoodGroup.SUGARS,
                 false
         ));
         oceanicRecipes.add(new CulinaryRecipe(
@@ -236,7 +221,6 @@ public class CulinarySubsystem implements Listener {
                 "Coral Cooler",
                 Arrays.asList("Rum", "Ice", "Prismarine Shard", "Sea Pickle", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 false
         ));
         oceanicRecipes.add(new CulinaryRecipe(
@@ -245,7 +229,6 @@ public class CulinarySubsystem implements Listener {
                 "Prismarita",
                 Arrays.asList("Rum", "Lime", "Sugar", "Ice", "Prismarine Shard", "Sea Salt"),
                 1000,
-                FoodGroup.SUGARS,
                 false
         ));
         oceanicRecipes.add(new CulinaryRecipe(
@@ -254,7 +237,6 @@ public class CulinarySubsystem implements Listener {
                 "Kelp Mojito",
                 Arrays.asList("Rum", "Lime", "Sugar", "Ice", "Kelp", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 false
         ));
         // (Water Breathing)
@@ -265,7 +247,6 @@ public class CulinarySubsystem implements Listener {
                 "Banana Split",
                 Arrays.asList("Banana", "Snowball", "Chocolate", "Milk Bucket", "Sea Salt"),
                 1000,
-                FoodGroup.SUGARS,
                 false
         ));
         oceanicRecipes.add(new CulinaryRecipe(
@@ -274,7 +255,6 @@ public class CulinarySubsystem implements Listener {
                 "Pina Colada",
                 Arrays.asList("Milk Bucket", "Rum", "Ice", "Pineapple", "Coconut", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 false
         ));
         oceanicRecipes.add(new CulinaryRecipe(
@@ -283,7 +263,6 @@ public class CulinarySubsystem implements Listener {
                 "Key Lime Pie",
                 Arrays.asList("Lime", "Sugar", "Egg", "Milk Bucket", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 false
         ));
 
@@ -296,7 +275,6 @@ public class CulinarySubsystem implements Listener {
                 "Salted Steak",
                 Arrays.asList("Cooked Beef", "Sea Salt"),
                 500,
-                FoodGroup.PROTEINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -305,7 +283,6 @@ public class CulinarySubsystem implements Listener {
                 "Chicken Tenders",
                 Arrays.asList("Cooked Chicken", "Bread", "Sea Salt"),
                 500,
-                FoodGroup.PROTEINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -314,7 +291,6 @@ public class CulinarySubsystem implements Listener {
                 "Slice of Cheese",
                 Arrays.asList("Milk Bucket", "Sea Salt"),
                 500,
-                FoodGroup.PROTEINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -323,7 +299,6 @@ public class CulinarySubsystem implements Listener {
                 "Ham and Cheese Sandwich",
                 Arrays.asList("Slice of Cheese", "Cooked Porkchop", "Bread", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -332,7 +307,6 @@ public class CulinarySubsystem implements Listener {
                 "Toast",
                 Arrays.asList("Bread", "Butter", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
 
@@ -344,7 +318,6 @@ public class CulinarySubsystem implements Listener {
                 "Sweet Feast",
                 Arrays.asList("Sugar", "Pumpkin", "Egg", "Wheat", "Sea Salt"),
                 1000,
-                FoodGroup.SUGARS,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -353,7 +326,6 @@ public class CulinarySubsystem implements Listener {
                 "Vegetarian Feast",
                 Arrays.asList("Carrot", "Potato", "Golden Carrot", "Beetroot", "Sea Salt"),
                 1000,
-                FoodGroup.VEGGIES,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -362,7 +334,6 @@ public class CulinarySubsystem implements Listener {
                 "Meatlovers Feast",
                 Arrays.asList("Cooked Beef", "Cooked Chicken", "Butter", "Sea Salt", "Cooked Mutton", "Cooked Rabbit", "Cooked Porkchop"),
                 1000,
-                FoodGroup.PROTEINS,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -371,7 +342,6 @@ public class CulinarySubsystem implements Listener {
                 "Seafood Feast",
                 Arrays.asList("Dried Kelp Block", "Cod", "Salmon", "Tropical Fish", "Calamari", "Sea Salt"),
                 1000,
-                FoodGroup.PROTEINS,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -380,7 +350,6 @@ public class CulinarySubsystem implements Listener {
                 "Grilled Salmon",
                 Arrays.asList("Cooked Salmon", "Sea Salt"),
                 500,
-                FoodGroup.PROTEINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -389,7 +358,6 @@ public class CulinarySubsystem implements Listener {
                 "Mushroom Soup",
                 Arrays.asList("Red Mushroom", "Brown Mushroom", "Sea Salt"),
                 500,
-                FoodGroup.VEGGIES,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -398,7 +366,6 @@ public class CulinarySubsystem implements Listener {
                 "Loaded Baked Potato",
                 Arrays.asList("Baked Potato", "Butter", "Slice of Cheese", "Cooked Porkchop", "Sea Salt"),
                 500,
-                FoodGroup.VEGGIES,
                 false
         ));
         // Additional recipes to fill food groups
@@ -408,7 +375,6 @@ public class CulinarySubsystem implements Listener {
                 "Apple Tart",
                 Arrays.asList("Apple", "Sugar", "Wheat", "Sea Salt"),
                 500,
-                FoodGroup.FRUITS,
                 false
         ));
 
@@ -418,7 +384,6 @@ public class CulinarySubsystem implements Listener {
                 "Fruit Salad",
                 Arrays.asList("Melon", "Apple", "Sweet Berries", "Sea Salt"),
                 500,
-                FoodGroup.FRUITS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -427,7 +392,6 @@ public class CulinarySubsystem implements Listener {
                 "Berry Pie",
                 Arrays.asList("Sweet Berries", "Sugar", "Egg", "Sea Salt"),
                 500,
-                FoodGroup.FRUITS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -436,7 +400,6 @@ public class CulinarySubsystem implements Listener {
                 "Tropical Smoothie",
                 Arrays.asList("Lime", "Pineapple", "Milk Bucket", "Sea Salt"),
                 500,
-                FoodGroup.FRUITS,
                 false
         ));
 
@@ -446,7 +409,6 @@ public class CulinarySubsystem implements Listener {
                 "Fruit Feast",
                 Arrays.asList("Apple", "Melon", "Sweet Berries", "Sugar", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -455,7 +417,6 @@ public class CulinarySubsystem implements Listener {
                 "Exotic Fruit Feast",
                 Arrays.asList("Golden Carrot", "Melon", "Golden Apple", "Sugar", "Sea Salt"),
                 1000,
-                FoodGroup.FRUITS,
                 true
         ));
 
@@ -465,7 +426,6 @@ public class CulinarySubsystem implements Listener {
                 "Wheat Bread",
                 Arrays.asList("Wheat", "Butter", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -474,7 +434,6 @@ public class CulinarySubsystem implements Listener {
                 "Oatmeal",
                 Arrays.asList("Wheat", "Milk Bucket", "Sugar", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -483,7 +442,6 @@ public class CulinarySubsystem implements Listener {
                 "Pasta Bowl",
                 Arrays.asList("Wheat", "Egg", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -492,7 +450,6 @@ public class CulinarySubsystem implements Listener {
                 "Granola Bar",
                 Arrays.asList("Wheat", "Honey Bottle", "Chocolate", "Sea Salt"),
                 500,
-                FoodGroup.GRAINS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -501,7 +458,6 @@ public class CulinarySubsystem implements Listener {
                 "Grain Feast",
                 Arrays.asList("Bread", "Wheat", "Sugar", "Egg", "Sea Salt"),
                 1000,
-                FoodGroup.GRAINS,
                 true
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -510,7 +466,6 @@ public class CulinarySubsystem implements Listener {
                 "Hearty Grain Feast",
                 Arrays.asList("Bread", "Wheat", "Oatmeal (Culinary)", "Sea Salt", "Butter"),
                 1000,
-                FoodGroup.GRAINS,
                 true
         ));
 
@@ -520,7 +475,6 @@ public class CulinarySubsystem implements Listener {
                 "Garden Salad",
                 Arrays.asList("Carrot", "Beetroot", "Potato", "Sea Salt"),
                 500,
-                FoodGroup.VEGGIES,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -529,7 +483,6 @@ public class CulinarySubsystem implements Listener {
                 "Roasted Veggies",
                 Arrays.asList("Potato", "Carrot", "Beetroot", "Sea Salt"),
                 500,
-                FoodGroup.VEGGIES,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -538,7 +491,6 @@ public class CulinarySubsystem implements Listener {
                 "Veggie Stir Fry",
                 Arrays.asList("Carrot", "Potato", "Dried Kelp", "Sea Salt"),
                 500,
-                FoodGroup.VEGGIES,
                 false
         ));
 
@@ -548,7 +500,6 @@ public class CulinarySubsystem implements Listener {
                 "Chocolate Cake",
                 Arrays.asList("Cocoa Beans", "Sugar", "Egg", "Milk Bucket", "Wheat", "Chocolate", "Sea Salt"),
                 500,
-                FoodGroup.SUGARS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -557,7 +508,6 @@ public class CulinarySubsystem implements Listener {
                 "Cookie Platter",
                 Arrays.asList("Cookie", "Sugar", "Milk Bucket", "Sea Salt"),
                 500,
-                FoodGroup.SUGARS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -566,7 +516,6 @@ public class CulinarySubsystem implements Listener {
                 "Ice Cream Cone",
                 Arrays.asList("Milk Bucket", "Sugar", "Snowball", "Sea Salt"),
                 500,
-                FoodGroup.SUGARS,
                 false
         ));
         recipeRegistry.add(new CulinaryRecipe(
@@ -575,7 +524,6 @@ public class CulinarySubsystem implements Listener {
                 "Candied Apple",
                 Arrays.asList("Apple", "Sugar", "Sea Salt"),
                 500,
-                FoodGroup.SUGARS,
                 false
         ));
     }
@@ -637,8 +585,21 @@ public class CulinarySubsystem implements Listener {
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
         if (event.getClickedBlock().getType() != Material.CAMPFIRE) return;
-
+        
         Player player = event.getPlayer();
+        
+        // Check cooldown
+        long currentTime = System.currentTimeMillis();
+        Long lastInteraction = interactionCooldowns.get(player.getUniqueId());
+        if (lastInteraction != null && (currentTime - lastInteraction) < INTERACTION_COOLDOWN_MS) {
+            event.setCancelled(true);
+            return;
+        }
+        interactionCooldowns.put(player.getUniqueId(), currentTime);
+        
+        // Only handle right-clicks when not sneaking to avoid conflicts with other interactions
+        if (player.isSneaking()) return;
+
         ItemStack hand = player.getInventory().getItemInMainHand().clone();
         Location tableLoc = event.getClickedBlock().getLocation().clone();
         String locKey = toLocKey(tableLoc);
@@ -904,11 +865,16 @@ public class CulinarySubsystem implements Listener {
         }
     }
 
-    private ItemStack createOutputItem(CulinaryRecipe recipe) {
+    public static ItemStack createOutputItem(CulinaryRecipe recipe) {
+        if (recipe == null) {
+            return new ItemStack(Material.PAPER);
+        }
         ItemStack item = new ItemStack(recipe.getOutputMaterial());
         ItemMeta meta = item.getItemMeta();
-        assert meta != null;
-        if(recipe.getName().equals("Slice of Cheese")){
+        if (meta == null) {
+            return item;
+        }
+        if (recipe.getName().equals("Slice of Cheese")) {
             meta.setDisplayName(ChatColor.GOLD + recipe.getName());
             List<String> lore = new ArrayList<>();
             lore.add(ChatColor.YELLOW + "Crafted with:");
@@ -928,11 +894,7 @@ public class CulinarySubsystem implements Listener {
             lore.add(ChatColor.GRAY + "- " + ing);
         }
         lore.add(ChatColor.DARK_PURPLE + "Culinary Delight");
-        ChatColor color = recipe.getGroup().getColor();
-        int amt = recipe.isFeast() ? 20 : 10;
-        String groupName = recipe.getGroup().name().substring(0,1) + recipe.getGroup().name().substring(1).toLowerCase();
-        String groupLine = color + "+" + amt + " " + groupName;
-        lore.add(groupLine);
+
         meta.setLore(lore);
         item.setItemMeta(meta);
         return item;
@@ -1393,18 +1355,16 @@ public class CulinarySubsystem implements Listener {
         private final String name;
         private final List<String> ingredients;
         private final int xpReward;
-        private final FoodGroup group;
         private final boolean feast;
 
         public CulinaryRecipe(Material recipeItem, Material outputMaterial, String name,
-                              List<String> ingredients, int xpReward,
-                              FoodGroup group, boolean feast) {
+                            List<String> ingredients, int xpReward,
+                            boolean feast) {
             this.recipeItem = recipeItem;
             this.outputMaterial = outputMaterial;
             this.name = name;
             this.ingredients = ingredients;
             this.xpReward = xpReward;
-            this.group = group;
             this.feast = feast;
         }
 
@@ -1413,12 +1373,6 @@ public class CulinarySubsystem implements Listener {
         public String getName() { return name; }
         public List<String> getIngredients() { return ingredients; }
         public int getXpReward() { return xpReward; }
-        public FoodGroup getGroup() { return group; }
-        public ChatColor getGroupColor() { return group.getColor(); }
-        public String getGroupDisplayName() {
-            String base = group.name().toLowerCase(Locale.ENGLISH);
-            return Character.toUpperCase(base.charAt(0)) + base.substring(1);
-        }
         public boolean isFeast() { return feast; }
     }
 

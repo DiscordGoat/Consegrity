@@ -59,6 +59,7 @@ public final class CustomPotionEffects {
             case "wither" -> applyWither(target, potency);
             case "poison" -> applyPoison(target, potency);
             case "weakness" -> applyWeakness(target, potency);
+            case "absorption" -> applyAbsorption(target, potency, definition.getStats(brewType).getDurationSeconds());
             default -> { /* other effects pending */ }
         }
     }
@@ -478,10 +479,21 @@ public final class CustomPotionEffects {
         target.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 40, amplifier, true, false, false));
     }
 
-    private static void applyAbsorption(LivingEntity target, int potency) {
+    static void applyAbsorption(LivingEntity target, int potency, int durationSeconds) {
+        if (target == null) {
+            return;
+        }
+        if (potency <= 0 || durationSeconds <= 0) {
+            target.removePotionEffect(PotionEffectType.ABSORPTION);
+            target.setAbsorptionAmount(0.0D);
+            return;
+        }
         int amplifier = Math.max(0, (5 * Math.max(1, potency)) - 1);
-        int durationTicks = 600 * 20; // 600 seconds
-        target.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, durationTicks, amplifier, true, false, false));
+        int durationTicks = Math.max(20, durationSeconds * 20);
+        target.removePotionEffect(PotionEffectType.ABSORPTION);
+        target.setAbsorptionAmount(0.0D);
+        PotionEffect effect = new PotionEffect(PotionEffectType.ABSORPTION, durationTicks, amplifier, true, false, false);
+        target.addPotionEffect(effect, true);
     }
 
     private static void applySaturation(LivingEntity target, int potency, int baseDurationSeconds) {

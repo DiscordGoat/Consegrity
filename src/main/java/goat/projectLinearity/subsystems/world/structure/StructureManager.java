@@ -31,6 +31,7 @@ public final class StructureManager {
     private volatile boolean debugEnabled = false;
     private final Map<String, DebugCounters> debug = new ConcurrentHashMap<>();
     private LootPopulatorManager lootPopulatorManager;
+    private StructureEntityManager structureEntityManager;
 
     public StructureManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -56,6 +57,15 @@ public final class StructureManager {
             lootPopulatorManager.handleStructurePlacement(structureName, origin, bounds);
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "Failed populating loot for " + structureName + " at " + origin, t);
+        }
+    }
+
+    private void triggerEntityPopulation(String structureName, Location origin) {
+        if (structureEntityManager == null || origin == null) return;
+        try {
+            structureEntityManager.handleStructurePlacement(structureName, origin);
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "Failed spawning entities for " + structureName + " at " + origin, t);
         }
     }
 
@@ -131,6 +141,10 @@ public final class StructureManager {
 
     public void setLootPopulatorManager(LootPopulatorManager lootPopulatorManager) {
         this.lootPopulatorManager = lootPopulatorManager;
+    }
+
+    public void setStructureEntityManager(StructureEntityManager structureEntityManager) {
+        this.structureEntityManager = structureEntityManager;
     }
 
     /**
@@ -266,6 +280,7 @@ public final class StructureManager {
             reg.recordPlacement(worldKey, wx, wz);
             StructureStore.get(plugin).addStructure(worldKey, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
             triggerLootPopulation(schemName, paste, reg.bounds);
+            triggerEntityPopulation(schemName, paste);
             debugDecision(reg.schemName, "placed at " + paste.getBlockX() + "," + paste.getBlockY() + "," + paste.getBlockZ());
             if (plugin instanceof ProjectLinearity pl && pl.getKeystoneManager() != null) {
                 pl.getKeystoneManager().registerStructurePlacement(world, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds);
@@ -443,6 +458,7 @@ public final class StructureManager {
                     // Persist structure instance so counts survive restarts (listeners read trigger flag)
                     StructureStore.get(plugin).addStructure(worldKey, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds, reg.triggerListener);
                     triggerLootPopulation(schemName, paste, reg.bounds);
+                    triggerEntityPopulation(schemName, paste);
                     debugDecision(reg.schemName, "placed at " + paste.getBlockX() + "," + paste.getBlockY() + "," + paste.getBlockZ());
                     if (plugin instanceof ProjectLinearity pl && pl.getKeystoneManager() != null) {
                         pl.getKeystoneManager().registerStructurePlacement(world, schemName, paste.getBlockX(), paste.getBlockY(), paste.getBlockZ(), reg.bounds);

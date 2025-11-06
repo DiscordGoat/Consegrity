@@ -37,6 +37,8 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -176,6 +178,9 @@ public final class CustomPotionEffectManager implements Listener {
             }
             slowFallingAirTicks.remove(player.getUniqueId());
         }
+        if ("absorption".equalsIgnoreCase(id)) {
+            clearAbsorption(living);
+        }
         if ("health_boost".equalsIgnoreCase(id)) {
             clearHealthBoost(living);
         } else if ("levitation".equalsIgnoreCase(id)) {
@@ -230,9 +235,7 @@ public final class CustomPotionEffectManager implements Listener {
         }
         if (isImmediateDefinition(definitionId)) {
             CustomPotionEffects.applyImmediate(data.getDefinition(), data.getBrewType(), potency, target);
-            if (target instanceof Player player) {
-                applyInstantEffectExtras(player, definitionId, potency, data.getDefinition().getStats(data.getBrewType()).getDurationSeconds());
-            }
+            applyInstantEffectExtras(target, definitionId, potency, stats.durationSeconds());
             return;
         }
 
@@ -250,7 +253,7 @@ public final class CustomPotionEffectManager implements Listener {
             if ("levitation".equalsIgnoreCase(definitionId)) {
                 clearLevitationSafety(player);
             }
-            applyInstantEffectExtras(player, definitionId, potency, data.getDefinition().getStats(data.getBrewType()).getDurationSeconds());
+            applyInstantEffectExtras(player, definitionId, potency, stats.durationSeconds());
             tablistManager.refreshPlayer(player);
             if ("leaping".equals(definitionId)) {
                 BonusJumpManager jumpManager = plugin.getBonusJumpManager();
@@ -338,6 +341,29 @@ public final class CustomPotionEffectManager implements Listener {
         for (ActiveEffect effect : effects.values()) {
             if (effect.definition.getId().equalsIgnoreCase(definitionId)) {
                 return Math.max(0, effect.getPotency());
+            }
+        }
+        return 0;
+    }
+
+    private int getEffectRemainingSeconds(UUID uuid, String definitionId) {
+        if (uuid == null || definitionId == null) {
+            return 0;
+        }
+        Map<String, ActiveEffect> playerMap = playerEffects.get(uuid);
+        if (playerMap != null) {
+            for (ActiveEffect effect : playerMap.values()) {
+                if (definitionId.equalsIgnoreCase(effect.definition.getId())) {
+                    return Math.max(0, effect.remainingSeconds);
+                }
+            }
+        }
+        Map<String, ActiveEffect> entityMap = entityEffects.get(uuid);
+        if (entityMap != null) {
+            for (ActiveEffect effect : entityMap.values()) {
+                if (definitionId.equalsIgnoreCase(effect.definition.getId())) {
+                    return Math.max(0, effect.remainingSeconds);
+                }
             }
         }
         return 0;
@@ -551,7 +577,7 @@ public final class CustomPotionEffectManager implements Listener {
             case "levitation" -> applyLevitationImpulse(target, Math.max(1, potency));
             case "luck" -> {
                 if (target instanceof Player player) {
-                    applyLuckEnhancements(player);
+                    applyLuckEnhancements(player, potency);
                 }
             }
             case "charismatic_bartering" -> {
@@ -624,12 +650,12 @@ public final class CustomPotionEffectManager implements Listener {
         return false;
     }
 
-    private void applyLuckEnhancements(Player player) {
-        if (player == null) {
+    private void applyLuckEnhancements(Player player, int potency) {
+        if (player == null || potency <= 0) {
             return;
         }
         for (ItemStack item : collectPlayerItems(player)) {
-            enhanceLuckOnItem(item);
+            enhanceLuckOnItem(item, potency);
         }
     }
 
@@ -672,8 +698,8 @@ public final class CustomPotionEffectManager implements Listener {
         return all;
     }
 
-    private void enhanceLuckOnItem(ItemStack stack) {
-        if (stack == null || stack.getType() == Material.AIR) {
+    private void enhanceLuckOnItem(ItemStack stack, int potency) {
+        if (stack == null || stack.getType() == Material.AIR || potency <= 0) {
             return;
         }
         Material type = stack.getType();
@@ -686,39 +712,35 @@ public final class CustomPotionEffectManager implements Listener {
         if (meta == null) {
             return;
         }
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
         boolean updated = false;
         if (fortuneEligible) {
-            Integer stored = pdc.get(luckFortuneKey, PersistentDataType.INTEGER);
-            int current = meta.getEnchantLevel(Enchantment.FORTUNE);
-            if (stored == null) {
-                if (current < 3) {
-                    pdc.set(luckFortuneKey, PersistentDataType.INTEGER, current);
-                    meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                    updated = true;
-                }
-            } else if (current < 3) {
-                meta.addEnchant(Enchantment.FORTUNE, 3, true);
-                updated = true;
-            }
+            updated |= applyLuckEnchant(meta, luckFortuneKey, Enchantment.FORTUNE, potency);
         }
         if (lootingEligible) {
-            Integer stored = pdc.get(luckLootKey, PersistentDataType.INTEGER);
-            int current = meta.getEnchantLevel(Enchantment.LOOTING);
-            if (stored == null) {
-                if (current < 3) {
-                    pdc.set(luckLootKey, PersistentDataType.INTEGER, current);
-                    meta.addEnchant(Enchantment.LOOTING, 3, true);
-                    updated = true;
-                }
-            } else if (current < 3) {
-                meta.addEnchant(Enchantment.LOOTING, 3, true);
-                updated = true;
-            }
+            updated |= applyLuckEnchant(meta, luckLootKey, Enchantment.LOOTING, potency);
         }
         if (updated) {
             stack.setItemMeta(meta);
         }
+    }
+
+    private boolean applyLuckEnchant(ItemMeta meta, NamespacedKey key, Enchantment enchantment, int potency) {
+        if (meta == null || potency <= 0) {
+            return false;
+        }
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        Integer storedLevel = pdc.get(key, PersistentDataType.INTEGER);
+        int currentLevel = meta.getEnchantLevel(enchantment);
+        int baselineLevel = storedLevel != null ? storedLevel : currentLevel;
+        int desiredLevel = Math.max(baselineLevel, potency);
+        if (currentLevel == desiredLevel) {
+            return false;
+        }
+        if (storedLevel == null) {
+            pdc.set(key, PersistentDataType.INTEGER, currentLevel);
+        }
+        meta.addEnchant(enchantment, desiredLevel, true);
+        return true;
     }
 
     private void revertLuckOnItem(ItemStack stack) {
@@ -825,6 +847,16 @@ public final class CustomPotionEffectManager implements Listener {
         }
     }
 
+    private void clearAbsorption(LivingEntity target) {
+        if (target == null) {
+            return;
+        }
+        target.removePotionEffect(PotionEffectType.ABSORPTION);
+        if (target.getAbsorptionAmount() > 0.0D) {
+            target.setAbsorptionAmount(0.0D);
+        }
+    }
+
     private void clearHealthBoost(LivingEntity target) {
         if (target == null) {
             return;
@@ -924,7 +956,7 @@ public final class CustomPotionEffectManager implements Listener {
                         iterator.remove();
                     }
                     if ("luck".equalsIgnoreCase(effect.definition.getId())) {
-                        applyLuckEnhancements(player);
+                        applyLuckEnhancements(player, effect.getPotency());
                     }
                     if ("charismatic_bartering".equalsIgnoreCase(effect.definition.getId())) {
                         applyCharismaticBonus(player);
@@ -974,7 +1006,26 @@ public final class CustomPotionEffectManager implements Listener {
             Player player = event.getPlayer();
             tablistManager.refreshPlayer(player);
             if (hasEffect(player, "luck")) {
-                applyLuckEnhancements(player);
+                int luckPotency = getEffectPotency(player, "luck");
+                if (luckPotency > 0) {
+                    applyLuckEnhancements(player, luckPotency);
+                }
+            }
+            if (hasEffect(player, "absorption")) {
+                int absorptionPotency = getEffectPotency(player, "absorption");
+                if (absorptionPotency > 0) {
+                    int remaining = getEffectRemainingSeconds(player.getUniqueId(), "absorption");
+                    if (remaining <= 0) {
+                        PotionEffect current = player.getPotionEffect(PotionEffectType.ABSORPTION);
+                        if (current != null) {
+                            remaining = Math.max(remaining, current.getDuration() / 20);
+                        }
+                    }
+                    if (remaining <= 0) {
+                        remaining = 600;
+                    }
+                    CustomPotionEffects.applyAbsorption(player, absorptionPotency, remaining);
+                }
             }
             if (hasEffect(player, "charismatic_bartering")) {
                 applyCharismaticBonus(player);

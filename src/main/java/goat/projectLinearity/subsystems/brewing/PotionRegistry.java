@@ -49,6 +49,9 @@ public final class PotionRegistry {
     private static final NamespacedKey KEY_TYPE = key("brew_type");
     private static final NamespacedKey KEY_ENCHANT = key("enchant_tier");
     private static final NamespacedKey KEY_SPLASH = key("is_splash");
+    private static final NamespacedKey KEY_OVERRIDE_DURATION = key("override_duration");
+    private static final NamespacedKey KEY_OVERRIDE_POTENCY = key("override_potency");
+    private static final NamespacedKey KEY_OVERRIDE_CHARGES = key("override_charges");
 
     static {
         register(
@@ -65,7 +68,7 @@ public final class PotionRegistry {
                                 "Golden Tear"  // Nether variant
                         ),
                         new PotionStats(60, 1, 20),  // Overworld: 60s duration, potency 1, 20 charges
-                        new PotionStats(120, 2, 10)  // Nether: 120s duration, potency 2, 10 charges
+                        new PotionStats(120, 2, 20)  // Nether: 120s duration, potency 2, 10 charges
                 )
         );
         register(
@@ -96,7 +99,7 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.ENDER_EYE
+                                "Golden Eye"
                         ),
                         new PotionStats(60, 1, 15),  // Overworld: 60s duration, potency 1, 15 charges
                         new PotionStats(180, 2, 5)   // Nether: 180s duration, potency 2, 5 charges
@@ -108,12 +111,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.ROTTEN_FLESH
+                                "Molding Flesh"
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.SPIDER_EYE
+                                "Charred Flesh"
                         ),
                         new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
                         new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
@@ -131,7 +134,7 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.BONE_MEAL
+                                "Weakened Marrow"
                         ),
                         new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
                         new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
@@ -143,12 +146,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.POISONOUS_POTATO
+                                Material.SPIDER_EYE
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.FERMENTED_SPIDER_EYE
+                                Material.WARPED_FUNGUS
                         ),
                         new PotionStats(45, 1, 15),  // Overworld: 45s duration, potency 1, 15 charges
                         new PotionStats(90, 2, 8)    // Nether: 90s duration, potency 2, 8 charges
@@ -178,12 +181,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.GLOW_BERRIES
+                                Material.GOLDEN_APPLE
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.GILDED_BLACKSTONE
+                                "Warped Apple"
                         ),
                         new PotionStats(600, 1, 10),  // Overworld: 10 minutes, potency 1, 10 charges
                         new PotionStats(900, 2, 6)    // Nether: 15 minutes, potency 2, 6 charges
@@ -201,7 +204,7 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.GOLDEN_APPLE
+                                "Red Sugar Cane"
                         ),
                         new PotionStats(600, 1, 8),   // Overworld: 10 minutes, potency 1, 8 charges
                         new PotionStats(900, 2, 5)    // Nether: 15 minutes, potency 2, 5 charges
@@ -232,12 +235,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.BREAD
+                                Material.CAKE
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.COOKED_BEEF
+                                ""
                         ),
                         new PotionStats(1, 1, 20),   // Instant effect, 20 uses
                         new PotionStats(1, 1, 20)
@@ -817,6 +820,37 @@ public final class PotionRegistry {
         return result;
     }
 
+    public static ItemStack createAdminPotion(PotionDefinition definition,
+                                              BrewType type,
+                                              boolean splash,
+                                              int durationSeconds,
+                                              int potency,
+                                              int charges,
+                                              int enchantTier) {
+        ItemStack result = createResultItem(definition, type, splash, Math.max(0, Math.min(3, enchantTier)));
+        ItemMeta meta = result.getItemMeta();
+        int safeDuration = Math.max(1, durationSeconds);
+        int safePotency = Math.max(1, potency);
+        int safeCharges = Math.max(1, charges);
+        if (meta != null) {
+            applyPotionOverrides(meta, safeDuration, safePotency, safeCharges);
+            result.setItemMeta(meta);
+        }
+        CustomDurabilityManager manager = CustomDurabilityManager.getInstance();
+        manager.setCustomDurability(result, safeCharges, safeCharges);
+        refreshPotionLore(result);
+        return result;
+    }
+
+    public static ItemStack createAdminPotion(PotionDefinition definition,
+                                              BrewType type,
+                                              boolean splash,
+                                              int durationSeconds,
+                                              int potency,
+                                              int charges) {
+        return createAdminPotion(definition, type, splash, durationSeconds, potency, charges, 0);
+    }
+
     public static void writePotionData(ItemMeta meta, PotionDefinition definition, BrewType type, int enchantTier, boolean splash) {
         if (meta == null || definition == null || type == null) {
             return;
@@ -828,17 +862,42 @@ public final class PotionRegistry {
         container.set(KEY_SPLASH, PersistentDataType.BYTE, (byte) (splash ? 1 : 0));
     }
 
+    public static void writePotionData(ItemMeta meta, PotionDefinition definition, BrewType type, int enchantTier, boolean splash,
+                                       Integer durationOverride, Integer potencyOverride, Integer chargesOverride) {
+        writePotionData(meta, definition, type, enchantTier, splash);
+        applyPotionOverrides(meta, durationOverride, potencyOverride, chargesOverride);
+    }
+
+    public static void applyPotionOverrides(ItemMeta meta, Integer durationOverride, Integer potencyOverride, Integer chargesOverride) {
+        if (meta == null) {
+            return;
+        }
+        PersistentDataContainer container = meta.getPersistentDataContainer();
+        applyOverride(container, KEY_OVERRIDE_DURATION, durationOverride);
+        applyOverride(container, KEY_OVERRIDE_POTENCY, potencyOverride);
+        applyOverride(container, KEY_OVERRIDE_CHARGES, chargesOverride);
+    }
+
+    private static void applyOverride(PersistentDataContainer container, NamespacedKey key, Integer value) {
+        if (container == null || key == null) {
+            return;
+        }
+        if (value != null && value > 0) {
+            container.set(key, PersistentDataType.INTEGER, value);
+        } else {
+            container.remove(key);
+        }
+    }
+
     public static void incrementEnchantTier(ItemStack stack, int newTier) {
         PotionItemData.from(stack).ifPresent(data -> {
             int capped = Math.max(0, Math.min(3, newTier));
             ItemMeta meta = stack.getItemMeta();
             if (meta != null) {
-                writePotionData(meta, data.getDefinition(), data.getBrewType(), capped, data.isSplash());
+                writePotionData(meta, data.getDefinition(), data.getBrewType(), capped, data.isSplash(),
+                        data.getDurationOverride(), data.getPotencyOverride(), data.getChargesOverride());
                 stack.setItemMeta(meta);
             }
-            FinalStats stats = computeFinalStats(data.getDefinition().getStats(data.getBrewType()), capped);
-            CustomDurabilityManager manager = CustomDurabilityManager.getInstance();
-            manager.setCustomDurability(stack, Math.min(manager.getCurrentDurability(stack), stats.charges()), stats.charges());
             refreshPotionLore(stack);
         });
     }
@@ -856,20 +915,17 @@ public final class PotionRegistry {
         PotionItemData.from(item).ifPresent(data -> {
             CustomDurabilityManager durabilityManager = CustomDurabilityManager.getInstance();
             FinalStats stats = data.getFinalStats();
+            int targetMax = Math.max(1, stats.charges());
+            int current;
             if (!durabilityManager.isTracked(item)) {
-                durabilityManager.setCustomDurability(item, stats.charges(), stats.charges());
+                current = targetMax;
             } else {
-                int max = durabilityManager.getMaxDurability(item);
-                if (max <= 0) {
-                    durabilityManager.setCustomDurability(item, stats.charges(), stats.charges());
-                } else {
-                    int current = Math.max(0, Math.min(durabilityManager.getCurrentDurability(item), max));
-                    durabilityManager.setCustomDurability(item, current, max);
-                }
+                current = Math.max(0, Math.min(durabilityManager.getCurrentDurability(item), targetMax));
             }
-            int current = durabilityManager.getCurrentDurability(item);
-            int max = durabilityManager.getMaxDurability(item);
-            applyPotionLore(item, data, current, max);
+            durabilityManager.setCustomDurability(item, current, targetMax);
+            int refreshedCurrent = durabilityManager.getCurrentDurability(item);
+            int refreshedMax = durabilityManager.getMaxDurability(item);
+            applyPotionLore(item, data, refreshedCurrent, refreshedMax);
         });
     }
 
@@ -1071,14 +1127,31 @@ public final class PotionRegistry {
         private final BrewType brewType;
         private final boolean splash;
         private final int enchantTier;
+        private final Integer durationOverride;
+        private final Integer potencyOverride;
+        private final Integer chargesOverride;
         private final FinalStats finalStats;
 
-        private PotionItemData(PotionDefinition definition, BrewType brewType, boolean splash, int enchantTier) {
+        private PotionItemData(PotionDefinition definition,
+                               BrewType brewType,
+                               boolean splash,
+                               int enchantTier,
+                               Integer durationOverride,
+                               Integer potencyOverride,
+                               Integer chargesOverride) {
             this.definition = definition;
             this.brewType = brewType;
             this.splash = splash;
             this.enchantTier = enchantTier;
-            this.finalStats = computeFinalStats(definition.getStats(brewType), enchantTier);
+            this.durationOverride = sanitizeOverride(durationOverride);
+            this.potencyOverride = sanitizeOverride(potencyOverride);
+            this.chargesOverride = sanitizeOverride(chargesOverride);
+
+            FinalStats baseStats = computeFinalStats(definition.getStats(brewType), enchantTier);
+            int charges = applyOverride(this.chargesOverride, baseStats.charges());
+            int duration = applyOverride(this.durationOverride, baseStats.durationSeconds());
+            int potency = applyOverride(this.potencyOverride, baseStats.potency());
+            this.finalStats = new FinalStats(charges, duration, potency);
         }
 
         public PotionDefinition getDefinition() {
@@ -1103,6 +1176,18 @@ public final class PotionRegistry {
 
         public String getAccentColor() {
             return definition.getAccentColor();
+        }
+
+        public Integer getDurationOverride() {
+            return durationOverride;
+        }
+
+        public Integer getPotencyOverride() {
+            return potencyOverride;
+        }
+
+        public Integer getChargesOverride() {
+            return chargesOverride;
         }
 
         public Color getBukkitColor() {
@@ -1147,7 +1232,12 @@ public final class PotionRegistry {
             int enchantTier = enchant != null ? Math.max(0, Math.min(3, enchant)) : 0;
             boolean isSplash = splash != null && splash == 1;
 
-            return Optional.of(new PotionItemData(definition, brewType, isSplash, enchantTier));
+            Integer durationOverride = container.get(KEY_OVERRIDE_DURATION, PersistentDataType.INTEGER);
+            Integer potencyOverride = container.get(KEY_OVERRIDE_POTENCY, PersistentDataType.INTEGER);
+            Integer chargesOverride = container.get(KEY_OVERRIDE_CHARGES, PersistentDataType.INTEGER);
+
+            return Optional.of(new PotionItemData(definition, brewType, isSplash, enchantTier,
+                    durationOverride, potencyOverride, chargesOverride));
         }
     }
 
@@ -1322,5 +1412,19 @@ public final class PotionRegistry {
 
             return true;
         }
+    }
+
+    private static Integer sanitizeOverride(Integer value) {
+        if (value == null) {
+            return null;
+        }
+        return value > 0 ? value : null;
+    }
+
+    private static int applyOverride(Integer override, int fallback) {
+        if (override == null) {
+            return Math.max(1, fallback);
+        }
+        return Math.max(1, override);
     }
 }

@@ -1,6 +1,8 @@
 package goat.projectLinearity.commands;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.libs.mutation.MutationDefinition;
+import goat.projectLinearity.libs.mutation.MutationManager;
 import goat.projectLinearity.util.CustomEntityRegistry;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -8,6 +10,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -17,6 +20,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class SpawnCustomMobCommand implements CommandExecutor, TabCompleter {
 
@@ -37,17 +41,33 @@ public final class SpawnCustomMobCommand implements CommandExecutor, TabComplete
             sender.sendMessage(ChatColor.RED + "Custom entity registry is not ready yet.");
             return true;
         }
+        MutationManager mutationManager = plugin.getMutationManager();
         if (args.length < 1) {
             sender.sendMessage(ChatColor.RED + "Usage: /" + label + " <name>");
-            sender.sendMessage(ChatColor.GRAY + "Available: " + String.join(", ", registry.primaryIds()));
+            sender.sendMessage(ChatColor.GRAY + "Available: " + String.join(", ", availableKeys(registry, mutationManager)));
             return true;
         }
 
         String key = args[0];
         Optional<CustomEntityRegistry.CustomEntityEntry> entryOpt = registry.find(key);
         if (entryOpt.isEmpty()) {
-            sender.sendMessage(ChatColor.RED + "Unknown custom mob '" + key + "'.");
-            sender.sendMessage(ChatColor.GRAY + "Available: " + String.join(", ", registry.primaryIds()));
+            if (mutationManager != null) {
+                Optional<MutationDefinition> definitionOpt = mutationManager.find(key);
+                if (definitionOpt.isPresent()) {
+                    Location spawnLocation = computeSpawnLocation(player);
+                    Optional<LivingEntity> spawned = mutationManager.spawnMutation(key, spawnLocation);
+                    if (spawned.isPresent()) {
+                        MutationDefinition definition = definitionOpt.get();
+                        String labelText = definition.name() != null ? definition.name() : definition.id();
+                        sender.sendMessage(ChatColor.GREEN + "Spawned mutation " + ChatColor.RESET + labelText);
+                    } else {
+                        sender.sendMessage(ChatColor.RED + "Failed to spawn mutation '" + key + "'.");
+                    }
+                    return true;
+                }
+            }
+            sender.sendMessage(ChatColor.RED + "Unknown custom mob or mutation '" + key + "'.");
+            sender.sendMessage(ChatColor.GRAY + "Available: " + String.join(", ", availableKeys(registry, mutationManager)));
             return true;
         }
 
@@ -67,14 +87,27 @@ public final class SpawnCustomMobCommand implements CommandExecutor, TabComplete
         if (registry == null) {
             return List.of();
         }
+        MutationManager mutationManager = plugin.getMutationManager();
         if (args.length == 1) {
             String prefix = args[0].toLowerCase(Locale.ROOT);
-            return registry.keys().stream()
+            Stream<String> customKeys = registry.keys().stream();
+            Stream<String> mutationKeys = mutationManager != null ? mutationManager.mutationIds().stream() : Stream.empty();
+            return Stream.concat(customKeys, mutationKeys)
                     .filter(name -> name.startsWith(prefix))
+                    .distinct()
                     .sorted()
                     .collect(Collectors.toCollection(ArrayList::new));
         }
         return List.of();
+    }
+
+    private List<String> availableKeys(CustomEntityRegistry registry, MutationManager mutationManager) {
+        List<String> keys = new ArrayList<>(registry.primaryIds());
+        if (mutationManager != null) {
+            keys.addAll(mutationManager.mutationIds());
+        }
+        keys.sort(String::compareToIgnoreCase);
+        return keys;
     }
 
     private Location computeSpawnLocation(Player player) {

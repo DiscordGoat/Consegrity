@@ -24,9 +24,14 @@ import goat.projectLinearity.subsystems.mining.MiningOxygenManager;
 import goat.projectLinearity.subsystems.trading.VillagerTradeManager;
 import goat.projectLinearity.commands.SaveInventoryCommand;
 import goat.projectLinearity.commands.StructureDebugCommand;
+import goat.projectLinearity.libs.effects.ParticleEngine;
+import goat.projectLinearity.libs.mutation.MutationBehavior;
+import goat.projectLinearity.libs.mutation.MutationManager;
+import goat.projectLinearity.libs.mutation.StatType;
+import goat.projectLinearity.libs.mutation.Stats;
+import goat.projectLinearity.subsystems.world.PortalReturnManager;
 import goat.projectLinearity.subsystems.world.desert.CurseManager;
 import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
-import goat.projectLinearity.subsystems.world.loot.GhastDropListener;
 import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
 import goat.projectLinearity.subsystems.world.loot.LootRegistry;
 import goat.projectLinearity.util.CustomEntityRegistry;
@@ -40,7 +45,6 @@ import goat.projectLinearity.util.*;
 import goat.projectLinearity.subsystems.brewing.BonusJumpManager;
 import goat.projectLinearity.subsystems.brewing.CustomPotionCombatListener;
 import goat.projectLinearity.subsystems.brewing.NauseaProjectileListener;
-import goat.projectLinearity.subsystems.world.EliteManager;
 import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
 import goat.projectLinearity.subsystems.brewing.PotionUsageListener;
@@ -58,24 +62,26 @@ import goat.projectLinearity.subsystems.world.NocturnalStructureManager;
 import goat.projectLinearity.subsystems.world.structure.StructureListener;
 import goat.projectLinearity.subsystems.world.structure.DeferredStructureSpawner;
 import goat.projectLinearity.subsystems.world.structure.StructureManager;
+import goat.projectLinearity.subsystems.world.structure.StructureEntityManager;
+import goat.projectLinearity.subsystems.world.structure.StructureType;
 import goat.projectLinearity.subsystems.fishing.FishingManager;
 import goat.projectLinearity.subsystems.fishing.SeaCreatureRegistry;
 import goat.projectLinearity.subsystems.world.structure.GenCheckType;
 import goat.projectLinearity.subsystems.world.sector.*;
 import goat.projectLinearity.subsystems.world.ConsegrityRegions;
 import net.citizensnpcs.api.npc.NPC;
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.ChatColor;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Location;
+import org.bukkit.*;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.EntityType;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.inventory.RecipeChoice;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -122,6 +128,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private NocturnalStructureManager nocturnalStructureManager;
     private LootRegistry lootRegistry;
     private LootPopulatorManager lootPopulatorManager;
+    private StructureEntityManager structureEntityManager;
     private KeystoneManager keystoneManager;
     private CustomEntityRegistry customEntityRegistry;
     private Listener citizensEnableListener;
@@ -136,9 +143,11 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CustomPotionCombatListener customPotionCombatListener;
     private BonusJumpManager bonusJumpManager;
     private NauseaProjectileListener nauseaProjectileListener;
-    private EliteManager eliteManager;
     private SeaCreatureRegistry seaCreatureRegistry;
     private FishingManager fishingManager;
+    private MutationManager mutationManager;
+    private ParticleEngine particleEngine;
+    private PortalReturnManager portalReturnManager;
     // Advancement tabs (optional; may remain null). Only used by commands/listeners defensively.
     public AdvancementTab consegrity, desert, mesa, swamp, cherry, mountain, jungle;
 
@@ -164,7 +173,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropPlantingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropHarvestListener(), this);
-        Bukkit.getPluginManager().registerEvents(new GhastDropListener(), this);
 
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
@@ -183,6 +191,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         }
         lootRegistry = new LootRegistry(this);
         lootPopulatorManager = new LootPopulatorManager(this, lootRegistry);
+
+        particleEngine = new ParticleEngine(this);
+        mutationManager = new MutationManager(this, particleEngine);
+        registerMutations();
+        mutationManager.rehydrateExistingMutations();
+        portalReturnManager = new PortalReturnManager(this);
+        Bukkit.getPluginManager().registerEvents(portalReturnManager, this);
+        portalReturnManager.startup();
+        structureEntityManager = new StructureEntityManager(this);
         cultistPopulationManager = new CultistPopulationManager(this);
         boolean cultistsReady = cultistPopulationManager.startup();
         mountainCultistBehaviour = new MountainCultistBehaviour(this, cultistPopulationManager);
@@ -222,7 +239,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         customPotionCombatListener = new CustomPotionCombatListener(this, customPotionEffectManager);
         bonusJumpManager = new BonusJumpManager(this);
         nauseaProjectileListener = new NauseaProjectileListener(this, customPotionEffectManager);
-        eliteManager = new EliteManager(this);
         curseEffectController = new CurseEffectController(this, curseManager, miningOxygenManager, sidebarManager, customPotionEffectManager);
         Bukkit.getPluginManager().registerEvents(curseEffectController, this);
         curseEffectController.startup();
@@ -266,7 +282,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Commands
         try { getCommand("regenerate").setExecutor(new RegenerateCommand(this)); } catch (Throwable ignored) {}
         try { WarptoCommand warpto = new WarptoCommand(); getCommand("warpto").setExecutor(warpto); getCommand("warpto").setTabCompleter(warpto);} catch (Throwable ignored) {}
-        try { getCommand("warptoelite").setExecutor(new WarptoEliteCommand(this)); } catch (Throwable ignored) {}
         try { getCommand("getallconsegrityadvancements").setExecutor(new GetAllConsegrityAdvancementsCommand(this)); } catch (Throwable ignored) {}
         try { SetCustomDurabilityCommand cmd = new SetCustomDurabilityCommand(); getCommand("setcustomdurability").setExecutor(cmd); getCommand("setcustomdurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { SetGoldenDurabilityCommand cmd = new SetGoldenDurabilityCommand(); getCommand("setgoldendurability").setExecutor(cmd); getCommand("setgoldendurability").setTabCompleter(cmd);} catch (Throwable ignored) {}
@@ -284,6 +299,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         try { PotionCatalogueCommand cmd = new PotionCatalogueCommand(this, potionGuiManager); getCommand("potions").setExecutor(cmd);} catch (Throwable ignored) {}
         try { CleanseCommand cmd = new CleanseCommand(this); getCommand("cleanse").setExecutor(cmd); getCommand("cleanse").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { EffectCustomCommand cmd = new EffectCustomCommand(this); getCommand("effectcustom").setExecutor(cmd); getCommand("effectcustom").setTabCompleter(cmd);} catch (Throwable ignored) {}
+        try { SynthesizeCommand cmd = new SynthesizeCommand(); getCommand("synthesize").setExecutor(cmd); getCommand("synthesize").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try { CulinaryCatalogueCommand cmd = new CulinaryCatalogueCommand(this, culinaryCatalogueManager, culinarySubsystem); getCommand("culinary").setExecutor(cmd); getCommand("culinary").setTabCompleter(cmd);} catch (Throwable ignored) {}
         try {
             SaveInventoryCommand cmd = new SaveInventoryCommand(this, lootRegistry);
@@ -300,6 +316,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Managers
         structureManager = new StructureManager(this);
         structureManager.setLootPopulatorManager(lootPopulatorManager);
+        structureManager.setStructureEntityManager(structureEntityManager);
         // Enable deferred spawner (periodic + on chunk load) to place as you explore
         deferredStructureSpawner = new DeferredStructureSpawner(this, structureManager);
         Bukkit.getPluginManager().registerEvents(deferredStructureSpawner, this);
@@ -332,7 +349,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("seamine", 4, 100, 200, new OceanSector(), GenCheckType.UNDERWATER, true, 10, Biome.FROZEN_OCEAN);
             structureManager.registerStruct("seamine", 4, 200, 50, new OceanSector(), GenCheckType.UNDERWATER, true, 80, null);
+
+
         } catch (Throwable ignored) {}
+        registerStructureEntities();
         keystoneManager = new KeystoneManager(this);
         keystoneManager.registerDefinition(new KeystoneManager.KeystoneDefinition(
                 "jadestatue1",
@@ -402,6 +422,16 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new KeystoneListener(keystoneManager), this);
 
         // Top-up scheduling is started after pre-generation completes in RegenerateCommand
+        particleEngine = new ParticleEngine(this);
+    }
+
+    private void registerStructureEntities() {
+        if (structureEntityManager == null) {
+            return;
+        }
+        structureEntityManager.registerStructureEntities(StructureType.DESERT_TEMPLE, EntityType.HUSK, 3, 15, 12, 1);
+        structureEntityManager.registerStructureEntities(StructureType.MONUMENT, EntityType.GUARDIAN, 4, 6, 20, 2);
+        structureEntityManager.registerStructureEntities(StructureType.WITCH_HUT, EntityType.WITCH, 1, 4, 10, 1);
     }
 
     private void registerRecipes() {
@@ -448,6 +478,273 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             Bukkit.addRecipe(recipe);
         } catch (IllegalArgumentException ignored) {
         }
+    }
+
+    public void registerMutation(String mutationId,
+                                 EntityType entityType,
+                                 int percentage,
+                                 Color armorColor,
+                                 String headTexture,
+                                 Stats stats,
+                                 String mutationName,
+                                 MutationBehavior behavior,
+                                 ItemStack drop,
+                                 int min,
+                                 int max,
+                                 int dropChancePercentage,
+                                 Biome... allowedBiomes) {
+        if (mutationManager == null) {
+            getLogger().warning("Mutation manager is not initialised; skipping mutation registration for " + entityType);
+            return;
+        }
+        Biome[] biomes = allowedBiomes == null ? new Biome[0] : allowedBiomes;
+        mutationManager.registerMutation(
+                mutationId,
+                entityType,
+                percentage,
+                armorColor,
+                headTexture,
+                stats,
+                mutationName,
+                behavior,
+                drop,
+                min,
+                max,
+                dropChancePercentage,
+                false,
+                null,
+                null,
+                null,
+                0.0,
+                0,
+                0f,
+                0f,
+                biomes
+        );
+    }
+
+    public void registerMutationWithAmbient(String mutationId,
+                                            EntityType entityType,
+                                            int percentage,
+                                            Color armorColor,
+                                            String headTexture,
+                                            Stats stats,
+                                            String mutationName,
+                                            MutationBehavior behavior,
+                                            ItemStack drop,
+                                            int min,
+                                            int max,
+                                            int dropChancePercentage,
+                                            Color ambientDustColor,
+                                            Particle ambientParticle,
+                                            Sound ambientSound,
+                                            double ambientIntervalSeconds,
+                                            int ambientSoundCooldownSeconds,
+                                            float ambientSoundVolume,
+                                            float ambientSoundPitch,
+                                            Biome... allowedBiomes) {
+        if (mutationManager == null) {
+            getLogger().warning("Mutation manager is not initialised; skipping mutation registration for " + entityType);
+            return;
+        }
+        Biome[] biomes = allowedBiomes == null ? new Biome[0] : allowedBiomes;
+        mutationManager.registerMutation(
+                mutationId,
+                entityType,
+                percentage,
+                armorColor,
+                headTexture,
+                stats,
+                mutationName,
+                behavior,
+                drop,
+                min,
+                max,
+                dropChancePercentage,
+                true,
+                ambientDustColor,
+                ambientParticle,
+                ambientSound,
+                ambientIntervalSeconds,
+                ambientSoundCooldownSeconds,
+                ambientSoundVolume,
+                ambientSoundPitch,
+                biomes
+        );
+    }
+
+    private void registerMutations() {
+        registerMutationWithAmbient(
+                "gilded_wailer",
+                EntityType.GHAST,
+                25,
+                Color.WHITE,
+                null,
+                Stats.of(StatType.Health(50)),
+                ChatColor.GOLD + "Wailer",
+                MutationBehavior.NONE,
+                ItemRegistry.getGoldenTear(),
+                1,
+                1,
+                100,
+                Color.fromRGB(255, 255, 255),
+                Particle.DUST,
+                Sound.ENTITY_GHAST_AMBIENT,
+                0.1,
+                25,
+                200f,
+                0.5f
+        );
+        registerMutationWithAmbient(
+                "seer",
+                EntityType.ZOMBIFIED_PIGLIN,
+                1,
+                Color.ORANGE,
+                "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvM2M1MTY5N2RlZTg5NDQ3ZmM1MTc5MGQ4ZGEzNWY4NDdhNTQ1OGYzZDJjM2FhY2Q5NmRiZjJhMzU2NTFiOTMxMCJ9fX0=",
+                Stats.of(StatType.Damage(3), StatType.Speed(2)),
+                ChatColor.GOLD + "Seer",
+                MutationBehavior.NONE,
+                ItemRegistry.getGoldenEye(),
+                1,
+                1,
+                100,
+                Color.fromRGB(255, 220, 60),
+                Particle.DUST,
+                Sound.BLOCK_AMETHYST_BLOCK_CHIME,
+                3.0,
+                6,
+                50f,
+                0.5f
+        );
+        registerMutationWithAmbient(
+                "crimson_cultivator",
+                EntityType.PIGLIN,
+                6,
+                Color.RED,
+                null,
+                Stats.of(StatType.Health(90), StatType.Damage(4), StatType.Resistance(5)),
+                ChatColor.DARK_RED + "Crimson Cultivator",
+                MutationBehavior.NONE,
+                ItemRegistry.getRedSugarCane(),
+                1,
+                1,
+                100,
+                Color.fromRGB(200, 40, 40),
+                Particle.DUST,
+                Sound.ENTITY_PIGLIN_AMBIENT,
+                3.0,
+                8,
+                40f,
+                0.6f,
+                Biome.CRIMSON_FOREST
+        );
+        registerMutationWithAmbient(
+                "sand_scavenger",
+                EntityType.HUSK,
+                10,
+                null,
+                null,
+                Stats.of(),
+                ChatColor.DARK_GREEN + "Sand Scavenger",
+                MutationBehavior.SCAVENGER,
+                ItemRegistry.getMoldingFlesh(),
+                1,
+                1,
+                100,
+                Color.fromRGB(194, 178, 128),  // Sand color
+                Particle.DUST,
+                Sound.ENTITY_CAMEL_STEP_SAND,
+                1.0,
+                3,
+                20f,
+                0.5f
+        );
+        registerMutationWithAmbient(
+                "withered_zombie",
+                EntityType.WITHER_SKELETON,
+                20,
+                null,
+                null,
+                Stats.of(StatType.Health(40)),
+                ChatColor.DARK_GRAY + "Withered Zombie",
+                MutationBehavior.WITHERED,
+                ItemRegistry.getCharredFlesh(),
+                1,
+                1,
+                4,
+                Color.fromRGB(24,24,24),
+                Particle.DUST,
+                Sound.BLOCK_NOTE_BLOCK_IMITATE_WITHER_SKELETON,
+                0.1,
+                2,
+                5f,
+                0.5f
+        );
+        registerMutationWithAmbient(
+                "the_charred",
+                EntityType.SKELETON,
+                100,
+                null,
+                null,
+                Stats.of(StatType.Health(1)),
+                ChatColor.DARK_GRAY + "The Charred",
+                MutationBehavior.CHARRED,
+                ItemRegistry.getWeakenedMarrow(),
+                1,
+                1,
+                10,
+                Color.fromRGB(16,16,16),
+                Particle.DUST,
+                Sound.BLOCK_NOTE_BLOCK_IMITATE_WITHER_SKELETON,
+                0.1,
+                10,
+                5f,
+                0.5f,
+                Biome.SOUL_SAND_VALLEY
+        );
+        registerMutationWithAmbient(
+                "necromancer",
+                EntityType.WITCH,
+                10,
+                null,
+                null,
+                Stats.of(StatType.Health(50)),
+                ChatColor.BLUE + "Necromancer",
+                MutationBehavior.NONE,
+                new ItemStack(Material.WITHER_ROSE),
+                1,
+                1,
+                100,
+                Color.fromRGB(0,0,0),
+                Particle.DUST,
+                Sound.BLOCK_NOTE_BLOCK_IMITATE_WITHER_SKELETON,
+                0.1,
+                10,
+                20f,
+                0.5f
+        );
+        registerMutationWithAmbient(
+                "warped_cultivator",
+                EntityType.ENDERMAN,
+                10,
+                null,
+                null,
+                Stats.of(StatType.Health(100)),
+                ChatColor.DARK_PURPLE + "Warped Cultivator",
+                MutationBehavior.NONE,
+                ItemRegistry.getWarpedApple(),
+                1,
+                1,
+                100,
+                Color.fromRGB(78, 168, 255),
+                Particle.DUST,
+                Sound.ENTITY_ENDERMAN_AMBIENT,
+                0.1,
+                10,
+                50f,
+                0.4f,
+                Biome.WARPED_FOREST
+        );
     }
 
     private void registerCustomEntities() {
@@ -590,6 +887,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             HandlerList.unregisterAll(mountainMobSpawnBlocker);
             mountainMobSpawnBlocker = null;
         }
+        if (mutationManager != null) {
+            mutationManager.shutdown();
+            mutationManager = null;
+        }
+        if (portalReturnManager != null) {
+            HandlerList.unregisterAll(portalReturnManager);
+            portalReturnManager.shutdown();
+            portalReturnManager = null;
+        }
         if (nocturnalStructureManager != null) {
             nocturnalStructureManager.shutdown();
             nocturnalStructureManager = null;
@@ -641,10 +947,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             HandlerList.unregisterAll(nauseaProjectileListener);
             nauseaProjectileListener = null;
         }
-        if (eliteManager != null) {
-            eliteManager.shutdown();
-            eliteManager = null;
-        }
         if (customPotionEffectManager != null) {
             customPotionEffectManager.shutdown();
         }
@@ -659,6 +961,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (seaCreatureRegistry != null) {
             seaCreatureRegistry.shutdown();
             seaCreatureRegistry = null;
+        }
+        if (particleEngine != null) {
+            particleEngine.shutdown();
+            particleEngine = null;
         }
         instance = null;
     }
@@ -678,10 +984,12 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public MountainCultistBehaviour getMountainCultistBehaviour() { return mountainCultistBehaviour; }
     public KeystoneManager getKeystoneManager() { return keystoneManager; }
     public CustomEntityRegistry getCustomEntityRegistry() { return customEntityRegistry; }
+    public MutationManager getMutationManager() { return mutationManager; }
     public CustomPotionEffectManager getCustomPotionEffectManager() { return customPotionEffectManager; }
     public DamageDisplayManager getDamageDisplayManager() { return damageDisplayManager; }
     public BonusJumpManager getBonusJumpManager() { return bonusJumpManager; }
-    public EliteManager getEliteManager() { return eliteManager; }
+    public StructureEntityManager getStructureEntityManager() { return structureEntityManager; }
+    public ParticleEngine getParticleEngine() { return particleEngine; }
     public double getStatRate() { return statRate; }
     public void setStatRate(double rate) { this.statRate = Math.max(0.01, rate); }
     public boolean isDebugOxygen() { return debugOxygen; }

@@ -25,10 +25,6 @@ commands:
     description: Teleport to the spawn of a world
     usage: /warpto <worldName>
     permission: consegrity.warpto
-  warptoelite:
-    description: Teleport to the currently active elite (dev only)
-    usage: /warptoelite
-    permission: consegrity.dev
   setcustomdurability:
     description: Sets the current durability of the held item
     usage: /setcustomdurability <amount>
@@ -92,6 +88,10 @@ commands:
   effectcustom:
     description: Applies a custom potion effect to yourself for testing
     usage: /effectcustom <effectId> <potency> <durationSeconds>
+    permission: consegrity.dev
+  synthesize:
+    description: Synthesizes custom admin potions
+    usage: /synthesize admin_potion <effect> <durationSeconds> <potency> <charges>
     permission: consegrity.dev
   culinary:
     description: Opens the culinary recipe catalogue

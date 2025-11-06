@@ -1,157 +1,203 @@
 package goat.projectLinearity.subsystems.culinary;
 
 import goat.projectLinearity.util.ItemRegistry;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.EulerAngle;
+import org.bukkit.inventory.EquipmentSlot;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
- * CulinaryCauldron:
- *
- * Allows players to use a cauldron as a cooking station. The player right-clicks the cauldron with
- * a specific item (defined in the recipes map) to start a cooking process that involves stirring.
- * After a short animation (stirring), the raw input turns into the output item defined in the recipe.
+ * CulinaryCauldron handles the custom cauldron catalogue that lets players
+ * trade basic materials for curated culinary ingredients.
  */
 public class CulinaryCauldron implements Listener {
 
-    private JavaPlugin plugin;
+    private static final String MENU_TITLE = ChatColor.DARK_GREEN + "Culinary Cauldron";
+    private static final int MENU_SIZE = 27;
+    private static final int[] OPTION_SLOTS = {10, 12, 14, 16};
 
-    // A map of input item to output item recipes.
-    // For simplicity, we compare by Material and optional display name.
-    // In a more robust system, you'd consider NBT or other checks.
-    private Map<ItemStack, ItemStack> recipes = new HashMap<>();
-
-    // Track currently "in-progress" cauldrons to avoid multiple simultaneous uses
-    private Set<Location> activeCauldrons = new HashSet<>();
+    private final JavaPlugin plugin;
+    private final List<CauldronRecipe> recipes = new ArrayList<>();
+    private final Set<Location> activeCauldrons = new HashSet<>();
+    private final ItemStack filler;
 
     public CulinaryCauldron(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.filler = createFiller();
         Bukkit.getPluginManager().registerEvents(this, plugin);
         initializeRecipes();
     }
 
-    /**
-     * Define your recipes here. Input -> Output
-     * Example: Putting a CARROT in the cauldron turns into a RABBIT_STEW (just an example).
-     */
     private void initializeRecipes() {
-        ItemStack milk = new ItemStack(Material.MILK_BUCKET, 1);
-        ItemStack butter = ItemRegistry.getButter();
-        recipes.put(milk, butter);
-
-
-        ItemStack wheat = new ItemStack(Material.WHEAT, 1);
-        ItemStack dough = ItemRegistry.getDough();
-        recipes.put(wheat, dough);
-
-        // ─── your new cocoa → chocolate recipe ────────────────────────────
-        ItemStack cocoa      = new ItemStack(Material.COCOA_BEANS, 1);
-        ItemStack chocolate  = ItemRegistry.getChocolate();  // ← your custom item
-        recipes.put(cocoa, chocolate);
-
-        ItemStack sugarcane      = new ItemStack(Material.SUGAR_CANE, 1);
-        ItemStack rum  = ItemRegistry.getRum();  // ← your custom item
-        recipes.put(sugarcane, rum);
+        recipes.clear();
+        recipes.add(new CauldronRecipe(
+                ItemRegistry::getButter,
+                new CauldronCost(Material.MILK_BUCKET, "Milk Bucket")
+        ));
+        recipes.add(new CauldronRecipe(
+                ItemRegistry::getDough,
+                new CauldronCost(Material.WHEAT, "Wheat")
+        ));
+        recipes.add(new CauldronRecipe(
+                ItemRegistry::getChocolate,
+                new CauldronCost(Material.COCOA_BEANS, "Cocoa Beans")
+        ));
+        recipes.add(new CauldronRecipe(
+                ItemRegistry::getRum,
+                new CauldronCost(Material.SUGAR_CANE, "Sugar Cane")
+        ));
     }
 
-    /**
-     * Event handler for right-clicking a cauldron.
-     * If the player right-clicks a cauldron with an input item found in our recipe list,
-     * start the stirring animation and process.
-     */
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onCauldronInteract(PlayerInteractEvent event) {
-//        Bukkit.broadcastMessage(event.getClickedBlock().getType() + "");
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (event.getClickedBlock() == null) return;
-        if (event.getClickedBlock().getType() != Material.WATER_CAULDRON) return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        Block block = event.getClickedBlock();
+        if (block == null) {
+            return;
+        }
+        if (!isCauldron(block.getType())) {
+            return;
+        }
 
         Player player = event.getPlayer();
-        ItemStack hand = player.getInventory().getItemInMainHand();
-        Location cauldronLoc = event.getClickedBlock().getLocation();
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (shouldDeferToVanilla(mainHand.getType())) {
+            return;
+        }
 
-        // Check if this cauldron is already in use
+        Location cauldronLoc = block.getLocation();
         if (activeCauldrons.contains(cauldronLoc)) {
-            player.sendMessage(ChatColor.RED + "This cauldron is already in use!");
+            player.sendMessage(ChatColor.RED + "This cauldron is already brewing something!");
             return;
         }
 
-        // Check if the item in hand matches any recipe input
-        ItemStack matchingInput = getMatchingRecipeInput(hand);
-        if (matchingInput == null) {
-            player.sendMessage(ChatColor.RED + "You can't cook that here.");
-            return;
-        }
-
-        // Consume one item from the stack
-        hand.setAmount(hand.getAmount() - 1);
-        if (hand.getAmount() == 0) {
-            player.getInventory().setItemInMainHand(null);
-        }
-
-        // Start stirring animation and schedule the completion
-        activeCauldrons.add(cauldronLoc);
-        startStirringAnimation(cauldronLoc, matchingInput, player);
+        event.setCancelled(true);
+        openCatalogue(player, cauldronLoc);
     }
 
-    /**
-     * Given the player's input item, check if it matches one of the recipes (ignoring quantity).
-     */
-    private ItemStack getMatchingRecipeInput(ItemStack input) {
-        if (input == null || input.getType() == Material.AIR) return null;
-
-        // For simplicity, just compare type and display name if present.
-        // You may need a more robust check depending on your recipes.
-        for (ItemStack key : recipes.keySet()) {
-            if (compareItems(key, input)) {
-                return key;
+    @EventHandler(ignoreCancelled = true)
+    public void onMenuDrag(InventoryDragEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof CauldronMenuHolder)) {
+            return;
+        }
+        for (int raw : event.getRawSlots()) {
+            if (raw < top.getSize()) {
+                event.setCancelled(true);
+                break;
             }
         }
-        return null;
     }
 
-    /**
-     * Compare two items by their type and display name (if any).
-     */
-    private boolean compareItems(ItemStack a, ItemStack b) {
-        if (a.getType() != b.getType()) return false;
+    @EventHandler(ignoreCancelled = true)
+    public void onMenuClick(InventoryClickEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof CauldronMenuHolder holder)) {
+            return;
+        }
+        event.setCancelled(true);
 
-        ItemMeta am = a.getItemMeta();
-        ItemMeta bm = b.getItemMeta();
-        String aName = (am != null && am.hasDisplayName()) ? am.getDisplayName() : null;
-        String bName = (bm != null && bm.hasDisplayName()) ? bm.getDisplayName() : null;
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
+        if (!holder.isOwner(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "This cauldron menu belongs to someone else.");
+            return;
+        }
 
-        if (aName == null && bName == null) return true;
-        if (aName != null && bName != null) return aName.equals(bName);
+        int rawSlot = event.getRawSlot();
+        if (rawSlot >= top.getSize()) {
+            return;
+        }
 
-        return false;
+        CauldronRecipe recipe = holder.getRecipe(rawSlot);
+        if (recipe == null) {
+            return;
+        }
+
+        Location cauldronLoc = holder.getCauldronLocation();
+        if (cauldronLoc == null) {
+            player.closeInventory();
+            return;
+        }
+        if (!isCauldron(cauldronLoc.getBlock().getType())) {
+            player.sendMessage(ChatColor.RED + "The cauldron is no longer here.");
+            player.closeInventory();
+            return;
+        }
+        if (activeCauldrons.contains(cauldronLoc)) {
+            player.sendMessage(ChatColor.RED + "This cauldron is already brewing something!");
+            return;
+        }
+        if (!recipe.consumeCost(player)) {
+            player.sendMessage(ChatColor.RED + "You need a " + ChatColor.YELLOW + recipe.getCostDisplayName()
+                    + ChatColor.RED + " to activate this recipe.");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.5f, 0.9f);
+            return;
+        }
+
+        player.closeInventory();
+        activeCauldrons.add(cauldronLoc);
+        player.updateInventory();
+        startStirringAnimation(cauldronLoc, recipe, player);
     }
 
-    /**
-     * Start a stirring animation:
-     * - Spawn an ArmorStand holding a stick above the cauldron.
-     * - Play bubble particles and sounds.
-     * - After a short delay, produce the output item and remove stands.
-     */
-    private void startStirringAnimation(Location cauldronLoc, ItemStack inputKey, Player player) {
-        // Spawn an armor stand holding a stick to represent stirring
-        Location standLoc = cauldronLoc.clone().add(0.5, 0.4, 0.5); // slightly above cauldron
+    private void openCatalogue(Player player, Location cauldronLoc) {
+        CauldronMenuHolder holder = new CauldronMenuHolder(player.getUniqueId(), cauldronLoc);
+        Inventory inventory = Bukkit.createInventory(holder, MENU_SIZE, MENU_TITLE);
+        fillInventory(inventory, filler);
+
+        int max = Math.min(recipes.size(), OPTION_SLOTS.length);
+        for (int i = 0; i < max; i++) {
+            CauldronRecipe recipe = recipes.get(i);
+            int slot = OPTION_SLOTS[i];
+            inventory.setItem(slot, recipe.createIcon());
+            holder.register(slot, recipe);
+        }
+
+        player.openInventory(inventory);
+        player.sendMessage(ChatColor.GOLD + "[Culinary] " + ChatColor.GRAY + "Select an ingredient to brew.");
+        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.6f);
+    }
+
+    private void startStirringAnimation(Location cauldronLoc, CauldronRecipe recipe, Player player) {
+        Location standLoc = cauldronLoc.clone().add(0.5, 0.4, 0.5);
         ArmorStand stirStand = (ArmorStand) standLoc.getWorld().spawnEntity(standLoc, EntityType.ARMOR_STAND);
         stirStand.setInvisible(true);
         stirStand.setMarker(true);
@@ -161,16 +207,9 @@ public class CulinaryCauldron implements Listener {
         stirStand.setArms(true);
         stirStand.setSmall(true);
 
-        // Give the stand a stick in its main hand
         stirStand.getEquipment().setItemInMainHand(new ItemStack(Material.WOODEN_SHOVEL, 1));
-        // Tilt the stand's arm forward by about 100 degrees
         stirStand.setRightArmPose(new EulerAngle(Math.toRadians(90), 0, 0));
 
-        // We'll run two tasks:
-        // 1. Bubble and sound effects every 10 ticks.
-        // 2. Rotation task that continuously rotates the ArmorStand slightly each tick.
-
-        // Rotation task: rotate the ArmorStand slightly every tick
         BukkitTask rotationTask = new BukkitRunnable() {
             double angle = 0.0;
 
@@ -180,7 +219,7 @@ public class CulinaryCauldron implements Listener {
                     cancel();
                     return;
                 }
-                angle += 12.0; // rotate by 3 degrees per tick
+                angle += 12.0;
                 if (angle > 360.0) angle -= 360.0;
                 Location loc = stirStand.getLocation();
                 loc.setYaw((float) angle);
@@ -188,92 +227,225 @@ public class CulinaryCauldron implements Listener {
             }
         }.runTaskTimer(plugin, 0, 1);
 
-        // Particle and sound effects: bubble particles + water sounds
-        BukkitTask bubbleTask = new BukkitRunnable() {
+        new BukkitRunnable() {
             int ticks = 0;
+
             @Override
             public void run() {
-                if (ticks > 80) { // ~4 seconds of stirring
-                    this.cancel();
-                    // Once done, stop rotation and finish cooking
+                if (ticks > 80) {
+                    cancel();
                     rotationTask.cancel();
-                    finishCooking(cauldronLoc, inputKey, player, stirStand);
+                    finishCooking(cauldronLoc, recipe, player, stirStand);
                     return;
                 }
-
-                // Spawn bubble particles
                 cauldronLoc.getWorld().spawnParticle(
                         Particle.BUBBLE_POP,
                         cauldronLoc.clone().add(0.5, 0.9, 0.5),
                         5, 0.2, 0.2, 0.2, 0.01
                 );
-                // Play some sounds
                 cauldronLoc.getWorld().playSound(cauldronLoc, Sound.BLOCK_BUBBLE_COLUMN_WHIRLPOOL_INSIDE, 0.5f, 1.0f);
-
                 ticks += 10;
             }
-        }.runTaskTimer(plugin, 0, 10); // every half second
+        }.runTaskTimer(plugin, 0, 10);
     }
 
+    private void finishCooking(Location cauldronLoc, CauldronRecipe recipe, Player player, ArmorStand stirStand) {
+        try {
+            if (stirStand != null && !stirStand.isDead()) {
+                stirStand.remove();
+            }
+            ItemStack output = recipe.createResult();
+            if (output == null) {
+                return;
+            }
 
-    /**
-     * Finish the cooking process:
-     * - Remove stirring stand
-     * - Drop the output item on top of the cauldron
-     * - Clear the cauldron from activeCauldrons
-     */
-    /**
- * Finish the cooking process:
- * - Remove stirring stand
- * - Launch the output items towards the player
- * - Clear the cauldron from activeCauldrons
- */
-private void finishCooking(Location cauldronLoc, ItemStack inputKey, Player player, ArmorStand stirStand) {
-    if (stirStand != null && !stirStand.isDead()) {
-        stirStand.remove();
+            cauldronLoc.getWorld().playSound(cauldronLoc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+            cauldronLoc.getWorld().spawnParticle(
+                    Particle.WITCH,
+                    cauldronLoc.clone().add(0.5, 1.0, 0.5),
+                    20, 0.3, 0.3, 0.3, 0.05
+            );
+
+            Location spawnLoc = cauldronLoc.clone().add(0.5, 1.0, 0.5);
+            org.bukkit.util.Vector direction = player.getLocation().toVector().subtract(spawnLoc.toVector());
+            direction.normalize().multiply(0.3);
+            direction.setY(0.2);
+
+            for (int i = 0; i < 4; i++) {
+                org.bukkit.entity.Item item = cauldronLoc.getWorld().dropItem(spawnLoc, output.clone());
+                item.setVelocity(direction);
+                org.bukkit.util.Vector randomOffset = new org.bukkit.util.Vector(
+                        (Math.random() - 0.5) * 0.1,
+                        Math.random() * 0.1,
+                        (Math.random() - 0.5) * 0.1
+                );
+                item.setVelocity(item.getVelocity().add(randomOffset));
+                item.setPickupDelay(10);
+            }
+        } finally {
+            activeCauldrons.remove(cauldronLoc);
+        }
     }
 
-    // Retrieve the output from the recipes map
-    ItemStack output = recipes.get(inputKey);
-    if (output == null) {
-        // If something is off and no recipe found, just return the input
-        output = new ItemStack(inputKey);
+    private ItemStack createFiller() {
+        ItemStack pane = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = pane.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(" ");
+            pane.setItemMeta(meta);
+        }
+        return pane;
     }
 
-    // Play a completion sound and particles
-    cauldronLoc.getWorld().playSound(cauldronLoc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
-    cauldronLoc.getWorld().spawnParticle(
-            Particle.WITCH,
-            cauldronLoc.clone().add(0.5, 1.0, 0.5),
-            20, 0.3, 0.3, 0.3, 0.05
-    );
-
-    // Calculate vector from cauldron to player
-    Location spawnLoc = cauldronLoc.clone().add(0.5, 1.0, 0.5);
-    org.bukkit.util.Vector direction = player.getLocation().toVector().subtract(spawnLoc.toVector());
-    
-    // Normalize and scale the vector for a nice arc
-    direction.normalize().multiply(0.3);
-    direction.setY(0.2); // Add some upward velocity for an arc effect
-    
-    // Drop multiple items with velocity towards the player
-    for (int i = 0; i < 4; i++) {
-        org.bukkit.entity.Item item = cauldronLoc.getWorld().dropItem(spawnLoc, output.clone());
-        item.setVelocity(direction);
-        
-        // Add a slight random variation to each item's trajectory
-        org.bukkit.util.Vector randomOffset = new org.bukkit.util.Vector(
-                (Math.random() - 0.5) * 0.1,
-                Math.random() * 0.1,
-                (Math.random() - 0.5) * 0.1
-        );
-        item.setVelocity(item.getVelocity().add(randomOffset));
-        
-        // Make items not despawn as quickly
-        item.setPickupDelay(10);
+    private void fillInventory(Inventory inventory, ItemStack fillerItem) {
+        for (int i = 0; i < inventory.getSize(); i++) {
+            inventory.setItem(i, fillerItem.clone());
+        }
     }
 
-    activeCauldrons.remove(cauldronLoc);
-}
+    private boolean shouldDeferToVanilla(Material material) {
+        if (material == Material.AIR) {
+            return false;
+        }
+        if (material == Material.BUCKET) {
+            return true;
+        }
+        if (material.name().endsWith("_BUCKET")) {
+            return true;
+        }
+        return material == Material.GLASS_BOTTLE
+                || material == Material.POTION
+                || material == Material.SPLASH_POTION
+                || material == Material.LINGERING_POTION;
+    }
 
+    private boolean isCauldron(Material type) {
+        return type == Material.CAULDRON
+                || type == Material.WATER_CAULDRON
+                || type == Material.LAVA_CAULDRON
+                || type == Material.POWDER_SNOW_CAULDRON;
+    }
+
+    private static final class CauldronMenuHolder implements InventoryHolder {
+        private final UUID owner;
+        private final Location cauldronLocation;
+        private final Map<Integer, CauldronRecipe> slotMapping = new HashMap<>();
+
+        private CauldronMenuHolder(UUID owner, Location cauldronLocation) {
+            this.owner = owner;
+            this.cauldronLocation = cauldronLocation == null ? null : cauldronLocation.clone();
+        }
+
+        private void register(int slot, CauldronRecipe recipe) {
+            slotMapping.put(slot, recipe);
+        }
+
+        private CauldronRecipe getRecipe(int slot) {
+            return slotMapping.get(slot);
+        }
+
+        private boolean isOwner(UUID uuid) {
+            return owner.equals(uuid);
+        }
+
+        private Location getCauldronLocation() {
+            return cauldronLocation == null ? null : cauldronLocation.clone();
+        }
+
+        @Override
+        public Inventory getInventory() {
+            return null;
+        }
+    }
+
+    private static final class CauldronRecipe {
+        private final Supplier<ItemStack> resultSupplier;
+        private final CauldronCost cost;
+
+        private CauldronRecipe(Supplier<ItemStack> resultSupplier, CauldronCost cost) {
+            this.resultSupplier = resultSupplier;
+            this.cost = cost;
+        }
+
+        private ItemStack createIcon() {
+            ItemStack icon = createResult();
+            ItemMeta meta = icon.getItemMeta();
+            List<String> lore = meta != null && meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
+            lore.add("");
+            lore.add(ChatColor.GRAY + "Cost: " + ChatColor.YELLOW + cost.getName());
+            lore.add(ChatColor.GREEN + "Click to brew.");
+            if (meta != null) {
+                meta.setLore(lore);
+                icon.setItemMeta(meta);
+            }
+            return icon;
+        }
+
+        private ItemStack createResult() {
+            return resultSupplier.get();
+        }
+
+        private boolean consumeCost(Player player) {
+            return cost.consume(player);
+        }
+
+        private String getCostDisplayName() {
+            return cost.getName();
+        }
+    }
+
+    private static final class CauldronCost {
+        private final Material material;
+        private final String name;
+
+        private CauldronCost(Material material, String name) {
+            this.material = material;
+            this.name = name;
+        }
+
+        private boolean consume(Player player) {
+            PlayerInventory inventory = player.getInventory();
+            for (int slot = 0; slot < inventory.getSize(); slot++) {
+                ItemStack stack = inventory.getItem(slot);
+                if (matches(stack)) {
+                    decrementStack(inventory, slot, stack);
+                    return true;
+                }
+            }
+            ItemStack offhand = inventory.getItemInOffHand();
+            if (matches(offhand)) {
+                decrementOffhand(inventory, offhand);
+                return true;
+            }
+            return false;
+        }
+
+        private boolean matches(ItemStack stack) {
+            return stack != null && stack.getType() == material;
+        }
+
+        private void decrementStack(PlayerInventory inventory, int slot, ItemStack stack) {
+            int amount = stack.getAmount();
+            if (amount <= 1) {
+                inventory.clear(slot);
+            } else {
+                stack.setAmount(amount - 1);
+                inventory.setItem(slot, stack);
+            }
+        }
+
+        private void decrementOffhand(PlayerInventory inventory, ItemStack stack) {
+            int amount = stack.getAmount();
+            if (amount <= 1) {
+                inventory.setItemInOffHand(null);
+            } else {
+                stack.setAmount(amount - 1);
+                inventory.setItemInOffHand(stack);
+            }
+        }
+
+        private String getName() {
+            return name;
+        }
+    }
 }
