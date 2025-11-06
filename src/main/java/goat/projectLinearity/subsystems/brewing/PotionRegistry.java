@@ -85,7 +85,7 @@ public final class PotionRegistry {
                                 Material.WEEPING_VINES
                         ),
                         new PotionStats(60, 1, 20),
-                        new PotionStats(120, 2, 10)
+                        new PotionStats(120, 2, 5)
                 )
         );
         register(
@@ -101,8 +101,8 @@ public final class PotionRegistry {
                                 Material.NETHER_WART,
                                 "Golden Eye"
                         ),
-                        new PotionStats(60, 1, 15),  // Overworld: 60s duration, potency 1, 15 charges
-                        new PotionStats(180, 2, 5)   // Nether: 180s duration, potency 2, 5 charges
+                        new PotionStats(60, 1, 10),  // Overworld: 60s duration, potency 1, 15 charges
+                        new PotionStats(180, 1, 30)   // Nether: 180s duration, potency 2, 5 charges
                 )
                 );
         register(
@@ -171,7 +171,7 @@ public final class PotionRegistry {
                                 Material.WITHER_SKELETON_SKULL
                         ),
                         new PotionStats(60, 1, 12),  // Overworld: 60s duration, potency 1, 12 charges
-                        new PotionStats(120, 2, 6)    // Nether: 120s duration, potency 2, 6 charges
+                        new PotionStats(120, 2, 10)    // Nether: 120s duration, potency 2, 6 charges
                 )
         );
 
@@ -188,8 +188,8 @@ public final class PotionRegistry {
                                 Material.NETHER_WART,
                                 "Warped Apple"
                         ),
-                        new PotionStats(600, 1, 10),  // Overworld: 10 minutes, potency 1, 10 charges
-                        new PotionStats(900, 2, 6)    // Nether: 15 minutes, potency 2, 6 charges
+                        new PotionStats(600, 1, 4),  // Overworld: 10 minutes, potency 1, 10 charges
+                        new PotionStats(900, 2, 4)    // Nether: 15 minutes, potency 2, 6 charges
                 )
         );
 
@@ -206,7 +206,7 @@ public final class PotionRegistry {
                                 Material.NETHER_WART,
                                 "Red Sugar Cane"
                         ),
-                        new PotionStats(600, 1, 8),   // Overworld: 10 minutes, potency 1, 8 charges
+                        new PotionStats(600, 1, 2),   // Overworld: 10 minutes, potency 1, 8 charges
                         new PotionStats(900, 2, 5)    // Nether: 15 minutes, potency 2, 5 charges
                 )
         );
@@ -217,15 +217,15 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.SWEET_BERRIES
+                                Material.JACK_O_LANTERN
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
                                 Material.GLOWSTONE_DUST
                         ),
-                        new PotionStats(60, 1, 12),   // Overworld: 60s base, scales with potency
-                        new PotionStats(60, 2, 8)     // Nether: same base duration with higher potency
+                        new PotionStats(60*20, 1, 1),   // Overworld: 60s base, scales with potency
+                        new PotionStats(60*60, 2, 1)     // Nether: same base duration with higher potency
                 )
         );
 
@@ -240,9 +240,9 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                ""
+                                "Hoglin Roast"
                         ),
-                        new PotionStats(1, 1, 20),   // Instant effect, 20 uses
+                        new PotionStats(1, 1, 8),   // Instant effect, 20 uses
                         new PotionStats(1, 1, 20)
                 )
         );

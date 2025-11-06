@@ -69,36 +69,7 @@ public class CherrySector extends SectorBase {
             }
         }
 
-        // Sprout wild carrots on grassy patches
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.CHERRY) continue;
-                int groundY = topYGrid[lx][lz];
-                Material ground = safeType(data, lx, groundY, lz);
-                if (ground != Material.GRASS_BLOCK) continue;
-                if (safeType(data, lx, groundY + 1, lz) != Material.AIR) continue;
-                if (rng.nextDouble() > 0.003) continue;
-
-                BlockData farmland = Material.FARMLAND.createBlockData();
-                if (farmland instanceof Farmland tilled) {
-                    tilled.setMoisture(tilled.getMaximumMoisture());
-                    farmland = tilled;
-                }
-                data.setBlock(lx, groundY, lz, farmland);
-
-                if (groundY - 1 >= world.getMinHeight() && safeType(data, lx, groundY - 1, lz) == Material.AIR) {
-                    data.setBlock(lx, groundY - 1, lz, Material.DIRT);
-                }
-
-                BlockData carrot = Material.CARROTS.createBlockData();
-                if (carrot instanceof Ageable ageable) {
-                    ageable.setAge(ageable.getMaximumAge());
-                    carrot = ageable;
-                }
-                data.setBlock(lx, groundY + 1, lz, carrot);
-                topYGrid[lx][lz] = groundY + 1;
-            }
-        }
+        // Wild crops removed per biome design memo
     }
 
     private void placeCherryTree(ChunkGenerator.ChunkData data, int lx, int y, int lz, int height, SplittableRandom rng) {

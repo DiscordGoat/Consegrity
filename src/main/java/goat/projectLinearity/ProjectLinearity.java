@@ -340,6 +340,8 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("witchfestival", 60, 1, 200, new SwampSector(), GenCheckType.SURFACE, true, 300);
             structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 500);
             structureManager.registerStruct("hotspring", 10, 20, 100, new CherrySector(), GenCheckType.SURFACE, true, 120);
+            structureManager.registerStruct("sugarcane", 10, 3, 100, new DesertBiome(), GenCheckType.SURFACE, true, 120);
+            structureManager.registerStruct("beehive", 5, 20, 30, new MountainSector(), GenCheckType.SURFACE, true, 0);
             structureManager.registerStruct("monument", 70, 20, 500, new OceanSector(), GenCheckType.UNDERWATER, true, 80);
             structureManager.registerStruct("jadestatue1", 20, 1, 800, new JungleSector(), GenCheckType.SURFACE, true, 0);
             structureManager.registerStruct("beacon0", 26, 1, 2, new MountainSector(), GenCheckType.SURFACE, true, 400);
@@ -349,6 +351,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             structureManager.registerStruct("prospect", 20, 8, 200, new MesaSector(), GenCheckType.SURFACE, true, 80);
             structureManager.registerStruct("seamine", 4, 100, 200, new OceanSector(), GenCheckType.UNDERWATER, true, 10, Biome.FROZEN_OCEAN);
             structureManager.registerStruct("seamine", 4, 200, 50, new OceanSector(), GenCheckType.UNDERWATER, true, 80, null);
+
+            structureManager.registerStruct("beets", 6, 5, 50, new SavannaSector(), GenCheckType.SURFACE, true, 80, null);
+            structureManager.registerStruct("potatos", 6, 5, 50, new SwampSector(), GenCheckType.SURFACE, true, 80, null);
+            structureManager.registerStruct("carritz", 6, 5, 50, new CherrySector(), GenCheckType.SURFACE, true, 80, null);
 
 
         } catch (Throwable ignored) {}
@@ -429,9 +435,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (structureEntityManager == null) {
             return;
         }
-        structureEntityManager.registerStructureEntities(StructureType.DESERT_TEMPLE, EntityType.HUSK, 3, 15, 12, 1);
-        structureEntityManager.registerStructureEntities(StructureType.MONUMENT, EntityType.GUARDIAN, 4, 6, 20, 2);
-        structureEntityManager.registerStructureEntities(StructureType.WITCH_HUT, EntityType.WITCH, 1, 4, 10, 1);
+        structureEntityManager.registerStructureEntities(StructureType.DESERT_TEMPLE, EntityType.HUSK, 15, 15, 22, 1);
+        structureEntityManager.registerStructureEntities(StructureType.MONUMENT, EntityType.GUARDIAN, 14, 26, 50, 2);
+        structureEntityManager.registerStructureEntities(StructureType.WITCH_HUT, EntityType.WITCH, 4, 4, 10, 1);
+        structureEntityManager.registerStructureEntities(StructureType.BEEHHIVE, EntityType.BEE, 4, 4, 10, 1);
     }
 
     private void registerRecipes() {
@@ -622,7 +629,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 6,
                 Color.RED,
                 null,
-                Stats.of(StatType.Health(90), StatType.Damage(4), StatType.Resistance(5)),
+                Stats.of(StatType.Health(90), StatType.Damage(4), StatType.Resistance(20)),
                 ChatColor.DARK_RED + "Crimson Cultivator",
                 MutationBehavior.NONE,
                 ItemRegistry.getRedSugarCane(),
@@ -745,6 +752,30 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 0.4f,
                 Biome.WARPED_FOREST
         );
+        registerMutationWithAmbient(
+                "headless_horseman",
+                EntityType.SPIDER,
+                1,
+                null,
+                null,
+                Stats.of(StatType.Health(100), StatType.Speed(4), StatType.Damage(4)),
+                ChatColor.DARK_PURPLE + "Knightmare",
+                MutationBehavior.NONE,
+                new ItemStack(Material.JACK_O_LANTERN),
+                1,
+                1,
+                100,
+                Color.fromRGB(255,215,0),
+                Particle.DUST,
+                Sound.AMBIENT_CAVE,
+                0.1,
+                10,
+                50f,
+                0.4f,
+                Biome.SAVANNA
+        );
+
+
     }
 
     private void registerCustomEntities() {

@@ -26,18 +26,15 @@ public class RegenerateCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("Only players can use this command.");
-            return true;
-        }
-        Player player = (Player) sender;
+        boolean console = !(sender instanceof Player);
+        Player player = console ? null : (Player) sender;
         boolean debug = args != null && args.length > 0 && "debug".equalsIgnoreCase(args[0]);
-        if (!player.hasPermission("consegrity.dev")) {
-            player.sendMessage("You lack permission: consegrity.dev");
+        if (!sender.hasPermission("consegrity.dev")) {
+            sender.sendMessage("You lack permission: consegrity.dev");
             return true;
         }
 
-        player.sendMessage("Regenerating world '" + WORLD_NAME + "'...");
+        sender.sendMessage("Regenerating world '" + WORLD_NAME + "'...");
         try { plugin.setRegenInProgress(true); } catch (Throwable ignored) {}
 
         // 1) Unload and delete existing world if present
@@ -55,13 +52,13 @@ public class RegenerateCommand implements CommandExecutor {
             existing.getPlayers().forEach(p -> p.teleport(finalFallback.getSpawnLocation()));
             boolean ok = Bukkit.unloadWorld(existing, false);
             if (!ok) {
-                player.sendMessage("Failed to unload existing world. Try again.");
+                sender.sendMessage("Failed to unload existing world. Try again.");
                 return true;
             }
             try {
                 deleteWorldFolder(existing.getWorldFolder().toPath());
             } catch (IOException e) {
-                player.sendMessage("Failed to delete world folder: " + e.getMessage());
+                sender.sendMessage("Failed to delete world folder: " + e.getMessage());
                 return true;
             }
         }
@@ -82,8 +79,10 @@ public class RegenerateCommand implements CommandExecutor {
         int sx = 0, sz = 0;
         int sy = newWorld.getHighestBlockYAt(sx, sz) + 1;
         newWorld.setSpawnLocation(sx, sy, sz);
-        player.teleport(newWorld.getSpawnLocation());
-        try { player.sendTitle("Central", "", 5, 40, 5); } catch (Throwable ignored) { player.sendMessage("Central"); }
+        if (player != null) {
+            player.teleport(newWorld.getSpawnLocation());
+            try { player.sendTitle("Central", "", 5, 40, 5); } catch (Throwable ignored) { player.sendMessage("Central"); }
+        }
 
         if (debug) {
             try {

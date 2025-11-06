@@ -84,40 +84,6 @@ public class SavannaSector extends SectorBase {
             }
         }
 
-        // Occasional wild beetroot patches
-        for (int lx = 0; lx < 16; lx++) {
-            for (int lz = 0; lz < 16; lz++) {
-                if (regionGrid[lx][lz] != ConsegrityRegions.Region.SAVANNAH) continue;
-                int topY = topYGrid[lx][lz];
-                Material ground = safeType(data, lx, topY, lz);
-                if (ground == Material.DIRT) {
-                    data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
-                    ground = Material.GRASS_BLOCK;
-                }
-                if (ground != Material.GRASS_BLOCK) continue;
-                if (safeType(data, lx, topY + 1, lz) != Material.AIR) continue;
-                if (rng.nextDouble() > 0.003) continue;
-
-                BlockData farmland = Material.FARMLAND.createBlockData();
-                if (farmland instanceof Farmland tilled) {
-                    tilled.setMoisture(tilled.getMaximumMoisture());
-                    farmland = tilled;
-                }
-                data.setBlock(lx, topY, lz, farmland);
-
-                if (topY - 1 >= world.getMinHeight() && safeType(data, lx, topY - 1, lz) == Material.AIR) {
-                    data.setBlock(lx, topY - 1, lz, Material.DIRT);
-                }
-
-                BlockData beet = Material.BEETROOTS.createBlockData();
-                if (beet instanceof Ageable ageable) {
-                    ageable.setAge(ageable.getMaximumAge());
-                    beet = ageable;
-                }
-                data.setBlock(lx, topY + 1, lz, beet);
-                topYGrid[lx][lz] = topY + 1;
-            }
-        }
     }
 
     private void placeCentralStyleCanopy(ChunkGenerator.ChunkData data, BlockData leaves, int cx, int cy, int cz) {

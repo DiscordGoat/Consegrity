@@ -25,7 +25,8 @@ public enum StructureType {
     PILLAGER("pillager"),
     PROSPECT("prospect"),
     HAY_WAGON("haywagon"),
-    SEAMINE("seamine");
+    SEAMINE("seamine"),
+    BEEHHIVE("beehive");
 
     private static final Map<String, StructureType> LOOKUP;
 

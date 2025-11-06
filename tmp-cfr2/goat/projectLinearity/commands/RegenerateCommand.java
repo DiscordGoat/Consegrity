@@ -36,15 +36,7 @@ implements CommandExecutor {
     public static final String WORLD_NAME = "Consegrity";
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage("Only players can use this command.");
-            return true;
-        }
-        Player player = (Player)sender;
-        if (!player.hasPermission("consegrity.dev")) {
-            player.sendMessage("You lack permission: consegrity.dev");
-            return true;
-        }
+
         player.sendMessage("Regenerating world 'Consegrity'...");
         World existing = Bukkit.getWorld((String)WORLD_NAME);
         if (existing != null) {

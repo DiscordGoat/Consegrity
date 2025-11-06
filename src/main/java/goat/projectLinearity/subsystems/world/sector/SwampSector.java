@@ -106,26 +106,7 @@ public class SwampSector extends SectorBase {
                         ground = Material.GRASS_BLOCK;
                     }
 
-                    if (ground == Material.GRASS_BLOCK && safeType(data, lx, topY + 1, lz) == Material.AIR && rng.nextDouble() < 0.003) {
-                        BlockData farmland = Material.FARMLAND.createBlockData();
-                        if (farmland instanceof Farmland tilled) {
-                            tilled.setMoisture(tilled.getMaximumMoisture());
-                            farmland = tilled;
-                        }
-                        data.setBlock(lx, topY, lz, farmland);
-
-                        if (topY - 1 >= world.getMinHeight() && safeType(data, lx, topY - 1, lz) == Material.AIR) {
-                            data.setBlock(lx, topY - 1, lz, Material.DIRT);
-                        }
-
-                        BlockData potato = Material.POTATOES.createBlockData();
-                        if (potato instanceof Ageable ageable) {
-                            ageable.setAge(ageable.getMaximumAge());
-                            potato = ageable;
-                        }
-                        data.setBlock(lx, topY + 1, lz, potato);
-                        topYGrid[lx][lz] = topY + 1;
-                    }
+                    // Wild potatoes removed per biome design memo
                 }
             }
         }
@@ -155,10 +136,17 @@ public class SwampSector extends SectorBase {
             int wx = baseX + lx, wz = baseZ + lz;
             if (isSwampWater(seed, wx, wz)) continue;
             Material ground = safeType(data, lx, topY, lz);
-            if (ground == Material.WATER) continue; // Don't grow grass on water blocks
-            if (ground != Material.GRASS_BLOCK && ground != Material.DIRT && ground != Material.MUD) continue;
-            if (safeType(data, lx, topY + 1, lz) != Material.AIR) continue;
-            data.setBlock(lx, topY + 1, lz, grassPlant);
+                if (ground == Material.WATER) continue; // Don't grow grass on water blocks
+                if (ground != Material.GRASS_BLOCK && ground != Material.DIRT && ground != Material.MUD) continue;
+                if (safeType(data, lx, topY + 1, lz) != Material.AIR) continue;
+                double roll = rng.nextDouble();
+                if (roll < 0.33) {
+                    data.setBlock(lx, topY + 1, lz, grassPlant);
+                } else if (roll < 0.44) {
+                    data.setBlock(lx, topY + 1, lz, Material.RED_MUSHROOM);
+                } else if (roll < 0.55) {
+                    data.setBlock(lx, topY + 1, lz, Material.BROWN_MUSHROOM);
+                }
         }
     }
 
