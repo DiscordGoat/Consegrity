@@ -163,7 +163,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         enchantedManager = new EnchantedManager(this);
         enchantedManager.start();
         anvilManager = new AnvilManager(this, enchantedManager);
-        potionGuiManager = new PotionGuiManager(this, enchantedManager);
+        potionGuiManager = new PotionGuiManager(this);
         spaceManager = new SpaceManager(this);
         spaceManager.load();
         Bukkit.getPluginManager().registerEvents(new SpacePresenceListener(spaceManager), this);

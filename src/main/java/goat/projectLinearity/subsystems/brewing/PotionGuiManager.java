@@ -5,7 +5,6 @@ import goat.projectLinearity.subsystems.brewing.PotionRegistry.BrewType;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionDefinition;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionIngredient;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionRecipe;
-import goat.projectLinearity.subsystems.enchanting.EnchantedManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
@@ -68,21 +67,17 @@ public final class PotionGuiManager implements Listener {
     private static final int SLOT_BREW = 49;
     private static final int SLOT_TOGGLE = 53;
     private static final int SLOT_BACK = 45;
-    private static final int[] SLOT_BOOKS = {28, 37, 46};
     private static final int[] DECOR_WHITE = {0, 1, 2, 9, 11, 18, 19, 20};
     private static final int[] DECOR_YELLOW = {6, 7, 8, 15, 17, 24, 25, 26};
     private static final int[] DECOR_PURPLE = {12, 13, 14, 21, 23, 30, 31, 32};
 
     private final JavaPlugin plugin;
-    private final EnchantedManager enchantedManager;
-
     private final ItemStack filler;
     private final ItemStack infoPane;
     private final ItemStack backButton;
 
-    public PotionGuiManager(ProjectLinearity plugin, EnchantedManager enchantedManager) {
+    public PotionGuiManager(ProjectLinearity plugin) {
         this.plugin = plugin;
-        this.enchantedManager = enchantedManager;
         this.filler = pane(Material.BLACK_STAINED_GLASS_PANE, " ");
         this.infoPane = pane(Material.LIGHT_BLUE_STAINED_GLASS_PANE, ChatColor.AQUA + "Recipe Guide");
         this.backButton = pane(Material.RED_STAINED_GLASS_PANE, ChatColor.RED + "Back to Catalogue",
@@ -184,7 +179,7 @@ public final class PotionGuiManager implements Listener {
         decorate(inventory, recipe);
 
         inventory.setItem(SLOT_INFO_PRIMARY, recipeGuide(definition, type));
-        inventory.setItem(SLOT_INFO_SECONDARY, enchantGuide());
+        inventory.setItem(SLOT_INFO_SECONDARY, brewingNotes());
 
         inventory.setItem(SLOT_TOGGLE, buildSplashToggle(holder.isSplash()));
         inventory.setItem(SLOT_BREW, buildBrewButton());
@@ -214,9 +209,6 @@ public final class PotionGuiManager implements Listener {
         inventory.setItem(SLOT_BOTTLE, null);
         inventory.setItem(SLOT_ENZYME, null);
         inventory.setItem(SLOT_MAIN, null);
-        for (int slot : SLOT_BOOKS) {
-            inventory.setItem(slot, null);
-        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -250,11 +242,10 @@ public final class PotionGuiManager implements Listener {
         return item;
     }
 
-    private ItemStack enchantGuide() {
-        ItemStack item = pane(Material.BOOKSHELF, ChatColor.LIGHT_PURPLE + "Enchantment Boost",
-                ChatColor.GRAY + "Drop up to three custom enchanted books",
-                ChatColor.GRAY + "to pre-upgrade the potion.");
-        return item;
+    private ItemStack brewingNotes() {
+        return pane(Material.BOOKSHELF, ChatColor.YELLOW + "Brewing Notes",
+                ChatColor.GRAY + "Place the correct bottle, enzyme, and core.",
+                ChatColor.GRAY + "Toggle splash variant before brewing.");
     }
 
     private ItemStack buildBrewButton() {
@@ -329,10 +320,6 @@ public final class PotionGuiManager implements Listener {
     private void returnResidualItems(Player player, Inventory inventory, BrewingHolder holder) {
         boolean droppedAny = false;
         for (int slot : new int[]{SLOT_BOTTLE, SLOT_ENZYME, SLOT_MAIN}) {
-            droppedAny |= returnStack(player, inventory.getItem(slot));
-            inventory.setItem(slot, null);
-        }
-        for (int slot : SLOT_BOOKS) {
             droppedAny |= returnStack(player, inventory.getItem(slot));
             inventory.setItem(slot, null);
         }
@@ -500,8 +487,6 @@ public final class PotionGuiManager implements Listener {
             targetSlot = SLOT_ENZYME;
         } else if (recipe.getMain().matches(stack) && isSlotEmpty(top, SLOT_MAIN)) {
             targetSlot = SLOT_MAIN;
-        } else if (isEnchantBook(stack)) {
-            targetSlot = firstEmptyBookSlot(top);
         }
 
         if (targetSlot == -1) {
@@ -533,9 +518,8 @@ public final class PotionGuiManager implements Listener {
 
     private void handleIngredientSlotClick(InventoryClickEvent event, Player player, Inventory top, BrewingHolder holder, int slot) {
         PotionRecipe recipe = holder.definition.getRecipe(holder.brewType);
-        boolean bookSlot = isBookSlot(slot);
-        PotionIngredient expected = bookSlot ? null : expectedIngredient(recipe, slot);
-        if (!bookSlot && expected == null) {
+        PotionIngredient expected = expectedIngredient(recipe, slot);
+        if (expected == null) {
             player.sendMessage(PREFIX + ChatColor.RED + "That slot is not available.");
             return;
         }
@@ -558,11 +542,8 @@ public final class PotionGuiManager implements Listener {
         ItemStack single = cursor.clone();
         single.setAmount(1);
 
-        boolean matches = bookSlot ? isEnchantBook(single) : expected.matches(single);
-
-        if (!matches) {
-            String requirement = bookSlot ? "custom enchanted books" : expected.friendlyName();
-            player.sendMessage(PREFIX + ChatColor.RED + "This slot accepts only " + requirement + ".");
+        if (!expected.matches(single)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "This slot accepts only " + expected.friendlyName() + ".");
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
             return;
         }
@@ -618,26 +599,11 @@ public final class PotionGuiManager implements Listener {
             return;
         }
 
-        int enchantCount = 0;
-        for (int slot : SLOT_BOOKS) {
-            ItemStack book = top.getItem(slot);
-            if (book == null || book.getType() == Material.AIR) continue;
-            if (!isEnchantBook(book)) {
-                player.sendMessage(PREFIX + ChatColor.RED + "Only custom enchanted books work here.");
-                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 0.8f);
-                return;
-            }
-            enchantCount++;
-        }
-
         top.setItem(SLOT_BOTTLE, null);
         top.setItem(SLOT_ENZYME, null);
         top.setItem(SLOT_MAIN, null);
-        for (int slot : SLOT_BOOKS) {
-            top.setItem(slot, null);
-        }
 
-        ItemStack result = PotionRegistry.createResultItem(holder.definition, holder.brewType, holder.isSplash(), enchantCount);
+        ItemStack result = PotionRegistry.createResultItem(holder.definition, holder.brewType, holder.isSplash(), 0);
         Map<Integer, ItemStack> overflow = player.getInventory().addItem(result);
         overflow.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         player.updateInventory();
@@ -646,9 +612,6 @@ public final class PotionGuiManager implements Listener {
 
         player.sendMessage(PREFIX + ChatColor.GREEN + "Brewed " + holder.definition.getAccentColor()
                 + holder.definition.getDisplayName() + ChatColor.GRAY + " (" + holder.brewType.displayName() + ChatColor.GRAY + ").");
-        if (enchantCount > 0) {
-            player.sendMessage(PREFIX + ChatColor.LIGHT_PURPLE + "Enchantment boost: " + enchantCount + " book(s) consumed.");
-        }
         if (holder.isSplash()) {
             player.sendMessage(PREFIX + ChatColor.GOLD + "Splash variant crafted.");
         }
@@ -663,28 +626,7 @@ public final class PotionGuiManager implements Listener {
     }
 
     private boolean isIngredientSlot(int slot) {
-        if (slot == SLOT_BOTTLE || slot == SLOT_ENZYME || slot == SLOT_MAIN) return true;
-        for (int bookSlot : SLOT_BOOKS) {
-            if (bookSlot == slot) return true;
-        }
-        return false;
-    }
-
-    private boolean isEnchantBook(ItemStack stack) {
-        if (stack == null) {
-            return false;
-        }
-        return enchantedManager.isCustomEnchantedBook(stack);
-    }
-
-    private int firstEmptyBookSlot(Inventory top) {
-        for (int slot : SLOT_BOOKS) {
-            ItemStack item = top.getItem(slot);
-            if (item == null || item.getType() == Material.AIR) {
-                return slot;
-            }
-        }
-        return -1;
+        return slot == SLOT_BOTTLE || slot == SLOT_ENZYME || slot == SLOT_MAIN;
     }
 
     private boolean isSlotEmpty(Inventory top, int slot) {
@@ -699,15 +641,6 @@ public final class PotionGuiManager implements Listener {
             return ChatColor.stripColor(meta.getDisplayName());
         }
         return stack.getType().name().toLowerCase().replace('_', ' ');
-    }
-
-    private boolean isBookSlot(int slot) {
-        for (int candidate : SLOT_BOOKS) {
-            if (candidate == slot) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // --- Holder types ---

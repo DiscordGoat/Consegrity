@@ -1,6 +1,5 @@
 package goat.projectLinearity.subsystems.enchanting;
 
-import goat.projectLinearity.subsystems.brewing.PotionRegistry;
 import goat.projectLinearity.util.ItemRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -241,9 +240,6 @@ public final class EnchantedManager implements Listener {
 
     public boolean isEnchantable(ItemStack stack) {
         if (stack == null || stack.getType() == Material.AIR) return false;
-        if (PotionRegistry.PotionItemData.from(stack).isPresent()) {
-            return true;
-        }
         Material type = stack.getType();
         return type.getMaxDurability() > 0;
     }
@@ -308,24 +304,6 @@ public final class EnchantedManager implements Listener {
 
         cursor = event.getCursor();
         current = event.getCurrentItem();
-        if (cursor != null && cursor.equals(ItemRegistry.getEnchantedBook()) && PotionRegistry.PotionItemData.from(current).isPresent()) {
-            event.setCancelled(true);
-            ItemStack finalCurrent = current;
-            PotionRegistry.PotionItemData.from(current).ifPresent(data -> {
-                int tier = data.getEnchantTier();
-                if (tier >= 3) {
-                    player.sendMessage(ChatColor.RED + "That potion is already Enchanted III.");
-                    return;
-                }
-                PotionRegistry.incrementEnchantTier(finalCurrent, tier + 1);
-                decrementCursor(event, player);
-                player.updateInventory();
-                player.playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1f, 1.2f);
-                player.sendMessage(ChatColor.LIGHT_PURPLE + "Potion enchanted to tier " + roman(tier + 1) + ".");
-            });
-            return;
-        }
-
         if (cursor != null && cursor.equals(ItemRegistry.getEnchantedBook()) && isEnchantable(current)) {
             event.setCancelled(true);
             if (!ensureUpgradeable(player, current)) {
@@ -335,24 +313,6 @@ public final class EnchantedManager implements Listener {
             event.setCurrentItem(current);
             decrementCursor(event, player);
             notifyUpgrade(player, getEnchantedLevel(current));
-            return;
-        }
-
-        if (current != null && PotionRegistry.PotionItemData.from(cursor).isPresent() && event.getCurrentItem() != null && cursor.equals(ItemRegistry.getEnchantedBook())) {
-            event.setCancelled(true);
-            ItemStack finalCursor = cursor;
-            PotionRegistry.PotionItemData.from(cursor).ifPresent(data -> {
-                int tier = data.getEnchantTier();
-                if (tier >= 3) {
-                    player.sendMessage(ChatColor.RED + "That potion is already Enchanted III.");
-                    return;
-                }
-                PotionRegistry.incrementEnchantTier(finalCursor, tier + 1);
-                decrementSlotItem(event, player);
-                player.updateInventory();
-                player.playSound(player.getLocation(), Sound.BLOCK_SMITHING_TABLE_USE, 1f, 1.2f);
-                player.sendMessage(ChatColor.LIGHT_PURPLE + "Potion enchanted to tier " + roman(tier + 1) + ".");
-            });
             return;
         }
 
