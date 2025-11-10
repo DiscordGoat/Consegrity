@@ -9,6 +9,8 @@ import goat.projectLinearity.subsystems.mechanics.DamageDisplayManager;
 import goat.projectLinearity.subsystems.mechanics.DamageDisplayManager.HighFrequencyStyle;
 import goat.projectLinearity.subsystems.mechanics.TablistManager;
 import goat.projectLinearity.subsystems.world.samurai.SamuraiPopulationManager;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
@@ -40,6 +42,8 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -101,6 +105,12 @@ public final class CustomPotionEffectManager implements Listener {
             "instant_damage",
             "wither"
     );
+    private static String buildEffectKey(String definitionId, BrewType brewType) {
+        if (definitionId == null || brewType == null) {
+            return "";
+        }
+        return definitionId.toLowerCase(Locale.ENGLISH) + ":" + brewType.name();
+    }
     private final ProjectLinearity plugin;
     private final TablistManager tablistManager;
     private final DamageDisplayManager damageDisplayManager;
@@ -113,6 +123,7 @@ public final class CustomPotionEffectManager implements Listener {
     private final BukkitTask tickTask;
     private final NamespacedKey luckFortuneKey;
     private final NamespacedKey luckLootKey;
+    private final File persistenceFile;
 
     public enum CleanseMode {
         POSITIVE,
@@ -149,8 +160,15 @@ public final class CustomPotionEffectManager implements Listener {
         this.charismaticBarterPlayers = ConcurrentHashMap.newKeySet();
         this.luckFortuneKey = new NamespacedKey(plugin, "luck_fortune_level");
         this.luckLootKey = new NamespacedKey(plugin, "luck_loot_level");
+        this.persistenceFile = new File(plugin.getDataFolder(), "custom_effects.yml");
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        loadPersistedEffects();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                restorePlayerState(online);
+            }
+        });
 
         this.tickTask = new BukkitRunnable() {
             @Override
@@ -214,6 +232,7 @@ public final class CustomPotionEffectManager implements Listener {
         }
         charismaticBarterPlayers.clear();
         slowFallingAirTicks.clear();
+        savePersistedEffects();
         playerEffects.clear();
         entityEffects.clear();
     }
@@ -403,7 +422,7 @@ public final class CustomPotionEffectManager implements Listener {
         if (target instanceof Player player) {
             cancelDamageTask(player.getUniqueId());
             Map<String, ActiveEffect> effects = playerEffects.computeIfAbsent(player.getUniqueId(), id -> new HashMap<>());
-            String key = definition.getId() + ":" + brewType.name();
+            String key = buildEffectKey(definition.getId(), brewType);
             ActiveEffect effect = effects.computeIfAbsent(key, ignored -> new ActiveEffect(definition, brewType, cappedEnchant, definition.getAccentBukkitColor()));
             effect.refresh(cappedDuration, cappedPotency, player);
             if ("health_boost".equalsIgnoreCase(definitionId)) {
@@ -420,7 +439,7 @@ public final class CustomPotionEffectManager implements Listener {
             UUID uuid = target.getUniqueId();
             cancelDamageTask(uuid);
             Map<String, ActiveEffect> effects = entityEffects.computeIfAbsent(uuid, id -> new HashMap<>());
-            String key = definition.getId() + ":" + brewType.name();
+            String key = buildEffectKey(definition.getId(), brewType);
             ActiveEffect effect = effects.computeIfAbsent(key, ignored -> new ActiveEffect(definition, brewType, cappedEnchant, definition.getAccentBukkitColor()));
             effect.refresh(cappedDuration, cappedPotency, target);
             if ("health_boost".equalsIgnoreCase(definitionId)) {
@@ -823,6 +842,127 @@ public final class CustomPotionEffectManager implements Listener {
         }
     }
 
+    private void savePersistedEffects() {
+        YamlConfiguration config = new YamlConfiguration();
+        for (Map.Entry<UUID, Map<String, ActiveEffect>> entry : playerEffects.entrySet()) {
+            Map<String, ActiveEffect> effects = entry.getValue();
+            if (effects == null || effects.isEmpty()) {
+                continue;
+            }
+            ConfigurationSection section = config.createSection(entry.getKey().toString());
+            int index = 0;
+            for (ActiveEffect effect : effects.values()) {
+                if (effect.getRemainingSeconds() <= 0) {
+                    continue;
+                }
+                ConfigurationSection effectSection = section.createSection(String.valueOf(index++));
+                serializeEffect(effectSection, effect);
+            }
+            if (section.getKeys(false).isEmpty()) {
+                config.set(entry.getKey().toString(), null);
+            }
+        }
+        try {
+            File parent = persistenceFile.getParentFile();
+            if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                plugin.getLogger().warning("Unable to create data folder for custom potion effects.");
+            }
+            if (config.getKeys(false).isEmpty()) {
+                if (persistenceFile.exists() && !persistenceFile.delete()) {
+                    plugin.getLogger().warning("Unable to delete empty custom potion effect store.");
+                }
+                return;
+            }
+            config.save(persistenceFile);
+        } catch (IOException ex) {
+            plugin.getLogger().warning("Failed to save custom potion effects: " + ex.getMessage());
+        }
+    }
+
+    private void serializeEffect(ConfigurationSection section, ActiveEffect effect) {
+        if (section == null || effect == null) {
+            return;
+        }
+        section.set("id", effect.definition.getId());
+        section.set("brew_type", effect.getBrewType().name());
+        section.set("enchant_tier", effect.getEnchantTier());
+        section.set("potency", effect.getPotency());
+        section.set("remaining", effect.getRemainingSeconds());
+        section.set("duration", effect.getTotalDuration());
+    }
+
+    private void loadPersistedEffects() {
+        if (!persistenceFile.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(persistenceFile);
+        for (String uuidKey : config.getKeys(false)) {
+            UUID uuid;
+            try {
+                uuid = UUID.fromString(uuidKey);
+            } catch (IllegalArgumentException ignored) {
+                continue;
+            }
+            ConfigurationSection section = config.getConfigurationSection(uuidKey);
+            if (section == null) {
+                continue;
+            }
+            for (String childKey : section.getKeys(false)) {
+                ConfigurationSection effectSection = section.getConfigurationSection(childKey);
+                if (effectSection == null) {
+                    continue;
+                }
+                EffectSnapshot snapshot = deserializeEffect(effectSection);
+                if (snapshot == null) {
+                    continue;
+                }
+                PotionDefinition definition = PotionRegistry.getById(snapshot.effectId()).orElse(null);
+                if (definition == null) {
+                    continue;
+                }
+                ActiveEffect effect = new ActiveEffect(definition, snapshot.brewType(), snapshot.enchantTier(), definition.getAccentBukkitColor());
+                effect.restore(snapshot.remainingSeconds(), snapshot.totalDuration(), snapshot.potency());
+                playerEffects.computeIfAbsent(uuid, id -> new HashMap<>()).put(snapshot.effectKey(), effect);
+            }
+        }
+    }
+
+    private EffectSnapshot deserializeEffect(ConfigurationSection section) {
+        if (section == null) {
+            return null;
+        }
+        String effectId = section.getString("id");
+        String brewTypeRaw = section.getString("brew_type");
+        if (effectId == null || brewTypeRaw == null) {
+            return null;
+        }
+        BrewType brewType;
+        try {
+            brewType = BrewType.valueOf(brewTypeRaw);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+        int enchantTier = Math.max(0, section.getInt("enchant_tier", 0));
+        int potency = Math.max(0, section.getInt("potency", 0));
+        int remaining = Math.max(0, section.getInt("remaining", 0));
+        int duration = Math.max(remaining, section.getInt("duration", remaining));
+        if (remaining <= 0 || duration <= 0) {
+            return null;
+        }
+        return new EffectSnapshot(effectId, brewType, enchantTier, potency, remaining, duration);
+    }
+
+    private record EffectSnapshot(String effectId,
+                                  BrewType brewType,
+                                  int enchantTier,
+                                  int potency,
+                                  int remainingSeconds,
+                                  int totalDuration) {
+        String effectKey() {
+            return buildEffectKey(effectId, brewType);
+        }
+    }
+
     private void applyHealthBoostBonus(LivingEntity target, int potency) {
         if (target == null) {
             return;
@@ -1002,35 +1142,59 @@ public final class CustomPotionEffectManager implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            Player player = event.getPlayer();
-            tablistManager.refreshPlayer(player);
-            if (hasEffect(player, "luck")) {
-                int luckPotency = getEffectPotency(player, "luck");
-                if (luckPotency > 0) {
-                    applyLuckEnhancements(player, luckPotency);
-                }
+        Bukkit.getScheduler().runTask(plugin, () -> restorePlayerState(event.getPlayer()));
+    }
+
+    private void restorePlayerState(Player player) {
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        bootstrapPlayerEffects(player);
+        tablistManager.refreshPlayer(player);
+        if (hasEffect(player, "luck")) {
+            int luckPotency = getEffectPotency(player, "luck");
+            if (luckPotency > 0) {
+                applyLuckEnhancements(player, luckPotency);
             }
-            if (hasEffect(player, "absorption")) {
-                int absorptionPotency = getEffectPotency(player, "absorption");
-                if (absorptionPotency > 0) {
-                    int remaining = getEffectRemainingSeconds(player.getUniqueId(), "absorption");
-                    if (remaining <= 0) {
-                        PotionEffect current = player.getPotionEffect(PotionEffectType.ABSORPTION);
-                        if (current != null) {
-                            remaining = Math.max(remaining, current.getDuration() / 20);
-                        }
+        }
+        if (hasEffect(player, "absorption")) {
+            int absorptionPotency = getEffectPotency(player, "absorption");
+            if (absorptionPotency > 0) {
+                int remaining = getEffectRemainingSeconds(player.getUniqueId(), "absorption");
+                if (remaining <= 0) {
+                    PotionEffect current = player.getPotionEffect(PotionEffectType.ABSORPTION);
+                    if (current != null) {
+                        remaining = Math.max(remaining, current.getDuration() / 20);
                     }
-                    if (remaining <= 0) {
-                        remaining = 600;
-                    }
-                    CustomPotionEffects.applyAbsorption(player, absorptionPotency, remaining);
                 }
+                if (remaining <= 0) {
+                    remaining = 600;
+                }
+                CustomPotionEffects.applyAbsorption(player, absorptionPotency, remaining);
             }
-            if (hasEffect(player, "charismatic_bartering")) {
-                applyCharismaticBonus(player);
+        }
+        if (hasEffect(player, "charismatic_bartering")) {
+            applyCharismaticBonus(player);
+        }
+    }
+
+    private void bootstrapPlayerEffects(Player player) {
+        Map<String, ActiveEffect> effects = playerEffects.get(player.getUniqueId());
+        if (effects == null || effects.isEmpty()) {
+            return;
+        }
+        Iterator<Map.Entry<String, ActiveEffect>> iterator = effects.entrySet().iterator();
+        while (iterator.hasNext()) {
+            ActiveEffect effect = iterator.next().getValue();
+            if (effect.getRemainingSeconds() <= 0) {
+                iterator.remove();
+                continue;
             }
-        });
+            effect.reapply(player);
+        }
+        if (effects.isEmpty()) {
+            playerEffects.remove(player.getUniqueId());
+        }
     }
 
     @EventHandler
@@ -1150,6 +1314,16 @@ public final class CustomPotionEffectManager implements Listener {
             CustomPotionEffects.applyImmediate(definition, brewType, potency, target);
         }
 
+        private void reapply(LivingEntity target) {
+            CustomPotionEffects.applyImmediate(definition, brewType, potency, target);
+        }
+        private void restore(int remainingSeconds, int totalDuration, int potency) {
+            this.remainingSeconds = remainingSeconds;
+            this.totalDuration = Math.max(remainingSeconds, totalDuration);
+            this.potency = potency;
+            this.elapsedSeconds = Math.max(0, this.totalDuration - this.remainingSeconds);
+        }
+
         private boolean tick(LivingEntity target) {
             if (remainingSeconds <= 0) {
                 return true;
@@ -1173,6 +1347,26 @@ public final class CustomPotionEffectManager implements Listener {
 
         private int getPotency() {
             return potency;
+        }
+
+        private int getRemainingSeconds() {
+            return remainingSeconds;
+        }
+
+        private int getTotalDuration() {
+            return totalDuration;
+        }
+
+        private BrewType getBrewType() {
+            return brewType;
+        }
+
+        private int getEnchantTier() {
+            return enchantTier;
+        }
+
+        private String effectKey() {
+            return buildEffectKey(definition.getId(), brewType);
         }
     }
 

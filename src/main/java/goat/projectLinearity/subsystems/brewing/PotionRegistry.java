@@ -242,7 +242,7 @@ public final class PotionRegistry {
                                 Material.NETHER_WART,
                                 "Hoglin Roast"
                         ),
-                        new PotionStats(1, 1, 8),   // Instant effect, 20 uses
+                        new PotionStats(1, 1, 4),   // Instant effect, 20 uses
                         new PotionStats(1, 1, 20)
                 )
         );
@@ -276,7 +276,7 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.SHULKER_SHELL
+                                Material.GHAST_TEAR
                         ),
                         new PotionStats(20, 1, 8),   // Overworld: short duration, potency 1, 8 charges
                         new PotionStats(30, 2, 6)    // Nether: longer duration, potency 2, 6 charges
@@ -289,12 +289,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.EMERALD
+                                Material.RABBIT_FOOT
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.RABBIT_FOOT
+                                "Magma Cube Foot"
                         ),
                         new PotionStats(180, 1, 10),  // Overworld: 3 minutes, potency 1, 10 charges
                         new PotionStats(240, 2, 6)    // Nether: 4 minutes, potency 2, 6 charges
@@ -312,9 +312,9 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.GHAST_TEAR
+                                Material.PHANTOM_MEMBRANE
                         ),
-                        new PotionStats(120, 1, 12),
+                        new PotionStats(20, 1, 12),
                         new PotionStats(240, 2, 8)
                 )
         );
@@ -325,12 +325,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.AMETHYST_SHARD
+                                "Cloudbreaker"
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.LIGHTNING_ROD
+                                "Voltaic Chainmail"
                         ),
                         new PotionStats(1, 1, 12),
                         new PotionStats(1, 1, 12)
@@ -343,12 +343,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.BLACK_DYE
+                                Material.INK_SAC
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.ENDER_EYE
+                                "Ash"
                         ),
                         new PotionStats(30, 1, 10),  // Overworld: 30s duration, potency 1, 10 charges
                         new PotionStats(60, 2, 5)    // Nether: 60s duration, potency 2, 5 charges
@@ -365,7 +365,7 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.ENDER_PEARL
+                                "Warped Veil"
                         ),
                         new PotionStats(60, 1, 15),  // Overworld: 60s duration, potency 1, 15 charges
                         new PotionStats(180, 2, 5)   // Nether: 180s duration, potency 2, 5 charges
@@ -462,12 +462,12 @@ public final class PotionRegistry {
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.HONEY_BOTTLE,
-                                Material.SPIDER_EYE
+                                Material.TNT
                         ),
                         new PotionRecipe(
                                 Material.GLASS_BOTTLE,
                                 Material.NETHER_WART,
-                                Material.FERMENTED_SPIDER_EYE
+                                "Fireball"
                         ),
                         new PotionStats(1, 1, 16),
                         new PotionStats(1, 2, 12)

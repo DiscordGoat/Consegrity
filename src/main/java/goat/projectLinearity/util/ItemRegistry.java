@@ -360,6 +360,18 @@ public final class ItemRegistry {
         return stripped != null && stripped.equalsIgnoreCase("Rosegold Sword");
     }
 
+    public static boolean isFireball(ItemStack item) {
+        if (item == null || item.getType() != Material.FIRE_CHARGE) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) {
+            return false;
+        }
+        String stripped = ChatColor.stripColor(meta.getDisplayName());
+        return stripped != null && stripped.equalsIgnoreCase("Fireball");
+    }
+
     private static void setGlintOverride(ItemMeta meta, Boolean override) {
         if (meta == null) {
             return;
@@ -608,6 +620,106 @@ public final class ItemRegistry {
                 false   // Add enchantment shimmer
         );
     }
+
+    public static ItemStack getHoglinRoast() {
+        return createCustomItem(
+                Material.COOKED_PORKCHOP,
+                ChatColor.GOLD + "Hoglin Roast",
+                Arrays.asList(
+                        ChatColor.GRAY + "A savory delicacy charred by crimson flames.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Well Balanced Meal."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getCloudbreaker() {
+        return createCustomItem(
+                Material.LIGHTNING_ROD,
+                ChatColor.AQUA + "Cloudbreaker",
+                Arrays.asList(
+                        ChatColor.GRAY + "A lightning rod supercharged by wandering storms.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Instant Lightning."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getVoltaicChainmail() {
+        return createCustomItem(
+                Material.CHAINMAIL_CHESTPLATE,
+                ChatColor.LIGHT_PURPLE + "Voltaic Chainmail",
+                Arrays.asList(
+                        ChatColor.GRAY + "Chain links humming with raw Nether static.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Instant Lightning."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getAsh() {
+        return createCustomItem(
+                Material.GUNPOWDER,
+                ChatColor.DARK_GRAY + "Ash",
+                Arrays.asList(
+                        ChatColor.GRAY + "Cinders scraped from a demon's husk.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Blindness."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getMagmaCubeFoot() {
+        return createCustomItem(
+                Material.MAGMA_CREAM,
+                ChatColor.GOLD + "Magma Cube Foot",
+                Arrays.asList(
+                        ChatColor.GRAY + "A warped hoof severed from a rabid nether cube.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Luck (Nether)."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getWarpedVeil() {
+        return createCustomItem(
+                Material.CYAN_DYE,
+                ChatColor.DARK_AQUA + "Warped Veil",
+                Arrays.asList(
+                        ChatColor.GRAY + "A diaphanous scrap torn from a SneakMite ambush.",
+                        ChatColor.BLUE + "Used in brewing the Potion of Invisibility (Nether)."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getFireball() {
+        return createCustomItem(
+                Material.FIRE_CHARGE,
+                ChatColor.GOLD + "Fireball",
+                Arrays.asList(
+                        ChatColor.GRAY + "Crackling volatile core siphoned from a Three Headed Ghast.",
+                        ChatColor.BLUE + "Use: " + ChatColor.GRAY + "Right-click in the air to launch a blazing projectile.",
+                        ChatColor.BLUE + "Brewing: " + ChatColor.GRAY + "Ingredient for Nether Instant Damage."
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
     public static ItemStack getMarrow() {
         return createCustomItem(
                 Material.BONE_BLOCK,

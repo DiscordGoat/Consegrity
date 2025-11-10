@@ -9,12 +9,20 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Biome;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Arrow;
+import org.bukkit.entity.Creeper;
+import org.bukkit.entity.Enderman;
+import org.bukkit.entity.Endermite;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -26,7 +34,12 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.LeatherArmorMeta;
@@ -39,10 +52,12 @@ import org.bukkit.event.world.EntitiesLoadEvent;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -62,7 +77,13 @@ public final class MutationManager implements Listener {
     private final Map<EntityType, List<MutationDefinition>> definitions = new EnumMap<>(EntityType.class);
     private final Map<String, MutationDefinition> definitionLookup = new ConcurrentHashMap<>();
     private final Map<UUID, ActiveMutation> activeMutations = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<UUID>> bossBarTrustedViewers = new ConcurrentHashMap<>();
     private static final boolean DEBUG = true;
+    private static final double ELITE_HEALTH_THRESHOLD = 40.0D;
+    private static final double BOSSBAR_RANGE_BLOCKS = 10.0D;
+    private static final double BOSSBAR_RANGE_SQUARED = BOSSBAR_RANGE_BLOCKS * BOSSBAR_RANGE_BLOCKS;
+    private static final double THREE_HEADED_GHAST_BOSSBAR_RANGE_SQUARED = 200 * 200;
+    private static final long BOSSBAR_UPDATE_INTERVAL_TICKS = 10L;
 
     public MutationManager(ProjectLinearity plugin, ParticleEngine particleEngine) {
         this.plugin = plugin;
@@ -70,6 +91,28 @@ public final class MutationManager implements Listener {
         this.mutationKey = new NamespacedKey(plugin, "mutation_id");
         this.mutationIdKey = new NamespacedKey(plugin, "mutation_name");
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityRegainHealth(EntityRegainHealthEvent event) {
+        ActiveMutation mutation = activeMutations.get(event.getEntity().getUniqueId());
+        if (mutation == null) {
+            return;
+        }
+        if (event.getEntity() instanceof LivingEntity living) {
+            refreshBossBar(living, mutation);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onEndermanTargetsEndermite(EntityTargetEvent event) {
+        if (!(event.getEntity() instanceof Enderman)) {
+            return;
+        }
+        if (event.getTarget() instanceof Endermite) {
+            event.setCancelled(true);
+            event.setTarget(null);
+        }
     }
 
     public void shutdown() {
@@ -81,6 +124,7 @@ public final class MutationManager implements Listener {
             }
         }
         activeMutations.clear();
+        bossBarTrustedViewers.clear();
     }
 
     public void registerMutation(String mutationId,
@@ -219,6 +263,19 @@ public final class MutationManager implements Listener {
                 && event.getEntity() instanceof Player target) {
             target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 0, true, true, true));
         }
+
+        if (event.getEntity() instanceof LivingEntity victim) {
+            ActiveMutation victimMutation = activeMutations.get(victim.getUniqueId());
+            if (victimMutation != null && victimMutation.definition().behavior() == MutationBehavior.THREE_HEADED_GHAST) {
+                if (event.getDamager() instanceof Fireball fireball) {
+                    ProjectileSource shooter = fireball.getShooter();
+                    if (shooter instanceof Player player) {
+                        grantBossBarVision(victim.getUniqueId(), player.getUniqueId());
+                    }
+                    event.setDamage(Math.min(event.getDamage(), 25.0));
+                }
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -237,6 +294,12 @@ public final class MutationManager implements Listener {
             reduction = 0.0;
         }
         event.setDamage(event.getDamage() * reduction);
+        if (entity instanceof LivingEntity living) {
+            refreshBossBar(living, mutation);
+            if (mutation.definition().behavior() == MutationBehavior.THREE_HEADED_GHAST) {
+                living.getWorld().playSound(living.getLocation(), Sound.ENTITY_GHAST_SCREAM, 8f, 0.4f);
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -249,6 +312,7 @@ public final class MutationManager implements Listener {
         if (particleEngine != null) {
             particleEngine.detachAmbientEffect(event.getEntity().getUniqueId());
         }
+        bossBarTrustedViewers.remove(event.getEntity().getUniqueId());
 
         MutationDefinition definition = mutation.definition();
         ItemStack dropItem = definition.drop();
@@ -289,6 +353,30 @@ public final class MutationManager implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamageByEntityMonitor(EntityDamageByEntityEvent event) {
+        Entity damager = event.getDamager();
+        if (damager == null) {
+            return;
+        }
+        LivingEntity attacker = null;
+        if (damager instanceof LivingEntity living) {
+            attacker = living;
+        } else if (damager instanceof Projectile projectile && projectile.getShooter() instanceof LivingEntity shooter) {
+            attacker = shooter;
+        }
+        if (attacker == null) {
+            return;
+        }
+        ActiveMutation mutation = activeMutations.get(attacker.getUniqueId());
+        if (mutation == null || mutation.definition().behavior() != MutationBehavior.DUST_DEMON) {
+            return;
+        }
+        if (event.getEntity() instanceof Player target) {
+            target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 100, 0, true, true, true));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
             if (!(entity instanceof LivingEntity living)) {
@@ -325,6 +413,57 @@ public final class MutationManager implements Listener {
         projectile.setVelocity(projectile.getVelocity().multiply(4.0));
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityExplode(EntityExplodeEvent event) {
+        Entity source = event.getEntity();
+        if (!(source instanceof Creeper creeper)) {
+            return;
+        }
+        ActiveMutation mutation = activeMutations.get(creeper.getUniqueId());
+        if (mutation == null || mutation.definition().behavior() != MutationBehavior.VOLTAIC_CREEPER) {
+            return;
+        }
+        Location origin = event.getLocation();
+        World world = origin.getWorld();
+        if (world == null) {
+            return;
+        }
+        double radius = 6.0;
+        world.getNearbyEntities(origin, radius, radius, radius).stream()
+                .filter(LivingEntity.class::isInstance)
+                .map(LivingEntity.class::cast)
+                .filter(living -> !living.getUniqueId().equals(creeper.getUniqueId()))
+                .forEach(living -> world.strikeLightning(living.getLocation()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onProjectileHit(ProjectileHitEvent event) {
+        Projectile projectile = event.getEntity();
+        if (!(projectile instanceof Fireball)) {
+            return;
+        }
+        if (!(projectile.getShooter() instanceof LivingEntity shooter)) {
+            return;
+        }
+        ActiveMutation mutation = activeMutations.get(shooter.getUniqueId());
+        if (mutation == null || mutation.definition().behavior() != MutationBehavior.STORMCALLER) {
+            return;
+        }
+        Location strikeLocation;
+        if (event.getHitEntity() != null) {
+            strikeLocation = event.getHitEntity().getLocation();
+        } else if (event.getHitBlock() != null) {
+            strikeLocation = event.getHitBlock().getLocation().add(0.5, 0.5, 0.5);
+        } else {
+            strikeLocation = projectile.getLocation();
+        }
+        World world = strikeLocation.getWorld();
+        if (world == null) {
+            return;
+        }
+        world.strikeLightning(strikeLocation);
+    }
+
     private void mutateEntity(LivingEntity entity, MutationDefinition definition) {
         markMutated(entity, definition);
         applyAppearance(entity, definition);
@@ -332,6 +471,8 @@ public final class MutationManager implements Listener {
         ActiveMutation mutation = applyStats(entity, definition);
         startBehavior(entity, mutation);
         activeMutations.put(entity.getUniqueId(), mutation);
+        updateBossBarVisionRegistry(entity.getUniqueId(), definition.behavior());
+        maybeStartBossBarTracking(entity, mutation);
         if (definition.hasAmbientEffect()) {
             attachAmbient(entity, definition);
         }
@@ -363,6 +504,19 @@ public final class MutationManager implements Listener {
         return Optional.of(living);
     }
 
+    public boolean forceApplyMutation(LivingEntity entity, String mutationId) {
+        if (entity == null || mutationId == null || mutationId.isBlank()) {
+            return false;
+        }
+        String normalized = normalizeId(mutationId);
+        MutationDefinition definition = definitionLookup.get(normalized);
+        if (definition == null || definition.entityType() != entity.getType()) {
+            return false;
+        }
+        mutateEntity(entity, definition);
+        return true;
+    }
+
     private void rehydrateEntity(LivingEntity entity, MutationDefinition definition) {
         UUID uuid = entity.getUniqueId();
         ActiveMutation mutation = activeMutations.get(uuid);
@@ -373,6 +527,8 @@ public final class MutationManager implements Listener {
         }
         markMutated(entity, definition);
         startBehavior(entity, mutation);
+        maybeStartBossBarTracking(entity, mutation);
+        updateBossBarVisionRegistry(entity.getUniqueId(), definition.behavior());
         applyAppearance(entity, definition);
         applyName(entity, definition);
         if (definition.hasAmbientEffect()) {
@@ -381,7 +537,7 @@ public final class MutationManager implements Listener {
     }
 
     public void rehydrateExistingMutations() {
-        for (org.bukkit.World world : plugin.getServer().getWorlds()) {
+        for (World world : plugin.getServer().getWorlds()) {
             for (LivingEntity entity : world.getLivingEntities()) {
                 if (!isMutated(entity)) {
                     continue;
@@ -400,6 +556,7 @@ public final class MutationManager implements Listener {
                 startBehavior(entity, mutation);
                 applyAppearance(entity, definition);
                 applyName(entity, definition);
+                updateBossBarVisionRegistry(entity.getUniqueId(), definition.behavior());
                 if (definition.hasAmbientEffect()) {
                     attachAmbient(entity, definition);
                 }
@@ -613,6 +770,173 @@ public final class MutationManager implements Listener {
         String identifier = definition.id();
         debug(String.format("attachAmbientEffect: '%s' -> %s (%s)", identifier, entity.getUniqueId(), entity.getType()));
         particleEngine.attachAmbientEffect(entity, identifier);
+    }
+
+    private void updateBossBarVisionRegistry(UUID entityId, MutationBehavior behavior) {
+        if (entityId == null) {
+            return;
+        }
+        if (behavior == MutationBehavior.THREE_HEADED_GHAST) {
+            bossBarTrustedViewers.computeIfAbsent(entityId, ignored -> ConcurrentHashMap.newKeySet());
+        } else {
+            bossBarTrustedViewers.remove(entityId);
+        }
+    }
+
+    private void grantBossBarVision(UUID entityId, UUID playerId) {
+        if (entityId == null || playerId == null) {
+            return;
+        }
+        bossBarTrustedViewers
+                .computeIfAbsent(entityId, ignored -> ConcurrentHashMap.newKeySet())
+                .add(playerId);
+    }
+
+    private void maybeStartBossBarTracking(LivingEntity entity, ActiveMutation mutation) {
+        if (entity == null || mutation == null) {
+            return;
+        }
+        if (mutation.healthBossBar() != null) {
+            return;
+        }
+        double maxHealth = resolveMaxHealth(entity);
+        if (maxHealth <= ELITE_HEALTH_THRESHOLD) {
+            return;
+        }
+        BossBar bossBar = plugin.getServer().createBossBar(
+                buildBossBarTitle(entity, mutation, entity.getHealth(), maxHealth),
+                BarColor.PURPLE,
+                BarStyle.SEGMENTED_10
+        );
+        mutation.healthBossBar(bossBar);
+        refreshBossBar(entity, mutation);
+        BukkitTask tracker = plugin.getServer().getScheduler().runTaskTimer(
+                plugin,
+                () -> refreshBossBar(entity, mutation),
+                BOSSBAR_UPDATE_INTERVAL_TICKS,
+                BOSSBAR_UPDATE_INTERVAL_TICKS
+        );
+        mutation.bossBarTask(tracker);
+    }
+
+    private void refreshBossBar(LivingEntity entity, ActiveMutation mutation) {
+        BossBar bossBar = mutation.healthBossBar();
+        if (bossBar == null) {
+            return;
+        }
+        if (entity == null || entity.isDead() || !entity.isValid()) {
+            mutation.cancelBossBar();
+            return;
+        }
+        double maxHealth = Math.max(1.0D, resolveMaxHealth(entity));
+        double currentHealth = Math.max(0.0D, Math.min(maxHealth, entity.getHealth()));
+        double progress = Math.max(0.0D, Math.min(1.0D, currentHealth / maxHealth));
+        bossBar.setProgress(progress);
+        bossBar.setTitle(buildBossBarTitle(entity, mutation, currentHealth, maxHealth));
+        syncBossBarViewers(entity, bossBar, mutation);
+    }
+
+    private String buildBossBarTitle(LivingEntity entity, ActiveMutation mutation, double health, double maxHealth) {
+        String displayName = mutation.definition().name();
+        if (displayName == null || displayName.isBlank()) {
+            displayName = formatEntityTypeName(entity);
+        }
+        int current = (int) Math.ceil(health);
+        int max = (int) Math.ceil(maxHealth);
+        return ChatColor.DARK_PURPLE + displayName
+                + ChatColor.GRAY + " [" + ChatColor.RED + current
+                + ChatColor.GRAY + "/" + ChatColor.WHITE + max + ChatColor.GRAY + "]";
+    }
+
+    private String formatEntityTypeName(LivingEntity entity) {
+        if (entity == null) {
+            return "Mutant";
+        }
+        String typeName = entity.getType().name().toLowerCase(Locale.ENGLISH).replace('_', ' ');
+        return capitalizeWords(typeName);
+    }
+
+    private String capitalizeWords(String input) {
+        if (input == null || input.isBlank()) {
+            return "";
+        }
+        String[] parts = input.trim().split("\\s+");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1).toLowerCase(Locale.ENGLISH));
+            }
+            builder.append(' ');
+        }
+        return builder.toString().trim();
+    }
+
+    private void syncBossBarViewers(LivingEntity entity, BossBar bossBar, ActiveMutation mutation) {
+        if (entity == null || bossBar == null || entity.getWorld() == null) {
+            return;
+        }
+        Location origin = entity.getLocation();
+        List<Player> worldPlayers = entity.getWorld().getPlayers();
+        List<Player> currentViewers = new ArrayList<>(bossBar.getPlayers());
+        Set<UUID> viewerIds = new HashSet<>();
+        boolean isThreeHeaded = mutation != null && mutation.definition().behavior() == MutationBehavior.THREE_HEADED_GHAST;
+        double currentHealth = entity.getHealth();
+        double maxHealth = resolveMaxHealth(entity);
+        double healthThreshold = maxHealth <= 0 ? 0 : maxHealth - 50.0; // below 450 (500 max) => max-50
+        boolean broadcastMode = isThreeHeaded && currentHealth <= healthThreshold;
+        Set<UUID> trustedViewers = isThreeHeaded ? bossBarTrustedViewers.get(entity.getUniqueId()) : null;
+        for (Player viewer : currentViewers) {
+            UUID viewerId = viewer.getUniqueId();
+            viewerIds.add(viewerId);
+            double allowedRange = BOSSBAR_RANGE_SQUARED;
+            if (isThreeHeaded) {
+                if (broadcastMode) {
+                    allowedRange = THREE_HEADED_GHAST_BOSSBAR_RANGE_SQUARED;
+                } else if (trustedViewers != null && trustedViewers.contains(viewerId)) {
+                    allowedRange = THREE_HEADED_GHAST_BOSSBAR_RANGE_SQUARED;
+                }
+            }
+            boolean remove = !viewer.isOnline()
+                    || viewer.isDead()
+                    || viewer.getWorld() != entity.getWorld()
+                    || viewer.getLocation().distanceSquared(origin) > allowedRange;
+            if (remove) {
+                bossBar.removePlayer(viewer);
+                viewerIds.remove(viewerId);
+            }
+        }
+        for (Player player : worldPlayers) {
+            if (!player.isOnline() || player.isDead()) {
+                continue;
+            }
+            double allowedRange = BOSSBAR_RANGE_SQUARED;
+            if (isThreeHeaded) {
+                if (broadcastMode) {
+                    allowedRange = THREE_HEADED_GHAST_BOSSBAR_RANGE_SQUARED;
+                } else if (trustedViewers != null && trustedViewers.contains(player.getUniqueId())) {
+                    allowedRange = THREE_HEADED_GHAST_BOSSBAR_RANGE_SQUARED;
+                }
+            }
+            if (player.getLocation().distanceSquared(origin) <= allowedRange
+                    && viewerIds.add(player.getUniqueId())) {
+                bossBar.addPlayer(player);
+            }
+        }
+    }
+
+    private double resolveMaxHealth(LivingEntity entity) {
+        if (entity == null) {
+            return 0.0D;
+        }
+        AttributeInstance attribute = entity.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        if (attribute != null) {
+            return attribute.getValue();
+        }
+        return entity.getHealth();
     }
 
     private int clampPercentage(int value) {

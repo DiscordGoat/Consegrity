@@ -74,7 +74,13 @@ public class ConsegritySpawnListener implements Listener {
                         double ox = baseX + lx + (rng.nextDouble() - 0.5) * 8.0;
                         double oy = Math.max(topKelpY - 2, topKelpY - rng.nextInt(Math.min(10, depth - 2)));
                         double oz = baseZ + lz + (rng.nextDouble() - 0.5) * 8.0;
-                        world.spawnEntity(world.getBlockAt((int) Math.floor(ox), (int) Math.floor(oy), (int) Math.floor(oz)).getLocation().add(0.5, 0.0, 0.5), EntityType.SQUID);
+                        EntityType squidType = rng.nextDouble() < 0.01 ? EntityType.GLOW_SQUID : EntityType.SQUID;
+                        world.spawnEntity(
+                                world.getBlockAt((int) Math.floor(ox), (int) Math.floor(oy), (int) Math.floor(oz))
+                                        .getLocation()
+                                        .add(0.5, 0.0, 0.5),
+                                squidType
+                        );
                     }
                     squidGroups++;
                 }

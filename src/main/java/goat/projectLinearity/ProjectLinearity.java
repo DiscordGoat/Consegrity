@@ -29,6 +29,7 @@ import goat.projectLinearity.libs.mutation.MutationBehavior;
 import goat.projectLinearity.libs.mutation.MutationManager;
 import goat.projectLinearity.libs.mutation.StatType;
 import goat.projectLinearity.libs.mutation.Stats;
+import goat.projectLinearity.libs.mutation.ThreeHeadedFireballListener;
 import goat.projectLinearity.subsystems.world.PortalReturnManager;
 import goat.projectLinearity.subsystems.world.desert.CurseManager;
 import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
@@ -48,6 +49,7 @@ import goat.projectLinearity.subsystems.brewing.NauseaProjectileListener;
 import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
 import goat.projectLinearity.subsystems.brewing.PotionUsageListener;
+import goat.projectLinearity.subsystems.world.ConsegritySpawnListener;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiBehaviour;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDamageListener;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDeathListener;
@@ -55,7 +57,6 @@ import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiSpawnListener
 import goat.projectLinearity.subsystems.world.samurai.SamuraiPopulationManager;
 import goat.projectLinearity.subsystems.mechanics.RegionTitleListener;
 import goat.projectLinearity.subsystems.mechanics.MountainMobSpawnBlocker;
-import goat.projectLinearity.subsystems.mechanics.AggressionManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneListener;
 import goat.projectLinearity.subsystems.world.NocturnalStructureManager;
@@ -107,7 +108,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private SpaceManager spaceManager;
     private MiningOxygenManager miningOxygenManager;
     private SidebarManager sidebarManager;
-    private AggressionManager aggressionManager;
     private EnchantedManager enchantedManager;
     private EnchantingManager enchantingManager;
     private ShelfManager shelfManager;
@@ -170,6 +170,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new SpaceEventListener(spaceManager, this), this);
         Bukkit.getPluginManager().registerEvents(new SpaceBlockListener(spaceManager), this);
         Bukkit.getPluginManager().registerEvents(new RegionTitleListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new ConsegritySpawnListener(), this);
         Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropPlantingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropHarvestListener(), this);
@@ -178,7 +179,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
         Bukkit.getOnlinePlayers().forEach(sidebarManager::initialise);
 
-        aggressionManager = new AggressionManager(this);
 
         shelfManager = new ShelfManager(this);
         culinarySubsystem = CulinarySubsystem.getInstance(this);
@@ -266,6 +266,9 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         // Register hunger listener
         HungerListener hungerListener = new HungerListener(this);
         Bukkit.getPluginManager().registerEvents(hungerListener, this);
+
+        new FireballItemListener(this);
+        new ThreeHeadedFireballListener(this);
         
         if (!cultistsReady || !samuraiReady) {
             if (citizensEnableListener == null) {
@@ -602,6 +605,25 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 200f,
                 0.5f
         );
+        registerMutation(
+                "three_headed_ghast",
+                EntityType.GHAST,
+                1,
+                Color.fromRGB(255, 64, 64),
+                null,
+                Stats.of(StatType.Health(500)),
+                ChatColor.DARK_RED + "Three Headed Ghast",
+                MutationBehavior.THREE_HEADED_GHAST,
+                ItemRegistry.getFireball(),
+                4,
+                16,
+                100,
+                Biome.NETHER_WASTES,
+                Biome.SOUL_SAND_VALLEY,
+                Biome.BASALT_DELTAS,
+                Biome.CRIMSON_FOREST,
+                Biome.WARPED_FOREST
+        );
         registerMutationWithAmbient(
                 "seer",
                 EntityType.ZOMBIFIED_PIGLIN,
@@ -753,6 +775,50 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 Biome.WARPED_FOREST
         );
         registerMutationWithAmbient(
+                "veil_warden",
+                EntityType.ENDERMAN,
+                8,
+                Color.fromRGB(30, 120, 160),
+                null,
+                Stats.of(StatType.Health(120), StatType.Damage(6)),
+                ChatColor.DARK_AQUA + "Veil Warden",
+                MutationBehavior.VEIL_WARDEN,
+                null,
+                0,
+                0,
+                0,
+                Color.fromRGB(60, 200, 255),
+                Particle.DUST,
+                Sound.ENTITY_ENDERMAN_AMBIENT,
+                0.2,
+                8,
+                25f,
+                0.8f,
+                Biome.WARPED_FOREST
+        );
+        registerMutationWithAmbient(
+                "sneak_mite",
+                EntityType.ENDERMITE,
+                100,
+                Color.fromRGB(60, 140, 255),
+                null,
+                Stats.of(StatType.Health(1)),
+                ChatColor.DARK_AQUA + "SneakMite",
+                MutationBehavior.SNEAK_MITE,
+                ItemRegistry.getWarpedVeil(),
+                1,
+                1,
+                100,
+                Color.fromRGB(90, 200, 255),
+                Particle.PORTAL,
+                Sound.ENTITY_ENDERMITE_AMBIENT,
+                0.2,
+                6,
+                10f,
+                1.2f,
+                Biome.WARPED_FOREST
+        );
+        registerMutationWithAmbient(
                 "headless_horseman",
                 EntityType.SPIDER,
                 1,
@@ -774,7 +840,120 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
                 0.4f,
                 Biome.SAVANNA
         );
-
+        registerMutationWithAmbient(
+                "tempest_creeper",
+                EntityType.CREEPER,
+                1,
+                Color.fromRGB(80, 170, 255),
+                null,
+                Stats.of(StatType.Health(40)),
+                ChatColor.AQUA + "Cloudbreaker",
+                MutationBehavior.VOLTAIC_CREEPER,
+                ItemRegistry.getCloudbreaker(),
+                1,
+                1,
+                75,
+                Color.fromRGB(80, 170, 255),
+                Particle.ELECTRIC_SPARK,
+                Sound.ENTITY_CREEPER_HURT,
+                0.3,
+                8,
+                10f,
+                0.3f
+        );
+        registerMutationWithAmbient(
+                "stormcaller_blaze",
+                EntityType.BLAZE,
+                8,
+                Color.fromRGB(255, 180, 64),
+                null,
+                Stats.of(StatType.Health(50), StatType.Damage(5)),
+                ChatColor.LIGHT_PURPLE + "Stormcaller Blaze",
+                MutationBehavior.STORMCALLER,
+                ItemRegistry.getVoltaicChainmail(),
+                1,
+                1,
+                60,
+                Color.fromRGB(130, 70, 255),
+                Particle.ELECTRIC_SPARK,
+                Sound.BLOCK_FIRE_AMBIENT,
+                0.6,
+                6,
+                35f,
+                0.4f,
+                Biome.NETHER_WASTES,
+                Biome.BASALT_DELTAS
+        );
+        registerMutationWithAmbient(
+                "dust_demon",
+                EntityType.MAGMA_CUBE,
+                12,
+                Color.fromRGB(96, 50, 32),
+                null,
+                Stats.of(StatType.Health(60), StatType.Damage(5)),
+                ChatColor.DARK_GRAY + "Dust Demon",
+                MutationBehavior.DUST_DEMON,
+                ItemRegistry.getAsh(),
+                1,
+                2,
+                80,
+                Color.fromRGB(120, 80, 60),
+                Particle.ASH,
+                Sound.ITEM_BRUSH_BRUSHING_GRAVEL,
+                0.4,
+                8,
+                20f,
+                1.0f,
+                Biome.NETHER_WASTES,
+                Biome.BASALT_DELTAS,
+                Biome.SOUL_SAND_VALLEY
+        );
+        registerMutationWithAmbient(
+                "legendary_hog",
+                EntityType.HOGLIN,
+                10,
+                null,
+                null,
+                Stats.of(StatType.Health(100), StatType.Damage(4), StatType.Resistance(20)),
+                ChatColor.GOLD + "Legendary Hog",
+                MutationBehavior.NONE,
+                ItemRegistry.getHoglinRoast(),
+                1,
+                1,
+                100,
+                Color.fromRGB(255,215,0),
+                Particle.DUST,
+                Sound.ENTITY_PIG_AMBIENT,
+                0.1,
+                10,
+                50f,
+                0.4f,
+                Biome.CRIMSON_FOREST
+        );
+        registerMutationWithAmbient(
+                "rabid_cube",
+                EntityType.MAGMA_CUBE,
+                12,
+                Color.fromRGB(96, 50, 32),
+                null,
+                Stats.of(StatType.Health(60), StatType.Damage(5)),
+                ChatColor.DARK_GRAY + "Rabid Cube",
+                MutationBehavior.RABID_CUBE,
+                ItemRegistry.getMagmaCubeFoot(),
+                1,
+                2,
+                80,
+                Color.fromRGB(120, 80, 60),
+                Particle.ASH,
+                Sound.BLOCK_SAND_BREAK,
+                0.4,
+                8,
+                10f,
+                1.0f,
+                Biome.NETHER_WASTES,
+                Biome.BASALT_DELTAS,
+                Biome.SOUL_SAND_VALLEY
+        );
 
     }
 
@@ -1005,7 +1184,6 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public void setRegenInProgress(boolean inProgress) { this.regenInProgress = inProgress; }
     public SpaceManager getSpaceManager() { return spaceManager; }
     public SidebarManager getSidebarManager() { return sidebarManager; }
-    public AggressionManager getAggressionManager() { return aggressionManager; }
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public EnchantedManager getEnchantedManager() { return enchantedManager; }
     public PotionGuiManager getPotionGuiManager() { return potionGuiManager; }
