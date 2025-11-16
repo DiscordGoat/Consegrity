@@ -483,6 +483,24 @@ public final class CustomPotionEffectManager implements Listener {
         return removed;
     }
 
+    public boolean isBeneficialDefinition(String definitionId) {
+        if (definitionId == null) {
+            return false;
+        }
+        return BENEFICIAL_EFFECTS.contains(definitionId.toLowerCase(Locale.ENGLISH));
+    }
+
+    public boolean isHarmfulDefinition(String definitionId) {
+        if (definitionId == null) {
+            return false;
+        }
+        return HARMFUL_EFFECTS.contains(definitionId.toLowerCase(Locale.ENGLISH));
+    }
+
+    public boolean isInstantEffect(String definitionId) {
+        return isImmediateDefinition(definitionId);
+    }
+
     private CleanseCategory categorizeDefinition(String definitionId) {
         if (definitionId == null) {
             return CleanseCategory.NEUTRAL;

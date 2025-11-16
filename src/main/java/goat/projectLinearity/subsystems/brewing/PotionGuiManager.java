@@ -1,7 +1,9 @@
 package goat.projectLinearity.subsystems.brewing;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.BrewType;
+import goat.projectLinearity.subsystems.brewing.PotionRegistry.LingeringProfile;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionDefinition;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionIngredient;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionRecipe;
@@ -27,7 +29,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import goat.projectLinearity.util.ItemRegistry;
 /**
  * Handles the potion catalogue menu and the brewing interface.
  */
@@ -64,14 +66,25 @@ public final class PotionGuiManager implements Listener {
     private static final int SLOT_BOTTLE = 10;
     private static final int SLOT_ENZYME = 16;
     private static final int SLOT_MAIN = 22;
+    private static final int SLOT_POTENCY = 39;
+    private static final int SLOT_DURATION = 41;
     private static final int SLOT_BREW = 49;
     private static final int SLOT_TOGGLE = 53;
     private static final int SLOT_BACK = 45;
+    private static final int SLOT_LINGERING = 28;
+    private static final int SLOT_LINGERING_LEFT_BLOCK = 27;
+    private static final int SLOT_LINGERING_RIGHT_BLOCK = 29;
+    private static final int[] LINGERING_SLOTS = {SLOT_LINGERING};
     private static final int[] DECOR_WHITE = {0, 1, 2, 9, 11, 18, 19, 20};
     private static final int[] DECOR_YELLOW = {6, 7, 8, 15, 17, 24, 25, 26};
     private static final int[] DECOR_PURPLE = {12, 13, 14, 21, 23, 30, 31, 32};
+    private static final int[] DECOR_CATALYST = {36, 37, 38};
+    private static final int[] DECOR_POTENCY_INDICATOR = {48};
+    private static final int[] DECOR_DURATION_INDICATOR = {50};
+    private static final Material POTENCY_ITEM = Material.GLOWSTONE;
+    private static final Material DURATION_ITEM = Material.REDSTONE_BLOCK;
 
-    private final JavaPlugin plugin;
+    private final ProjectLinearity plugin;
     private final ItemStack filler;
     private final ItemStack infoPane;
     private final ItemStack backButton;
@@ -178,7 +191,7 @@ public final class PotionGuiManager implements Listener {
         PotionRecipe recipe = definition.getRecipe(type);
         decorate(inventory, recipe);
 
-        inventory.setItem(SLOT_INFO_PRIMARY, recipeGuide(definition, type));
+        inventory.setItem(SLOT_INFO_PRIMARY, null);
         inventory.setItem(SLOT_INFO_SECONDARY, brewingNotes());
 
         inventory.setItem(SLOT_TOGGLE, buildSplashToggle(holder.isSplash()));
@@ -203,12 +216,32 @@ public final class PotionGuiManager implements Listener {
         applyDecor(inventory, DECOR_PURPLE, Material.PURPLE_STAINED_GLASS_PANE,
                 ChatColor.LIGHT_PURPLE + "Core Slot",
                 ChatColor.GRAY + "Requires: " + recipe.getMain().friendlyName());
+        applyDecor(inventory, DECOR_CATALYST, Material.LIGHT_BLUE_STAINED_GLASS_PANE,
+                ChatColor.AQUA + "Lingering Catalyst",
+                ChatColor.GRAY + "Optional: " + ChatColor.AQUA + "Refined Quartz "
+                        + ChatColor.GRAY + "or " + ChatColor.LIGHT_PURPLE + "Starcut Quartz");
+        applyDecor(inventory, DECOR_POTENCY_INDICATOR, Material.YELLOW_STAINED_GLASS_PANE,
+                ChatColor.GOLD + "Potency Booster",
+                ChatColor.GRAY + "Place " + ChatColor.GOLD + "Glowstone Block" + ChatColor.GRAY + " to add +1 potency.");
+        applyDecor(inventory, DECOR_DURATION_INDICATOR, Material.RED_STAINED_GLASS_PANE,
+                ChatColor.RED + "Duration Booster",
+                ChatColor.GRAY + "Place " + ChatColor.RED + "Redstone Block" + ChatColor.GRAY + " for +50% duration "
+                        + ChatColor.DARK_RED + "(+2 charges if instant).");
+        ItemStack greyBlock = pane(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + "Reserved Slot",
+                ChatColor.GRAY + "This slot is sealed.");
+        inventory.setItem(SLOT_LINGERING_LEFT_BLOCK, greyBlock.clone());
+        inventory.setItem(SLOT_LINGERING_RIGHT_BLOCK, greyBlock.clone());
     }
 
     private void clearFunctionalSlots(Inventory inventory) {
         inventory.setItem(SLOT_BOTTLE, null);
         inventory.setItem(SLOT_ENZYME, null);
         inventory.setItem(SLOT_MAIN, null);
+        inventory.setItem(SLOT_POTENCY, null);
+        inventory.setItem(SLOT_DURATION, null);
+        for (int slot : LINGERING_SLOTS) {
+            inventory.setItem(slot, null);
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -245,7 +278,8 @@ public final class PotionGuiManager implements Listener {
     private ItemStack brewingNotes() {
         return pane(Material.BOOKSHELF, ChatColor.YELLOW + "Brewing Notes",
                 ChatColor.GRAY + "Place the correct bottle, enzyme, and core.",
-                ChatColor.GRAY + "Toggle splash variant before brewing.");
+                ChatColor.GRAY + "Toggle splash variant before brewing.",
+                ChatColor.AQUA + "Tip: Add Refined or Starcut Quartz for Lingering hazards.");
     }
 
     private ItemStack buildBrewButton() {
@@ -319,7 +353,11 @@ public final class PotionGuiManager implements Listener {
 
     private void returnResidualItems(Player player, Inventory inventory, BrewingHolder holder) {
         boolean droppedAny = false;
-        for (int slot : new int[]{SLOT_BOTTLE, SLOT_ENZYME, SLOT_MAIN}) {
+        for (int slot : new int[]{SLOT_BOTTLE, SLOT_ENZYME, SLOT_MAIN, SLOT_POTENCY, SLOT_DURATION}) {
+            droppedAny |= returnStack(player, inventory.getItem(slot));
+            inventory.setItem(slot, null);
+        }
+        for (int slot : LINGERING_SLOTS) {
             droppedAny |= returnStack(player, inventory.getItem(slot));
             inventory.setItem(slot, null);
         }
@@ -487,6 +525,36 @@ public final class PotionGuiManager implements Listener {
             targetSlot = SLOT_ENZYME;
         } else if (recipe.getMain().matches(stack) && isSlotEmpty(top, SLOT_MAIN)) {
             targetSlot = SLOT_MAIN;
+        } else if (isPotencyBooster(stack)) {
+            if (isSlotEmpty(top, SLOT_POTENCY)) {
+                targetSlot = SLOT_POTENCY;
+            } else {
+                player.sendMessage(PREFIX + ChatColor.RED + "Potency slot already contains "
+                        + describe(top.getItem(SLOT_POTENCY)) + ChatColor.RED + ".");
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
+                return;
+            }
+        } else if (isDurationBooster(stack)) {
+            if (isSlotEmpty(top, SLOT_DURATION)) {
+                targetSlot = SLOT_DURATION;
+            } else {
+                player.sendMessage(PREFIX + ChatColor.RED + "Duration slot already contains "
+                        + describe(top.getItem(SLOT_DURATION)) + ChatColor.RED + ".");
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
+                return;
+            }
+        } else {
+            CatalystType catalystType = identifyCatalyst(stack);
+            if (catalystType != null) {
+                if (isSlotEmpty(top, SLOT_LINGERING)) {
+                    targetSlot = SLOT_LINGERING;
+                } else {
+                    player.sendMessage(PREFIX + ChatColor.RED + "Lingering catalyst slot already contains "
+                            + describe(top.getItem(SLOT_LINGERING)) + ChatColor.RED + ".");
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
+                    return;
+                }
+            }
         }
 
         if (targetSlot == -1) {
@@ -517,6 +585,19 @@ public final class PotionGuiManager implements Listener {
     }
 
     private void handleIngredientSlotClick(InventoryClickEvent event, Player player, Inventory top, BrewingHolder holder, int slot) {
+        if (slot == SLOT_POTENCY) {
+            handleBoosterSlotClick(event, player, top, slot, BoosterType.POTENCY);
+            return;
+        }
+        if (slot == SLOT_DURATION) {
+            handleBoosterSlotClick(event, player, top, slot, BoosterType.DURATION);
+            return;
+        }
+        if (isCatalystSlot(slot)) {
+            handleCatalystSlotClick(event, player, top, slot);
+            return;
+        }
+
         PotionRecipe recipe = holder.definition.getRecipe(holder.brewType);
         PotionIngredient expected = expectedIngredient(recipe, slot);
         if (expected == null) {
@@ -560,6 +641,77 @@ public final class PotionGuiManager implements Listener {
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.5f, 1.4f);
     }
 
+    private void handleCatalystSlotClick(InventoryClickEvent event, Player player, Inventory top, int slot) {
+        ItemStack current = top.getItem(slot);
+        CatalystType currentType = identifyCatalyst(current);
+        ItemStack cursor = event.getCursor();
+        CatalystType cursorType = identifyCatalyst(cursor);
+
+        if ((cursor == null || cursor.getType() == Material.AIR) && current != null && current.getType() != Material.AIR) {
+            top.setItem(slot, null);
+            event.getView().setCursor(current);
+            String removedName = currentType != null ? currentType.coloredName() : ChatColor.AQUA + "Lingering catalyst";
+            player.sendMessage(PREFIX + ChatColor.GRAY + "Removed " + removedName + ChatColor.GRAY + ".");
+            player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 0.5f, 1.0f);
+            return;
+        }
+        if (cursor == null || cursor.getType() == Material.AIR) {
+            return;
+        }
+        if (cursorType == null) {
+            player.sendMessage(PREFIX + ChatColor.RED + "This slot only accepts "
+                    + ChatColor.AQUA + "Refined Quartz" + ChatColor.RED + " or "
+                    + ChatColor.LIGHT_PURPLE + "Starcut Quartz" + ChatColor.RED + ".");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
+            return;
+        }
+        if (current != null && current.getType() != Material.AIR) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Lingering catalyst slot already contains "
+                    + describe(current) + ChatColor.RED + ".");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.1f);
+            return;
+        }
+
+        ItemStack single = cursor.clone();
+        single.setAmount(1);
+        top.setItem(slot, single);
+        adjustCursor(event, player, cursor);
+        player.sendMessage(PREFIX + ChatColor.AQUA + cursorType.coloredName() + ChatColor.AQUA + " primed.");
+        player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.6f, 1.1f);
+    }
+
+    private void handleBoosterSlotClick(InventoryClickEvent event, Player player, Inventory top, int slot, BoosterType type) {
+        ItemStack current = top.getItem(slot);
+        ItemStack cursor = event.getCursor();
+        if ((cursor == null || cursor.getType() == Material.AIR) && current != null && current.getType() != Material.AIR) {
+            top.setItem(slot, null);
+            event.getView().setCursor(current);
+            player.sendMessage(PREFIX + ChatColor.GRAY + "Removed " + type.coloredRequirement() + ChatColor.GRAY + ".");
+            player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 0.5f, 1.0f);
+            return;
+        }
+        if (cursor == null || cursor.getType() == Material.AIR) {
+            return;
+        }
+        if (!type.matches(cursor)) {
+            player.sendMessage(PREFIX + ChatColor.RED + "This slot only accepts " + type.coloredRequirement() + ChatColor.RED + ".");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.2f);
+            return;
+        }
+        if (current != null && current.getType() != Material.AIR) {
+            player.sendMessage(PREFIX + ChatColor.RED + type.slotName() + ChatColor.RED + " already contains "
+                    + describe(current) + ChatColor.RED + ".");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.1f);
+            return;
+        }
+        ItemStack single = cursor.clone();
+        single.setAmount(1);
+        top.setItem(slot, single);
+        adjustCursor(event, player, cursor);
+        player.sendMessage(PREFIX + ChatColor.AQUA + type.slotName() + ChatColor.AQUA + " primed.");
+        player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.6f, 1.1f);
+    }
+
     private void adjustCursor(InventoryClickEvent event, Player player, ItemStack cursor) {
         int amount = cursor.getAmount();
         if (amount <= 1) {
@@ -585,6 +737,8 @@ public final class PotionGuiManager implements Listener {
         ItemStack bottle = top.getItem(SLOT_BOTTLE);
         ItemStack enzyme = top.getItem(SLOT_ENZYME);
         ItemStack main = top.getItem(SLOT_MAIN);
+        ItemStack potencyBooster = top.getItem(SLOT_POTENCY);
+        ItemStack durationBooster = top.getItem(SLOT_DURATION);
 
         if (!recipe.getBottle().matches(bottle)) {
             warnInvalid(player, "bottle", recipe.getBottle());
@@ -599,11 +753,39 @@ public final class PotionGuiManager implements Listener {
             return;
         }
 
+        LingeringProfile profile = buildLingeringProfile(top.getItem(SLOT_LINGERING));
+        boolean hasCatalyst = profile != null;
+        if (hasCatalyst && !holder.isSplash()) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Enable the Splash variant before adding a Lingering catalyst.");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.6f, 1.0f);
+            return;
+        }
+
+        boolean isLingering = hasCatalyst;
+        boolean isSplash = holder.isSplash() || isLingering;
+
+        boolean hasPotencyBoost = isPotencyBooster(potencyBooster);
+        boolean hasDurationBoost = isDurationBooster(durationBooster);
+        CustomPotionEffectManager effectManager = plugin.getCustomPotionEffectManager();
+        boolean isInstantEffect = effectManager != null && effectManager.isInstantEffect(holder.definition.getId());
+        PotionRegistry.BrewModifiers modifiers = null;
+        if (hasPotencyBoost || hasDurationBoost) {
+            int potencyBonus = hasPotencyBoost ? 1 : 0;
+            double durationMultiplier = (!isInstantEffect && hasDurationBoost) ? 1.5 : 1.0;
+            int extraCharges = (isInstantEffect && hasDurationBoost) ? 2 : 0;
+            modifiers = new PotionRegistry.BrewModifiers(potencyBonus, durationMultiplier, extraCharges);
+        }
+
         top.setItem(SLOT_BOTTLE, null);
         top.setItem(SLOT_ENZYME, null);
         top.setItem(SLOT_MAIN, null);
+        top.setItem(SLOT_POTENCY, null);
+        top.setItem(SLOT_DURATION, null);
+        for (int slot : LINGERING_SLOTS) {
+            top.setItem(slot, null);
+        }
 
-        ItemStack result = PotionRegistry.createResultItem(holder.definition, holder.brewType, holder.isSplash(), 0);
+        ItemStack result = PotionRegistry.createResultItem(holder.definition, holder.brewType, isSplash, isLingering, 0, profile, modifiers);
         Map<Integer, ItemStack> overflow = player.getInventory().addItem(result);
         overflow.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         player.updateInventory();
@@ -612,7 +794,9 @@ public final class PotionGuiManager implements Listener {
 
         player.sendMessage(PREFIX + ChatColor.GREEN + "Brewed " + holder.definition.getAccentColor()
                 + holder.definition.getDisplayName() + ChatColor.GRAY + " (" + holder.brewType.displayName() + ChatColor.GRAY + ").");
-        if (holder.isSplash()) {
+        if (isLingering) {
+            player.sendMessage(PREFIX + ChatColor.AQUA + "Lingering hazard created.");
+        } else if (holder.isSplash()) {
             player.sendMessage(PREFIX + ChatColor.GOLD + "Splash variant crafted.");
         }
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.2f);
@@ -626,12 +810,33 @@ public final class PotionGuiManager implements Listener {
     }
 
     private boolean isIngredientSlot(int slot) {
-        return slot == SLOT_BOTTLE || slot == SLOT_ENZYME || slot == SLOT_MAIN;
+        if (slot == SLOT_BOTTLE || slot == SLOT_ENZYME || slot == SLOT_MAIN
+                || slot == SLOT_POTENCY || slot == SLOT_DURATION) {
+            return true;
+        }
+        return isCatalystSlot(slot);
     }
 
     private boolean isSlotEmpty(Inventory top, int slot) {
         ItemStack item = top.getItem(slot);
         return item == null || item.getType() == Material.AIR;
+    }
+
+    private boolean isCatalystSlot(int slot) {
+        for (int lingeringSlot : LINGERING_SLOTS) {
+            if (slot == lingeringSlot) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPotencyBooster(ItemStack stack) {
+        return stack != null && stack.getType() == POTENCY_ITEM;
+    }
+
+    private boolean isDurationBooster(ItemStack stack) {
+        return stack != null && stack.getType() == DURATION_ITEM;
     }
 
     private String describe(ItemStack stack) {
@@ -641,6 +846,90 @@ public final class PotionGuiManager implements Listener {
             return ChatColor.stripColor(meta.getDisplayName());
         }
         return stack.getType().name().toLowerCase().replace('_', ' ');
+    }
+
+    private LingeringProfile buildLingeringProfile(ItemStack slot) {
+        CatalystType active = identifyCatalyst(slot);
+        return active == null ? null : new LingeringProfile(active.radiusBonus(), active.durationBonus());
+    }
+
+    private CatalystType identifyCatalyst(ItemStack stack) {
+        for (CatalystType type : CatalystType.values()) {
+            if (type.matches(stack)) {
+                return type;
+            }
+        }
+        return null;
+    }
+
+    private enum BoosterType {
+        POTENCY("Potency slot", ChatColor.GOLD, ChatColor.GOLD + "Glowstone Block", POTENCY_ITEM),
+        DURATION("Duration slot", ChatColor.RED, ChatColor.RED + "Redstone Block", DURATION_ITEM);
+
+        private final String slotLabel;
+        private final ChatColor slotColor;
+        private final String requirementLabel;
+        private final Material material;
+
+        BoosterType(String slotLabel, ChatColor slotColor, String requirementLabel, Material material) {
+            this.slotLabel = slotLabel;
+            this.slotColor = slotColor;
+            this.requirementLabel = requirementLabel;
+            this.material = material;
+        }
+
+        boolean matches(ItemStack stack) {
+            return stack != null && stack.getType() == material;
+        }
+
+        String coloredRequirement() {
+            return requirementLabel;
+        }
+
+        String slotName() {
+            return slotColor + slotLabel;
+        }
+    }
+
+    private enum CatalystType {
+        REFINED("Refined Quartz", ChatColor.AQUA, 8, 15) {
+            @Override
+            boolean matches(ItemStack stack) {
+                return ItemRegistry.isRefinedQuartz(stack);
+            }
+        },
+        STARCUT("Starcut Quartz", ChatColor.LIGHT_PURPLE, 16, 25) {
+            @Override
+            boolean matches(ItemStack stack) {
+                return ItemRegistry.isStarcutQuartz(stack);
+            }
+        };
+
+        private final String displayName;
+        private final ChatColor color;
+        private final int radiusBonus;
+        private final int durationBonus;
+
+        CatalystType(String displayName, ChatColor color, int radiusBonus, int durationBonus) {
+            this.displayName = displayName;
+            this.color = color;
+            this.radiusBonus = radiusBonus;
+            this.durationBonus = durationBonus;
+        }
+
+        abstract boolean matches(ItemStack stack);
+
+        int radiusBonus() {
+            return radiusBonus;
+        }
+
+        int durationBonus() {
+            return durationBonus;
+        }
+
+        String coloredName() {
+            return color + displayName;
+        }
     }
 
     // --- Holder types ---

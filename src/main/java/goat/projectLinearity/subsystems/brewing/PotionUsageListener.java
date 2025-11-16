@@ -2,6 +2,7 @@ package goat.projectLinearity.subsystems.brewing;
 
 import goat.projectLinearity.ProjectLinearity;
 import goat.projectLinearity.subsystems.brewing.PotionRegistry.PotionItemData;
+import goat.projectLinearity.subsystems.brewing.LingeringHazardManager;
 import goat.projectLinearity.subsystems.mechanics.CustomDurabilityManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -14,6 +15,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PotionSplashEvent;
+import org.bukkit.event.entity.LingeringPotionSplashEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -31,11 +33,15 @@ public final class PotionUsageListener implements Listener {
 
     private final ProjectLinearity plugin;
     private final CustomPotionEffectManager effectManager;
+    private final LingeringHazardManager hazardManager;
     private final CustomDurabilityManager durabilityManager;
 
-    public PotionUsageListener(ProjectLinearity plugin, CustomPotionEffectManager effectManager) {
+    public PotionUsageListener(ProjectLinearity plugin,
+                               CustomPotionEffectManager effectManager,
+                               LingeringHazardManager hazardManager) {
         this.plugin = plugin;
         this.effectManager = effectManager;
+        this.hazardManager = hazardManager;
         this.durabilityManager = CustomDurabilityManager.getInstance();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
@@ -87,8 +93,10 @@ public final class PotionUsageListener implements Listener {
 
         event.setCancelled(true);
 
-        if (data.isSplash()) {
-            handleSplashUse(player, stack, data, hand);
+        if (data.isLingering()) {
+            handleThrowUse(player, stack, data, hand, true);
+        } else if (data.isSplash()) {
+            handleThrowUse(player, stack, data, hand, false);
         } else {
             handleDrinkUse(player, stack, data, hand);
         }
@@ -114,7 +122,11 @@ public final class PotionUsageListener implements Listener {
         }
     }
 
-    private void handleSplashUse(Player player, ItemStack stack, PotionItemData data, EquipmentSlot hand) {
+    private void handleThrowUse(Player player,
+                                ItemStack stack,
+                                PotionItemData data,
+                                EquipmentSlot hand,
+                                boolean lingering) {
         int remaining = consumeCharge(player, stack, data, hand);
         player.playSound(player.getLocation(), Sound.ENTITY_SPLASH_POTION_THROW, 1.0f, 1.0f);
         swing(player, hand);
@@ -124,11 +136,12 @@ public final class PotionUsageListener implements Listener {
             return;
         }
 
-        ItemStack thrownItem = new ItemStack(Material.SPLASH_POTION);
+        ItemStack thrownItem = new ItemStack(lingering ? Material.LINGERING_POTION : Material.SPLASH_POTION);
         PotionMeta meta = (PotionMeta) thrownItem.getItemMeta();
         if (meta != null) {
             meta.setColor(data.getBukkitColor());
-            PotionRegistry.writePotionData(meta, data.getDefinition(), data.getBrewType(), data.getEnchantTier(), true,
+            PotionRegistry.writePotionData(meta, data.getDefinition(), data.getBrewType(), data.getEnchantTier(), true, lingering,
+                    data.getLingeringProfile().orElse(null),
                     data.getDurationOverride(), data.getPotencyOverride(), data.getChargesOverride());
             thrownItem.setItemMeta(meta);
         }
@@ -149,6 +162,9 @@ public final class PotionUsageListener implements Listener {
         }
 
         PotionItemData data = maybeData.get();
+        if (data.isLingering()) {
+            return;
+        }
         event.setCancelled(true);
 
         List<String> hits = new ArrayList<>();
@@ -179,6 +195,27 @@ public final class PotionUsageListener implements Listener {
         }
 
         event.getEntity().getWorld().playSound(event.getEntity().getLocation(), Sound.ENTITY_SPLASH_POTION_BREAK, 1.0f, 1.0f);
+        event.getEntity().remove();
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onLingeringSplash(LingeringPotionSplashEvent event) {
+        ItemStack item = event.getEntity().getItem();
+        Optional<PotionItemData> maybeData = PotionRegistry.PotionItemData.from(item);
+        if (maybeData.isEmpty()) {
+            return;
+        }
+        PotionItemData data = maybeData.get();
+        if (!data.isLingering()) {
+            return;
+        }
+        event.setCancelled(true);
+        if (event.getAreaEffectCloud() != null) {
+            event.getAreaEffectCloud().remove();
+        }
+        if (hazardManager != null) {
+            hazardManager.spawnHazard(data, event.getEntity().getLocation());
+        }
         event.getEntity().remove();
     }
 

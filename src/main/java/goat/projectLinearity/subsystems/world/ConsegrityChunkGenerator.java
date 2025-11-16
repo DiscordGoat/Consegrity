@@ -24,6 +24,7 @@ extends ArcticChunkGenerator {
     private static final int CENTER_Z = 0;
     // Y level separating overworld and the custom underworld (Nether-like) layer
     private static final int UNDERWORLD_ROOF_Y = -70;
+    private static final int GENERATION_FLOOR_Y = -64;
     private static final double CENTRAL_RADIUS = 100.0;
     private static final double CENTRAL_FEATHER = 90.0;
     private static final double R1_INNER = 120.0;
@@ -32,6 +33,12 @@ extends ArcticChunkGenerator {
     private static final double R2_INNER = 500.0;
     private static final double R2_OUTER = 1500.0;
     private static final double R2_FEATHER = 50.0;
+    private static final double BEACH_WIDTH = 45.0;
+    private static final double BEACH_BASE_Y = 152.0;
+    private static final double BEACH_AMPLITUDE = 3.0;
+    private static final double BEACH_PLACE_THRESHOLD = 0.25;
+    private static final long BEACH_HEIGHT_NOISE_SALT = 0xBEECAA11L;
+    private static final long PALM_RNG_SALT = 0xBEEF35L;
     // --- RNG salts (valid hex, stable) ---
     private static final long SALT_GLOWSTONE   = 0x9A0B57A1L;
     private static final long SALT_LAVA_DRIPS  = 0x0D1F5A1AL;
@@ -77,13 +84,14 @@ extends ArcticChunkGenerator {
         double baseRot;
         ChunkGenerator.ChunkData data = this.createChunkData(world);
         long seed = world.getSeed();
-        int minY = Math.max(world.getMinHeight(), -192);
+        int minY = generationFloor(world);
         double rotR1 = baseRot = ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, 101L, 0L, 0L, 7466709L));
         int r2Arcs = R2_SPLITS.length - 1;
         double rotR2 = ConsegrityChunkGenerator.wrap01(baseRot + 0.5 / (double)Math.max(1, r2Arcs) + (ConsegrityChunkGenerator.rand01(ConsegrityChunkGenerator.hash(seed, 202L, 0L, 0L, 7532245L)) - 0.5) * (0.2 / (double)Math.max(1, r2Arcs)));
         int[][] topYGrid = new int[16][16];
         int[][] floorYGrid = new int[16][16];
         double[][] centralMaskGrid = new double[16][16];
+        double[][] beachStrengthGrid = new double[16][16];
         boolean[][] needsWater = new boolean[16][16];
         boolean[][] frozenOcean = new boolean[16][16];
         boolean[][] oceanGrid = new boolean[16][16];
@@ -126,7 +134,19 @@ extends ArcticChunkGenerator {
                 IntUnaryOperator height = null;
                 double ring1H = 0.0;
                 double ring2H = 0.0;
+                double distanceToOuter = R2.outer - R2.r;
+                boolean jungleInfluence = (b2.a == 1 || b2.b == 1 || idxR2 == 1);
+                double beachHeightTarget = BEACH_BASE_Y;
+                double beachBlend = 0.0;
 
+                if (!inOcean && jungleInfluence && r2m >= r1m && distanceToOuter >= 0.0 && distanceToOuter <= BEACH_WIDTH) {
+                    double normalized = 1.0 - Math.min(1.0, distanceToOuter / BEACH_WIDTH);
+                    double noise = ConsegrityChunkGenerator.valueNoise2(seed ^ BEACH_HEIGHT_NOISE_SALT,
+                            (double) wx / 30.0, (double) wz / 30.0);
+                    double undulation = (noise - 0.5) * (BEACH_AMPLITUDE * 2.0);
+                    beachHeightTarget = BEACH_BASE_Y + undulation;
+                    beachBlend = ConsegrityChunkGenerator.clamp01(normalized * r2m);
+                }
                 if (inOcean) {
                     double sOut = ConsegrityChunkGenerator.clamp01((R2.outer + 80.0 - R2.r) / Math.max(1.0, 80.0));
                     int shelfY = 140;
@@ -222,7 +242,11 @@ extends ArcticChunkGenerator {
                         target = ConsegrityChunkGenerator.lerp(oceanFloor, Math.max(oceanFloor, shelfY), sOut);
                     }
                 }
+                if (beachBlend > 0.0) {
+                    target = ConsegrityChunkGenerator.lerp(target, beachHeightTarget, beachBlend);
+                }
                 topYGrid[lx][lz] = topY = (int)Math.round(target);
+                beachStrengthGrid[lx][lz] = beachBlend;
                 centralMaskGrid[lx][lz] = cm;
                 if (topY - 3 > minY) {
                     int fillBase = Math.max(minY, UNDERWORLD_ROOF_Y + 1);
@@ -243,6 +267,12 @@ extends ArcticChunkGenerator {
                     needsWater[lx][lz] = true;
                     floorYGrid[lx][lz] = topY;
                     regionGrid[lx][lz] = ConsegrityRegions.Region.OCEAN;
+                    continue;
+                }
+                if (beachStrengthGrid[lx][lz] > BEACH_PLACE_THRESHOLD) {
+                    this.paintBeachCap(data, lx, lz, topY);
+                    biome.setBiome(lx, lz, Biome.BEACH);
+                    regionGrid[lx][lz] = ConsegrityRegions.Region.JUNGLE;
                     continue;
                 }
                 if (cm > Math.max(r1, r2)) {
@@ -377,6 +407,7 @@ extends ArcticChunkGenerator {
             }
         }
         this.placeFrozenOceanIcebergs(world, data, seed, chunkX, chunkZ, floorYGrid, frozenOcean);
+        this.decoratePalmTrees(world, data, seed, chunkX, chunkZ, topYGrid, beachStrengthGrid);
         // Underworld Nether-like layer beneath the overworld
         this.generateColossalCaveNether(world, data, seed, chunkX, chunkZ);
         centralSec.decorate(world, data, seed, chunkX, chunkZ, topYGrid, regionGrid, centralMaskGrid);
@@ -399,12 +430,17 @@ extends ArcticChunkGenerator {
     /**
      * Legacy hook now only builds the mirrored bedrock roof that seals the underworld.
      * The space beneath the ceiling remains untouched, removing the old Nether terrain.
+     * When the dimension exposes additional depth below -64, the roof is skipped
+     * so that the void space can be used for custom builds.
      */
     private void generateColossalCaveNether(World world,
                                             ChunkGenerator.ChunkData data,
                                             long seed,
                                             int chunkX,
                                             int chunkZ) {
+        if (generationFloor(world) > world.getMinHeight()) {
+            return;
+        }
         final int minY = world.getMinHeight();
         final int maxY = world.getMaxHeight() - 1;
         final int unclampedRoof = UNDERWORLD_ROOF_Y;
@@ -428,6 +464,10 @@ extends ArcticChunkGenerator {
                 }
             }
         }
+    }
+
+    private int generationFloor(World world) {
+        return Math.max(world.getMinHeight(), GENERATION_FLOOR_Y);
     }
 
     private int findTopSolidY(ChunkGenerator.ChunkData data, World world, int lx, int lz, int yMin, int seaLevel) {
@@ -654,7 +694,8 @@ extends ArcticChunkGenerator {
 
     private void oreAttemptsLocal(World world, ChunkGenerator.ChunkData data, SplittableRandom rng, int chunkX, int chunkZ, Material ore, int weight, int minY, int maxY, Bias bias, int peakY, boolean isObsidian) {
         int yMax;
-        int yMin = Math.max(Math.max(Math.max(-192, minY), world.getMinHeight()), UNDERWORLD_ROOF_Y + 1);
+        int floor = generationFloor(world);
+        int yMin = Math.max(Math.max(minY, floor), UNDERWORLD_ROOF_Y + 1);
         if (yMin > (yMax = Math.min(Math.min(320, maxY), world.getMaxHeight() - 1))) {
             return;
         }
@@ -783,6 +824,18 @@ extends ArcticChunkGenerator {
         data.setBlock(lx, topY, lz, Material.GRASS_BLOCK);
     }
 
+    private void paintBeachCap(ChunkGenerator.ChunkData data, int lx, int lz, int topY) {
+        int sandBase = Math.max(-60, topY - 4);
+        if (topY > sandBase) {
+            data.setRegion(lx, sandBase, lz, lx + 1, topY, lz + 1, Material.SAND);
+        }
+        int supportBase = Math.max(-60, sandBase - 2);
+        if (sandBase > supportBase) {
+            data.setRegion(lx, supportBase, lz, lx + 1, sandBase, lz + 1, Material.SANDSTONE);
+        }
+        data.setBlock(lx, topY, lz, Material.SAND);
+    }
+
     private void paintSeafloorCap(ChunkGenerator.ChunkData data, int lx, int lz, int floorY, int seaLevel) {
         int depth = seaLevel - floorY;
         for (int y = floorY - 3; y <= floorY - 1; ++y) {
@@ -835,6 +888,103 @@ extends ArcticChunkGenerator {
                 data.setBlock(lx, y, lz, i == h ? Material.KELP : Material.KELP_PLANT);
             }
         }
+    }
+
+    private void decoratePalmTrees(World world,
+                                   ChunkGenerator.ChunkData data,
+                                   long seed,
+                                   int chunkX,
+                                   int chunkZ,
+                                   int[][] topYGrid,
+                                   double[][] beachStrengthGrid) {
+        int baseX = chunkX << 4;
+        int baseZ = chunkZ << 4;
+        int maxHeight = Math.min(world.getMaxHeight() - 1, data.getMaxHeight() - 1);
+        for (int lx = 0; lx < 16; lx++) {
+            for (int lz = 0; lz < 16; lz++) {
+                double strength = beachStrengthGrid[lx][lz];
+                if (strength < 0.55) {
+                    continue;
+                }
+                int surfaceY = topYGrid[lx][lz];
+                if (surfaceY <= 0 || surfaceY >= maxHeight - 6) {
+                    continue;
+                }
+                if (data.getType(lx, surfaceY, lz) != Material.SAND) {
+                    continue;
+                }
+                SplittableRandom rng = rngFor(seed, baseX + lx, baseZ + lz, PALM_RNG_SALT);
+                double chance = 0.015 + 0.05 * strength;
+                if (rng.nextDouble() >= chance) {
+                    continue;
+                }
+                int height = 4 + rng.nextInt(3);
+                if (!canPlacePalm(data, lx, lz, surfaceY, height, maxHeight)) {
+                    continue;
+                }
+                buildPalmTree(data, lx, lz, surfaceY, height, rng.split(), maxHeight);
+            }
+        }
+    }
+
+    private boolean canPlacePalm(ChunkGenerator.ChunkData data, int lx, int lz, int groundY, int height, int maxHeight) {
+        int topCheck = Math.min(maxHeight, groundY + height + 3);
+        for (int y = groundY + 1; y <= topCheck; y++) {
+            Material current = data.getType(lx, y, lz);
+            if (!isReplaceable(current)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void buildPalmTree(ChunkGenerator.ChunkData data, int lx, int lz, int groundY, int height, SplittableRandom rng, int maxHeight) {
+        int trunkTop = Math.min(maxHeight, groundY + height);
+        for (int y = groundY + 1; y <= trunkTop; y++) {
+            data.setBlock(lx, y, lz, Material.JUNGLE_LOG);
+        }
+        int crownY = trunkTop;
+        placePalmLeaf(data, lx, crownY + 1, lz);
+        int[][] dirs = new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] dir : dirs) {
+            int length = 2 + rng.nextInt(2);
+            for (int step = 1; step <= length; step++) {
+                int ox = lx + dir[0] * step;
+                int oz = lz + dir[1] * step;
+                int leafY = crownY + Math.max(0, 2 - step);
+                placePalmLeaf(data, ox, leafY, oz);
+                if (step == length) {
+                    placePalmLeaf(data, ox, leafY - 1, oz);
+                }
+            }
+        }
+        int[][] diagonals = new int[][]{{1, 1}, {-1, 1}, {1, -1}, {-1, -1}};
+        for (int[] diag : diagonals) {
+            placePalmLeaf(data, lx + diag[0], crownY, lz + diag[1]);
+        }
+    }
+
+    private void placePalmLeaf(ChunkGenerator.ChunkData data, int lx, int y, int lz) {
+        if (lx < 0 || lx >= 16 || lz < 0 || lz >= 16) {
+            return;
+        }
+        if (y < -60 || y >= data.getMaxHeight()) {
+            return;
+        }
+        Material current = data.getType(lx, y, lz);
+        if (!isReplaceable(current)) {
+            return;
+        }
+        data.setBlock(lx, y, lz, Material.JUNGLE_LEAVES);
+    }
+
+    private boolean isReplaceable(Material type) {
+        return type == Material.AIR
+                || type == Material.CAVE_AIR
+                || type == Material.VOID_AIR
+                || type == Material.WATER
+                || type == Material.TALL_SEAGRASS
+                || type == Material.SEAGRASS;
     }
 
     private void placeBedrockBand(World world, ChunkGenerator.ChunkData data, int chunkX, int chunkZ) {

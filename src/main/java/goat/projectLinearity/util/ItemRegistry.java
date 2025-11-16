@@ -4486,6 +4486,60 @@ public final class ItemRegistry {
         );
     }
 
+    public static ItemStack getRefinedQuartz() {
+        return createCustomItem(
+                Material.QUARTZ,
+                ChatColor.AQUA + "Refined Quartz",
+                Arrays.asList(
+                        ChatColor.GRAY + "A polished shard tuned for lingering brews.",
+                        ChatColor.BLUE + "Hazard Radius: " + ChatColor.WHITE + "8 blocks",
+                        ChatColor.BLUE + "Hazard Duration: " + ChatColor.WHITE + "15 seconds",
+                        "",
+                        ChatColor.AQUA + "Lingering Catalyst"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static ItemStack getStarcutQuartz() {
+        return createCustomItem(
+                Material.QUARTZ,
+                ChatColor.LIGHT_PURPLE + "Starcut Quartz",
+                Arrays.asList(
+                        ChatColor.GRAY + "A prismatic shard that amplifies hazards.",
+                        ChatColor.BLUE + "Hazard Radius: " + ChatColor.WHITE + "16 blocks",
+                        ChatColor.BLUE + "Hazard Duration: " + ChatColor.WHITE + "25 seconds",
+                        "",
+                        ChatColor.AQUA + "Lingering Catalyst"
+                ),
+                1,
+                false,
+                true
+        );
+    }
+
+    public static boolean isRefinedQuartz(ItemStack item) {
+        return matchesQuartzCatalyst(item, "Refined Quartz");
+    }
+
+    public static boolean isStarcutQuartz(ItemStack item) {
+        return matchesQuartzCatalyst(item, "Starcut Quartz");
+    }
+
+    private static boolean matchesQuartzCatalyst(ItemStack item, String plainName) {
+        if (item == null || item.getType() != Material.QUARTZ) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) {
+            return false;
+        }
+        String stripped = ChatColor.stripColor(meta.getDisplayName());
+        return stripped != null && stripped.equalsIgnoreCase(plainName);
+    }
+
     public static ItemStack getHematite() {
         return createCustomItem(
                 Material.IRON_NUGGET,

@@ -1,6 +1,7 @@
 package goat.projectLinearity.subsystems.world.structure;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
 import goat.projectLinearity.util.SchemManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -113,12 +114,15 @@ public final class KeystoneManager {
         }
         Map<String, KeystoneInstance> worldMap = instances.computeIfAbsent(world.getUID(), uuid -> new HashMap<>());
         ensureInstancesLoaded(world, worldMap);
-        worldMap.computeIfAbsent(definition.key, key -> {
-            KeystoneInstance instance = new KeystoneInstance(definition, new Location(world, x, y, z));
+        KeystoneInstance instance = worldMap.computeIfAbsent(definition.key, key -> {
+            KeystoneInstance created = new KeystoneInstance(definition, new Location(world, x, y, z), bounds);
             dirty = true;
             saveIfDirty();
-            return instance;
+            return created;
         });
+        instance.updateStructureBounds(bounds);
+        instance.updateLocation(world, x, y, z);
+        instance.setStructureManagerPlacement(true);
     }
 
     private void tickWorld(World world) {
@@ -233,6 +237,7 @@ public final class KeystoneManager {
     private void pasteFrame(KeystoneInstance instance, int targetFrame) {
         String frame = instance.definition.frames.get(targetFrame);
         schemManager.placeStructure(frame, instance.location.clone(), false);
+        populateFrameLoot(frame, instance);
         instance.frameInitialized = true;
     }
 
@@ -321,6 +326,7 @@ public final class KeystoneManager {
 
     private void ensureInstancesLoaded(World world, Map<String, KeystoneInstance> worldMap) {
         UUID worldId = world.getUID();
+        StructureStore store = StructureStore.get(plugin);
         for (KeystoneInstance existing : worldMap.values()) {
             if (existing.location.getWorld() == null) {
                 existing.location.setWorld(world);
@@ -328,19 +334,21 @@ public final class KeystoneManager {
             ensureFrameApplied(existing);
         }
         for (KeystoneDefinition definition : definitions.values()) {
-            if (worldMap.containsKey(definition.key)) {
-                continue;
-            }
-            StructureStore store = StructureStore.get(plugin);
             Collection<StructureStore.StructEntry> entries = store.getStructuresForName(worldId.toString(), definition.baseStructureName);
             if (!entries.isEmpty()) {
                 StructureStore.StructEntry entry = entries.iterator().next();
-                Location location = new Location(world, entry.x, entry.y, entry.z);
-                KeystoneInstance instance = new KeystoneInstance(definition, location);
-                worldMap.put(definition.key, instance);
+                KeystoneInstance instance = worldMap.computeIfAbsent(definition.key, key -> {
+                    KeystoneInstance created = new KeystoneInstance(definition,
+                            new Location(world, entry.x, entry.y, entry.z),
+                            entry.bounds);
+                    dirty = true;
+                    saveIfDirty();
+                    return created;
+                });
+                instance.updateStructureBounds(entry.bounds);
+                instance.updateLocation(world, entry.x, entry.y, entry.z);
+                instance.setStructureManagerPlacement(true);
                 ensureFrameApplied(instance);
-                dirty = true;
-                saveIfDirty();
             }
         }
     }
@@ -352,9 +360,35 @@ public final class KeystoneManager {
         if (instance.location.getWorld() == null) {
             return;
         }
-        String frame = instance.definition.frames.get(Math.min(instance.currentFrameIndex, instance.definition.frames.size() - 1));
+        int frameIndex = Math.min(instance.currentFrameIndex, instance.definition.frames.size() - 1);
+        if (frameIndex == 0 && instance.isStructureManagerPlacement()) {
+            instance.frameInitialized = true;
+            return;
+        }
+        String frame = instance.definition.frames.get(frameIndex);
         schemManager.placeStructure(frame, instance.location.clone(), false);
+        populateFrameLoot(frame, instance);
         instance.frameInitialized = true;
+    }
+
+    private void populateFrameLoot(String frame, KeystoneInstance instance) {
+        if (frame == null || instance == null) {
+            return;
+        }
+        LootPopulatorManager lootPopulator = plugin.getLootPopulatorManager();
+        if (lootPopulator == null) {
+            return;
+        }
+        Location location = instance.location;
+        if (location == null || location.getWorld() == null) {
+            return;
+        }
+        try {
+            int scanBounds = Math.max(instance.getStructureBounds(), instance.definition.bounds);
+            lootPopulator.handleStructurePlacement(frame, location.clone(), scanBounds);
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.FINE, "[KeystoneManager] Failed to populate loot for " + frame, t);
+        }
     }
 
     public void saveIfDirty() {
@@ -381,6 +415,8 @@ public final class KeystoneManager {
                 section.set("progress", instance.progress);
                 section.set("frameIndex", instance.currentFrameIndex);
                 section.set("completed", instance.completed);
+                section.set("structureBounds", instance.getStructureBounds());
+                section.set("structureManagerPlacement", instance.isStructureManagerPlacement());
             }
         }
         try {
@@ -409,10 +445,14 @@ public final class KeystoneManager {
                 int x = entry.getInt("x");
                 int y = entry.getInt("y");
                 int z = entry.getInt("z");
-                KeystoneInstance instance = new KeystoneInstance(definition, world == null ? new Location(null, x, y, z) : new Location(world, x, y, z));
+                int structBounds = entry.getInt("structureBounds", definition.bounds);
+                KeystoneInstance instance = new KeystoneInstance(definition,
+                        world == null ? new Location(null, x, y, z) : new Location(world, x, y, z),
+                        structBounds);
                 instance.progress = entry.getInt("progress");
                 instance.currentFrameIndex = entry.getInt("frameIndex");
                 instance.completed = entry.getBoolean("completed", false);
+                instance.setStructureManagerPlacement(entry.getBoolean("structureManagerPlacement", false));
                 map.put(definition.key, instance);
             }
             instances.put(UUID.fromString(worldKey), map);
@@ -508,10 +548,42 @@ public final class KeystoneManager {
         boolean processingFrame = false;
         boolean completed = false;
         boolean frameInitialized = false;
+        private int structureBounds;
+        private boolean structureManagerPlacement;
 
-        KeystoneInstance(KeystoneDefinition definition, Location location) {
+        KeystoneInstance(KeystoneDefinition definition, Location location, int structureBounds) {
             this.definition = definition;
             this.location = location;
+            updateStructureBounds(structureBounds);
+        }
+
+        int getStructureBounds() {
+            return structureBounds > 0 ? structureBounds : definition.bounds;
+        }
+
+        void updateStructureBounds(int bounds) {
+            if (bounds > 0) {
+                this.structureBounds = bounds;
+            } else if (this.structureBounds <= 0) {
+                this.structureBounds = definition.bounds;
+            }
+        }
+
+        void updateLocation(World world, int x, int y, int z) {
+            if (world != null) {
+                location.setWorld(world);
+            }
+            location.setX(x);
+            location.setY(y);
+            location.setZ(z);
+        }
+
+        void setStructureManagerPlacement(boolean value) {
+            this.structureManagerPlacement = value;
+        }
+
+        boolean isStructureManagerPlacement() {
+            return structureManagerPlacement;
         }
     }
 }

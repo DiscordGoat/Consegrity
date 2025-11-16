@@ -49,6 +49,9 @@ public final class PotionRegistry {
     private static final NamespacedKey KEY_TYPE = key("brew_type");
     private static final NamespacedKey KEY_ENCHANT = key("enchant_tier");
     private static final NamespacedKey KEY_SPLASH = key("is_splash");
+    private static final NamespacedKey KEY_LINGERING = key("is_lingering");
+    private static final NamespacedKey KEY_LINGERING_RADIUS = key("lingering_radius");
+    private static final NamespacedKey KEY_LINGERING_DURATION = key("lingering_duration");
     private static final NamespacedKey KEY_OVERRIDE_DURATION = key("override_duration");
     private static final NamespacedKey KEY_OVERRIDE_POTENCY = key("override_potency");
     private static final NamespacedKey KEY_OVERRIDE_CHARGES = key("override_charges");
@@ -799,10 +802,44 @@ public final class PotionRegistry {
     }
 
     public static ItemStack createResultItem(PotionDefinition definition, BrewType type, boolean splash, int enchantTier) {
+        return createResultItem(definition, type, splash, false, enchantTier, null, null);
+    }
+
+    public static ItemStack createResultItem(PotionDefinition definition,
+                                             BrewType type,
+                                             boolean splash,
+                                             boolean lingering,
+                                             int enchantTier) {
+        return createResultItem(definition, type, splash, lingering, enchantTier, null, null);
+    }
+
+    public static ItemStack createResultItem(PotionDefinition definition,
+                                             BrewType type,
+                                             boolean splash,
+                                             boolean lingering,
+                                             int enchantTier,
+                                             LingeringProfile profile) {
+        return createResultItem(definition, type, splash, lingering, enchantTier, profile, null);
+    }
+
+    public static ItemStack createResultItem(PotionDefinition definition,
+                                             BrewType type,
+                                             boolean splash,
+                                             boolean lingering,
+                                             int enchantTier,
+                                             LingeringProfile profile,
+                                             BrewModifiers modifiers) {
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(type, "type");
         int tier = Math.max(0, Math.min(3, enchantTier));
         FinalStats stats = computeFinalStats(definition.getStats(type), tier);
+        int baseCharges = stats.charges();
+        int baseDuration = stats.durationSeconds();
+        int basePotency = stats.potency();
+
+        int finalPotency = modifiers == null ? basePotency : modifiers.applyPotency(basePotency);
+        int finalDuration = modifiers == null ? baseDuration : modifiers.applyDuration(baseDuration);
+        int finalCharges = modifiers == null ? baseCharges : modifiers.applyCharges(baseCharges);
 
         ItemStack result = new ItemStack(Material.STONE_HOE);
         ItemMeta meta = result.getItemMeta();
@@ -810,12 +847,16 @@ public final class PotionRegistry {
             meta.setDisplayName(definition.getAccentColor() + definition.getDisplayName());
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS);
             meta.setUnbreakable(false);
-            writePotionData(meta, definition, type, tier, splash);
+            writePotionData(meta, definition, type, tier, splash, lingering, profile);
+            Integer durationOverride = finalDuration != baseDuration ? finalDuration : null;
+            Integer potencyOverride = finalPotency != basePotency ? finalPotency : null;
+            Integer chargesOverride = finalCharges != baseCharges ? finalCharges : null;
+            applyPotionOverrides(meta, durationOverride, potencyOverride, chargesOverride);
             result.setItemMeta(meta);
         }
 
         CustomDurabilityManager manager = CustomDurabilityManager.getInstance();
-        manager.setCustomDurability(result, stats.charges(), stats.charges());
+        manager.setCustomDurability(result, finalCharges, finalCharges);
         refreshPotionLore(result);
         return result;
     }
@@ -827,7 +868,18 @@ public final class PotionRegistry {
                                               int potency,
                                               int charges,
                                               int enchantTier) {
-        ItemStack result = createResultItem(definition, type, splash, Math.max(0, Math.min(3, enchantTier)));
+        return createAdminPotion(definition, type, splash, false, durationSeconds, potency, charges, enchantTier);
+    }
+
+    public static ItemStack createAdminPotion(PotionDefinition definition,
+                                              BrewType type,
+                                              boolean splash,
+                                              boolean lingering,
+                                              int durationSeconds,
+                                              int potency,
+                                              int charges,
+                                              int enchantTier) {
+        ItemStack result = createResultItem(definition, type, splash, lingering, Math.max(0, Math.min(3, enchantTier)), null, null);
         ItemMeta meta = result.getItemMeta();
         int safeDuration = Math.max(1, durationSeconds);
         int safePotency = Math.max(1, potency);
@@ -848,10 +900,63 @@ public final class PotionRegistry {
                                               int durationSeconds,
                                               int potency,
                                               int charges) {
-        return createAdminPotion(definition, type, splash, durationSeconds, potency, charges, 0);
+        return createAdminPotion(definition, type, splash, false, durationSeconds, potency, charges, 0);
     }
 
-    public static void writePotionData(ItemMeta meta, PotionDefinition definition, BrewType type, int enchantTier, boolean splash) {
+    public static void writePotionData(ItemMeta meta,
+                                       PotionDefinition definition,
+                                       BrewType type,
+                                       int enchantTier,
+                                       boolean splash) {
+        writePotionData(meta, definition, type, enchantTier, splash, false, null);
+    }
+
+    public static void writePotionData(ItemMeta meta,
+                                       PotionDefinition definition,
+                                       BrewType type,
+                                       int enchantTier,
+                                       boolean splash,
+                                       boolean lingering) {
+        writePotionData(meta, definition, type, enchantTier, splash, lingering, null);
+    }
+
+    public static void writePotionData(ItemMeta meta,
+                                       PotionDefinition definition,
+                                       BrewType type,
+                                       int enchantTier,
+                                       boolean splash,
+                                       boolean lingering,
+                                       LingeringProfile profile) {
+        writePotionDataInternal(meta, definition, type, enchantTier, splash, lingering, profile);
+    }
+
+    public static void writePotionData(ItemMeta meta, PotionDefinition definition, BrewType type, int enchantTier, boolean splash,
+                                       Integer durationOverride, Integer potencyOverride, Integer chargesOverride) {
+        writePotionData(meta, definition, type, enchantTier, splash, false, null);
+        applyPotionOverrides(meta, durationOverride, potencyOverride, chargesOverride);
+    }
+
+    public static void writePotionData(ItemMeta meta,
+                                       PotionDefinition definition,
+                                       BrewType type,
+                                       int enchantTier,
+                                       boolean splash,
+                                       boolean lingering,
+                                       LingeringProfile profile,
+                                       Integer durationOverride,
+                                       Integer potencyOverride,
+                                       Integer chargesOverride) {
+        writePotionData(meta, definition, type, enchantTier, splash, lingering, profile);
+        applyPotionOverrides(meta, durationOverride, potencyOverride, chargesOverride);
+    }
+
+    private static void writePotionDataInternal(ItemMeta meta,
+                                                PotionDefinition definition,
+                                                BrewType type,
+                                                int enchantTier,
+                                                boolean splash,
+                                                boolean lingering,
+                                                LingeringProfile profile) {
         if (meta == null || definition == null || type == null) {
             return;
         }
@@ -860,12 +965,14 @@ public final class PotionRegistry {
         container.set(KEY_TYPE, PersistentDataType.STRING, type.name());
         container.set(KEY_ENCHANT, PersistentDataType.INTEGER, Math.max(0, Math.min(3, enchantTier)));
         container.set(KEY_SPLASH, PersistentDataType.BYTE, (byte) (splash ? 1 : 0));
-    }
-
-    public static void writePotionData(ItemMeta meta, PotionDefinition definition, BrewType type, int enchantTier, boolean splash,
-                                       Integer durationOverride, Integer potencyOverride, Integer chargesOverride) {
-        writePotionData(meta, definition, type, enchantTier, splash);
-        applyPotionOverrides(meta, durationOverride, potencyOverride, chargesOverride);
+        container.set(KEY_LINGERING, PersistentDataType.BYTE, (byte) (lingering ? 1 : 0));
+        if (lingering && profile != null) {
+            container.set(KEY_LINGERING_RADIUS, PersistentDataType.INTEGER, Math.max(1, profile.radiusBlocks()));
+            container.set(KEY_LINGERING_DURATION, PersistentDataType.INTEGER, Math.max(1, profile.durationSeconds()));
+        } else {
+            container.remove(KEY_LINGERING_RADIUS);
+            container.remove(KEY_LINGERING_DURATION);
+        }
     }
 
     public static void applyPotionOverrides(ItemMeta meta, Integer durationOverride, Integer potencyOverride, Integer chargesOverride) {
@@ -894,7 +1001,8 @@ public final class PotionRegistry {
             int capped = Math.max(0, Math.min(3, newTier));
             ItemMeta meta = stack.getItemMeta();
             if (meta != null) {
-                writePotionData(meta, data.getDefinition(), data.getBrewType(), capped, data.isSplash(),
+                writePotionData(meta, data.getDefinition(), data.getBrewType(), capped, data.isSplash(), data.isLingering(),
+                        data.getLingeringProfile().orElse(null),
                         data.getDurationOverride(), data.getPotencyOverride(), data.getChargesOverride());
                 stack.setItemMeta(meta);
             }
@@ -934,7 +1042,10 @@ public final class PotionRegistry {
         if (meta == null) return;
 
         List<String> lore = new ArrayList<>();
-        lore.add(ChatColor.GRAY + (data.isSplash() ? "Splash Brew" : "Drinkable Brew"));
+        String brewTypeLabel = data.isLingering()
+                ? "Lingering Brew"
+                : (data.isSplash() ? "Splash Brew" : "Drinkable Brew");
+        lore.add(ChatColor.GRAY + brewTypeLabel);
         lore.add(ChatColor.DARK_GRAY + data.getBrewType().displayName());
         if (data.getEnchantTier() > 0) {
             lore.add(ChatColor.LIGHT_PURPLE + "Enchanted " + roman(data.getEnchantTier()));
@@ -1122,19 +1233,51 @@ public final class PotionRegistry {
 
     public record FinalStats(int charges, int durationSeconds, int potency) { }
 
+    public record LingeringProfile(int radiusBlocks, int durationSeconds) { }
+
+    public record BrewModifiers(int potencyBonus, double durationMultiplier, int extraCharges) {
+        public BrewModifiers {
+            durationMultiplier = durationMultiplier <= 0 ? 1.0 : durationMultiplier;
+        }
+
+        public boolean hasChanges() {
+            return potencyBonus != 0 || durationMultiplier != 1.0 || extraCharges != 0;
+        }
+
+        public int applyPotency(int base) {
+            return Math.max(1, base + potencyBonus);
+        }
+
+        public int applyDuration(int base) {
+            if (durationMultiplier == 1.0) {
+                return base;
+            }
+            double scaled = base * durationMultiplier;
+            return Math.max(1, (int) Math.round(scaled));
+        }
+
+        public int applyCharges(int base) {
+            return Math.max(1, base + extraCharges);
+        }
+    }
+
     public static final class PotionItemData {
         private final PotionDefinition definition;
         private final BrewType brewType;
         private final boolean splash;
+        private final boolean lingering;
         private final int enchantTier;
         private final Integer durationOverride;
         private final Integer potencyOverride;
         private final Integer chargesOverride;
         private final FinalStats finalStats;
+        private final LingeringProfile lingeringProfile;
 
         private PotionItemData(PotionDefinition definition,
                                BrewType brewType,
                                boolean splash,
+                               boolean lingering,
+                               LingeringProfile lingeringProfile,
                                int enchantTier,
                                Integer durationOverride,
                                Integer potencyOverride,
@@ -1142,6 +1285,8 @@ public final class PotionRegistry {
             this.definition = definition;
             this.brewType = brewType;
             this.splash = splash;
+            this.lingering = lingering;
+            this.lingeringProfile = lingeringProfile;
             this.enchantTier = enchantTier;
             this.durationOverride = sanitizeOverride(durationOverride);
             this.potencyOverride = sanitizeOverride(potencyOverride);
@@ -1166,12 +1311,20 @@ public final class PotionRegistry {
             return splash;
         }
 
+        public boolean isLingering() {
+            return lingering;
+        }
+
         public int getEnchantTier() {
             return enchantTier;
         }
 
         public FinalStats getFinalStats() {
             return finalStats;
+        }
+
+        public Optional<LingeringProfile> getLingeringProfile() {
+            return Optional.ofNullable(lingeringProfile);
         }
 
         public String getAccentColor() {
@@ -1212,6 +1365,9 @@ public final class PotionRegistry {
             String typeName = container.get(KEY_TYPE, PersistentDataType.STRING);
             Integer enchant = container.get(KEY_ENCHANT, PersistentDataType.INTEGER);
             Byte splash = container.get(KEY_SPLASH, PersistentDataType.BYTE);
+            Byte lingering = container.get(KEY_LINGERING, PersistentDataType.BYTE);
+            Integer radius = container.get(KEY_LINGERING_RADIUS, PersistentDataType.INTEGER);
+            Integer duration = container.get(KEY_LINGERING_DURATION, PersistentDataType.INTEGER);
 
             if (id == null || typeName == null) {
                 return Optional.empty();
@@ -1231,12 +1387,17 @@ public final class PotionRegistry {
 
             int enchantTier = enchant != null ? Math.max(0, Math.min(3, enchant)) : 0;
             boolean isSplash = splash != null && splash == 1;
+            boolean isLingering = lingering != null && lingering == 1;
+            LingeringProfile profile = null;
+            if (isLingering && radius != null && duration != null && radius > 0 && duration > 0) {
+                profile = new LingeringProfile(radius, duration);
+            }
 
             Integer durationOverride = container.get(KEY_OVERRIDE_DURATION, PersistentDataType.INTEGER);
             Integer potencyOverride = container.get(KEY_OVERRIDE_POTENCY, PersistentDataType.INTEGER);
             Integer chargesOverride = container.get(KEY_OVERRIDE_CHARGES, PersistentDataType.INTEGER);
 
-            return Optional.of(new PotionItemData(definition, brewType, isSplash, enchantTier,
+            return Optional.of(new PotionItemData(definition, brewType, isSplash, isLingering, profile, enchantTier,
                     durationOverride, potencyOverride, chargesOverride));
         }
     }

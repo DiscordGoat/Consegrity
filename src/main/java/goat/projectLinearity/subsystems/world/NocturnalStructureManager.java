@@ -1,6 +1,8 @@
 package goat.projectLinearity.subsystems.world;
 
 import goat.projectLinearity.ProjectLinearity;
+import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
+import goat.projectLinearity.subsystems.world.structure.StructureType;
 import goat.projectLinearity.util.SchemManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -38,13 +40,15 @@ public final class NocturnalStructureManager implements Listener {
     private final Map<String, NightRegistration> registrations = new java.util.LinkedHashMap<>();
     private final Map<NightRegistration, Set<StructureInstance>> structures = new java.util.LinkedHashMap<>();
     private final SchemManager schemManager;
+    private final LootPopulatorManager lootPopulatorManager;
     private BukkitTask maintenanceTask;
     private boolean dirty;
 
-    public NocturnalStructureManager(ProjectLinearity plugin) {
+    public NocturnalStructureManager(ProjectLinearity plugin, LootPopulatorManager lootPopulatorManager) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.dataFile = new File(plugin.getDataFolder(), "nocturnal_structures.yml");
         this.schemManager = new SchemManager(plugin);
+        this.lootPopulatorManager = Objects.requireNonNull(lootPopulatorManager, "lootPopulatorManager");
     }
 
     public void registerStruct(String schem, int bounds, int count, int spacing) {
@@ -231,6 +235,7 @@ public final class NocturnalStructureManager implements Listener {
         try {
             schemManager.placeStructure(registration.schemName, pasteLocation, false);
             instance.placed = true;
+            populateStructureLoot(registration, pasteLocation);
             return true;
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "Failed to paste nocturnal structure '" + registration.schemName + "' at " + pasteLocation + ": " + t.getMessage());
@@ -328,6 +333,26 @@ public final class NocturnalStructureManager implements Listener {
         }
         save();
         dirty = false;
+    }
+
+    private void populateStructureLoot(NightRegistration registration, Location origin) {
+        if (registration == null || origin == null) {
+            return;
+        }
+        if (!shouldPopulateWithGlobalLoot(registration)) {
+            return;
+        }
+        int bounds = Math.max(registration.width, registration.depth);
+        try {
+            lootPopulatorManager.handleStructurePlacementWithGlobalLoot(registration.schemName, origin.clone(), bounds);
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "Failed to populate loot for nocturnal structure '" + registration.schemName + "' at " + origin, t);
+        }
+    }
+
+    private boolean shouldPopulateWithGlobalLoot(NightRegistration registration) {
+        StructureType type = StructureType.fromKey(registration.schemName);
+        return type == StructureType.HAY_WAGON;
     }
 
     private void save() {

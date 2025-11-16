@@ -21,6 +21,7 @@ import goat.projectLinearity.subsystems.mechanics.spaces.SpaceEventListener;
 import goat.projectLinearity.subsystems.mechanics.spaces.SpaceManager;
 import goat.projectLinearity.subsystems.mechanics.spaces.SpacePresenceListener;
 import goat.projectLinearity.subsystems.mining.MiningOxygenManager;
+import goat.projectLinearity.subsystems.mining.QuartzOreDropListener;
 import goat.projectLinearity.subsystems.trading.VillagerTradeManager;
 import goat.projectLinearity.commands.SaveInventoryCommand;
 import goat.projectLinearity.commands.StructureDebugCommand;
@@ -33,6 +34,7 @@ import goat.projectLinearity.libs.mutation.ThreeHeadedFireballListener;
 import goat.projectLinearity.subsystems.world.PortalReturnManager;
 import goat.projectLinearity.subsystems.world.desert.CurseManager;
 import goat.projectLinearity.subsystems.world.loot.HeirloomManager;
+import goat.projectLinearity.subsystems.world.loot.LootChestOpenListener;
 import goat.projectLinearity.subsystems.world.loot.LootPopulatorManager;
 import goat.projectLinearity.subsystems.world.loot.LootRegistry;
 import goat.projectLinearity.util.CustomEntityRegistry;
@@ -49,7 +51,9 @@ import goat.projectLinearity.subsystems.brewing.NauseaProjectileListener;
 import goat.projectLinearity.subsystems.brewing.CustomPotionEffectManager;
 import goat.projectLinearity.subsystems.brewing.PotionGuiManager;
 import goat.projectLinearity.subsystems.brewing.PotionUsageListener;
+import goat.projectLinearity.subsystems.brewing.LingeringHazardManager;
 import goat.projectLinearity.subsystems.world.ConsegritySpawnListener;
+import goat.projectLinearity.subsystems.world.ConsegrityChunkGenerator;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiBehaviour;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDamageListener;
 import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiDeathListener;
@@ -57,6 +61,7 @@ import goat.projectLinearity.subsystems.world.samurai.CherrySamuraiSpawnListener
 import goat.projectLinearity.subsystems.world.samurai.SamuraiPopulationManager;
 import goat.projectLinearity.subsystems.mechanics.RegionTitleListener;
 import goat.projectLinearity.subsystems.mechanics.MountainMobSpawnBlocker;
+import goat.projectLinearity.subsystems.mechanics.combat.QuickfireFinisherManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneManager;
 import goat.projectLinearity.subsystems.world.structure.KeystoneListener;
 import goat.projectLinearity.subsystems.world.NocturnalStructureManager;
@@ -92,6 +97,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
 
 public final class ProjectLinearity extends JavaPlugin implements Listener {
 
@@ -137,8 +143,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     private CurseManager curseManager;
     private TablistManager tablistManager;
     private DamageDisplayManager damageDisplayManager;
+    private QuickfireFinisherManager quickfireFinisherManager;
     private CurseEffectController curseEffectController;
     private PotionGuiManager potionGuiManager;
+    private LingeringHazardManager lingeringHazardManager;
     private CustomPotionEffectManager customPotionEffectManager;
     private CustomPotionCombatListener customPotionCombatListener;
     private BonusJumpManager bonusJumpManager;
@@ -174,6 +182,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new TreeFellingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropPlantingListener(), this);
         Bukkit.getPluginManager().registerEvents(new CropHarvestListener(), this);
+        Bukkit.getPluginManager().registerEvents(new QuartzOreDropListener(), this);
 
         miningOxygenManager = new MiningOxygenManager(this, spaceManager);
         sidebarManager = new SidebarManager(this, spaceManager, miningOxygenManager);
@@ -189,8 +198,11 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
             getLogger().warning("Unable to create plugin data folder.");
         }
+        // Kick world creation to the next tick so Bukkit finishes bootstrapping its default worlds first.
+        Bukkit.getScheduler().runTask(this, this::ensureConsegrityWorldLoaded);
         lootRegistry = new LootRegistry(this);
         lootPopulatorManager = new LootPopulatorManager(this, lootRegistry);
+        Bukkit.getPluginManager().registerEvents(new LootChestOpenListener(this), this);
 
         particleEngine = new ParticleEngine(this);
         mutationManager = new MutationManager(this, particleEngine);
@@ -218,7 +230,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(cherrySamuraiDamageListener, this);
         mountainMobSpawnBlocker = new MountainMobSpawnBlocker(cultistPopulationManager);
         Bukkit.getPluginManager().registerEvents(mountainMobSpawnBlocker, this);
-        nocturnalStructureManager = new NocturnalStructureManager(this);
+        nocturnalStructureManager = new NocturnalStructureManager(this, lootPopulatorManager);
         nocturnalStructureManager.registerStruct("haywagon", 5, 8, 200);
         nocturnalStructureManager.startup();
         customEntityRegistry = new CustomEntityRegistry(this);
@@ -230,12 +242,15 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         curseManager = new CurseManager(this);
 
         damageDisplayManager = new DamageDisplayManager(this);
+        quickfireFinisherManager = new QuickfireFinisherManager(this);
+        Bukkit.getPluginManager().registerEvents(quickfireFinisherManager, this);
         // Initialize tablist manager for curse display
         tablistManager = new TablistManager(this, curseManager);
         curseManager.setTablistManager(tablistManager);
         customPotionEffectManager = new CustomPotionEffectManager(this, tablistManager, damageDisplayManager);
         tablistManager.setPotionEffectManager(customPotionEffectManager);
-        new PotionUsageListener(this, customPotionEffectManager);
+        lingeringHazardManager = new LingeringHazardManager(this, customPotionEffectManager);
+        new PotionUsageListener(this, customPotionEffectManager, lingeringHazardManager);
         customPotionCombatListener = new CustomPotionCombatListener(this, customPotionEffectManager);
         bonusJumpManager = new BonusJumpManager(this);
         nauseaProjectileListener = new NauseaProjectileListener(this, customPotionEffectManager);
@@ -338,7 +353,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
 
         try {
             structureManager.registerStruct("jungletemple", 24, 7, 100, new JungleSector(), GenCheckType.SURFACE, true, 300);
-            structureManager.registerStruct("deserttemple", 30, 6, 200, new DesertBiome(), GenCheckType.SURFACE, true, 100);
+            structureManager.registerStruct("deserttemple", 30, 4, 200, new DesertBiome(), GenCheckType.SURFACE, true, 100);
             structureManager.registerStruct("witchhut", 9, 8, 150, new SwampSector(), GenCheckType.SURFACE, true, 250);
             structureManager.registerStruct("witchfestival", 60, 1, 200, new SwampSector(), GenCheckType.SURFACE, true, 300);
             structureManager.registerStruct("monastery", 30, 1, 100, new CherrySector(), GenCheckType.SURFACE, true, 500);
@@ -434,6 +449,30 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         particleEngine = new ParticleEngine(this);
     }
 
+    private void ensureConsegrityWorldLoaded() {
+        String worldName = RegenerateCommand.WORLD_NAME;
+        try {
+            World existing = Bukkit.getWorld(worldName);
+            if (existing != null) {
+                return;
+            }
+            WorldCreator creator = new WorldCreator(worldName);
+            creator.generateStructures(false);
+            creator.generator(new ConsegrityChunkGenerator());
+            World created = Bukkit.createWorld(creator);
+            if (created == null) {
+                getLogger().warning("[Consegrity] Unable to load world '" + worldName + "' (Bukkit returned null).");
+                return;
+            }
+            try {
+                created.setKeepSpawnInMemory(false);
+            } catch (Throwable ignored) {}
+            getLogger().info("[Consegrity] Loaded world '" + worldName + "'.");
+        } catch (Throwable t) {
+            getLogger().log(Level.WARNING, "Failed to load Consegrity world '" + worldName + "'", t);
+        }
+    }
+
     private void registerStructureEntities() {
         if (structureEntityManager == null) {
             return;
@@ -441,6 +480,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
         structureEntityManager.registerStructureEntities(StructureType.DESERT_TEMPLE, EntityType.HUSK, 15, 15, 22, 1);
         structureEntityManager.registerStructureEntities(StructureType.MONUMENT, EntityType.GUARDIAN, 14, 26, 50, 2);
         structureEntityManager.registerStructureEntities(StructureType.WITCH_HUT, EntityType.WITCH, 4, 4, 10, 1);
+        structureEntityManager.registerStructureEntities(StructureType.WITCH_FESTIVAL, EntityType.WITCH, 12, 16, 20, 1);
         structureEntityManager.registerStructureEntities(StructureType.BEEHHIVE, EntityType.BEE, 4, 4, 10, 1);
     }
 
@@ -1157,6 +1197,10 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
             HandlerList.unregisterAll(nauseaProjectileListener);
             nauseaProjectileListener = null;
         }
+        if (lingeringHazardManager != null) {
+            lingeringHazardManager.shutdown();
+            lingeringHazardManager = null;
+        }
         if (customPotionEffectManager != null) {
             customPotionEffectManager.shutdown();
         }
@@ -1180,6 +1224,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     }
 
     public StructureManager getStructureManager() { return structureManager; }
+    public LootPopulatorManager getLootPopulatorManager() { return lootPopulatorManager; }
     public boolean isRegenInProgress() { return regenInProgress; }
     public void setRegenInProgress(boolean inProgress) { this.regenInProgress = inProgress; }
     public SpaceManager getSpaceManager() { return spaceManager; }
@@ -1187,6 +1232,7 @@ public final class ProjectLinearity extends JavaPlugin implements Listener {
     public MiningOxygenManager getMiningOxygenManager() { return miningOxygenManager; }
     public EnchantedManager getEnchantedManager() { return enchantedManager; }
     public PotionGuiManager getPotionGuiManager() { return potionGuiManager; }
+    public LingeringHazardManager getLingeringHazardManager() { return lingeringHazardManager; }
     public CultistPopulationManager getCultistPopulationManager() { return cultistPopulationManager; }
     public SamuraiPopulationManager getSamuraiPopulationManager() { return samuraiPopulationManager; }
     public CherrySamuraiBehaviour getCherrySamuraiBehaviour() { return cherrySamuraiBehaviour; }

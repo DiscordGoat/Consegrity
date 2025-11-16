@@ -884,6 +884,20 @@ public class ArcticChunkGenerator extends ChunkGenerator {
         return Math.max(0.05, d);
     }
 
+
+    public int getMinimumY() {
+        return AUDIT_Y_MIN;
+    }
+
+
+    public int getMaximumY() {
+        return AUDIT_Y_MAX;
+    }
+
+    public int getWorldHeight() {
+        return AUDIT_Y_MAX - AUDIT_Y_MIN + 1;
+    }
+
     // --- Noise helpers ---
     private static long hash(long seed, long x, long y, long z, long salt) {
         long h = seed ^ salt;

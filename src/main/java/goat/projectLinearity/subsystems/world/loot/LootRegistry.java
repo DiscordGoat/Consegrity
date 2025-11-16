@@ -208,12 +208,12 @@ public final class LootRegistry {
             return primaryKey;
         }
 
-        public List<ItemStack[]> pickTemplates(int count, Random random) {
+        public List<LootInventory> pickInventories(int count, Random random) {
             if (count <= 0) return Collections.emptyList();
-            List<ItemStack[]> results = new ArrayList<>(count);
+            List<LootInventory> results = new ArrayList<>(count);
             List<LootInventory> pool = new ArrayList<>();
             if (inventories.isEmpty()) {
-                pool.add(new LootInventory("__generated__", generatePlaceholderInventory(), true));
+                pool.add(new LootInventory(directoryName, "__generated__", generatePlaceholderInventory(), true));
             } else {
                 pool.addAll(inventories);
             }
@@ -228,7 +228,7 @@ public final class LootRegistry {
                 } else {
                     chosen = pool.get(random.nextInt(pool.size()));
                 }
-                results.add(cloneContents(chosen.contents()));
+                results.add(chosen);
             }
             return results;
         }
@@ -244,14 +244,14 @@ public final class LootRegistry {
                 for (File file : files) {
                     try {
                         ItemStack[] contents = InventorySerializer.load(file);
-                        inventories.add(new LootInventory(file.getName(), contents, false));
+                        inventories.add(new LootInventory(directoryName, file.getName(), contents, false));
                     } catch (Exception ex) {
                         plugin.getLogger().log(Level.WARNING, "[LootRegistry] Failed loading loot inventory " + file.getName(), ex);
                     }
                 }
             }
             if (inventories.isEmpty()) {
-                inventories.add(new LootInventory("__generated__", generatePlaceholderInventory(), true));
+                inventories.add(new LootInventory(directoryName, "__generated__", generatePlaceholderInventory(), true));
             }
         }
 
@@ -299,11 +299,13 @@ public final class LootRegistry {
     }
 
     public static final class LootInventory {
+        private final String directoryName;
         private final String id;
         private final ItemStack[] contents;
         private final boolean generated;
 
-        private LootInventory(String id, ItemStack[] contents, boolean generated) {
+        private LootInventory(String directoryName, String id, ItemStack[] contents, boolean generated) {
+            this.directoryName = directoryName;
             this.id = id;
             this.contents = contents;
             this.generated = generated;
@@ -320,14 +322,13 @@ public final class LootRegistry {
         public boolean generated() {
             return generated;
         }
-    }
 
-    private static ItemStack[] cloneContents(ItemStack[] contents) {
-        ItemStack[] clone = new ItemStack[contents.length];
-        for (int i = 0; i < contents.length; i++) {
-            ItemStack item = contents[i];
-            clone[i] = item == null ? null : item.clone();
+        public String directoryName() {
+            return directoryName;
         }
-        return clone;
+
+        public String describe() {
+            return directoryName + "/" + id;
+        }
     }
 }
